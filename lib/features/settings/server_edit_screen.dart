@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../app/providers.dart';
 import '../../backends/kavita/kavita_backend.dart';
 import '../../backends/komga/komga_backend.dart';
+import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/backend/reader_backend.dart';
 
 class ServerEditScreen extends ConsumerStatefulWidget {
@@ -82,20 +83,20 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
     });
 
     final config = _buildConfig('__test__');
-    final backend = _type == ServerType.komga
-        ? KomgaBackend(config: config, password: _passwordController.text)
-        : KavitaBackend(config: config, password: _passwordController.text);
+    final backend = switch (_type) {
+      ServerType.komga =>
+        KomgaBackend(config: config, password: _passwordController.text),
+      ServerType.kavita =>
+        KavitaBackend(config: config, password: _passwordController.text),
+      ServerType.suwayomi =>
+        SuwayomiBackend(config: config, password: _passwordController.text),
+    };
 
     try {
       await backend.authenticate();
       setState(() {
         _testOk = true;
         _testResult = 'Connected successfully.';
-      });
-    } on BackendNotImplemented {
-      setState(() {
-        _testOk = null;
-        _testResult = 'Kavita support lands in Phase 3 - can\'t test yet.';
       });
     } catch (e) {
       setState(() {
@@ -140,6 +141,8 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
               segments: const [
                 ButtonSegment(value: ServerType.komga, label: Text('Komga')),
                 ButtonSegment(value: ServerType.kavita, label: Text('Kavita')),
+                ButtonSegment(
+                    value: ServerType.suwayomi, label: Text('Suwayomi')),
               ],
               selected: {_type},
               onSelectionChanged: (s) => setState(() => _type = s.first),
@@ -169,16 +172,29 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _usernameController,
-              decoration: const InputDecoration(labelText: 'Username / email'),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+              decoration: InputDecoration(
+                labelText: _type == ServerType.suwayomi
+                    ? 'Username / email (unused - no auth)'
+                    : 'Username / email',
+              ),
+              validator: (v) => _type != ServerType.suwayomi &&
+                      (v == null || v.trim().isEmpty)
+                  ? 'Required'
+                  : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _passwordController,
-              decoration: const InputDecoration(labelText: 'Password'),
+              decoration: InputDecoration(
+                labelText: _type == ServerType.suwayomi
+                    ? 'Password (unused - no auth)'
+                    : 'Password',
+              ),
               obscureText: true,
-              validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+              validator: (v) => _type != ServerType.suwayomi &&
+                      (v == null || v.isEmpty)
+                  ? 'Required'
+                  : null,
             ),
             const SizedBox(height: 20),
             OutlinedButton.icon(

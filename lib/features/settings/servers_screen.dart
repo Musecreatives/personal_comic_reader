@@ -23,11 +23,11 @@ class ServersScreen extends ConsumerWidget {
                 final server = servers[index];
                 final isActive = server.id == activeId;
                 return ListTile(
-                  leading: Icon(
-                    server.type == ServerType.komga
-                        ? Icons.local_library
-                        : Icons.menu_book,
-                  ),
+                  leading: Icon(switch (server.type) {
+                    ServerType.komga => Icons.local_library,
+                    ServerType.kavita => Icons.menu_book,
+                    ServerType.suwayomi => Icons.auto_stories,
+                  }),
                   title: Text(server.name),
                   subtitle: Text('${server.type.name} • ${server.baseUrl}'),
                   trailing: isActive

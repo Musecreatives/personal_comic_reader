@@ -2,7 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backends/kavita/kavita_backend.dart';
 import '../backends/komga/komga_backend.dart';
+import '../backends/suwayomi/suwayomi_backend.dart';
 import '../core/backend/reader_backend.dart';
+import '../core/kapowarr/kapowarr_config.dart';
+import '../core/kapowarr/kapowarr_config_store.dart';
 import '../core/reader/page_cache.dart';
 import '../core/reader/progress_sync.dart';
 import '../core/reader/reader_settings_store.dart';
@@ -47,6 +50,8 @@ final activeBackendProvider = FutureProvider<ReaderBackend?>((ref) async {
       return KomgaBackend(config: config, password: password);
     case ServerType.kavita:
       return KavitaBackend(config: config, password: password);
+    case ServerType.suwayomi:
+      return SuwayomiBackend(config: config, password: password);
   }
 });
 
@@ -66,4 +71,18 @@ final progressSyncProvider = Provider<ProgressSync>((ref) {
 /// Set once in main() after PageCache.init() completes.
 final pageCacheProvider = Provider<PageCache>((ref) {
   throw UnimplementedError('pageCacheProvider must be overridden in main()');
+});
+
+/// Set once in main() after KapowarrConfigStore.init() completes.
+final kapowarrConfigStoreProvider = Provider<KapowarrConfigStore>((ref) {
+  throw UnimplementedError(
+      'kapowarrConfigStoreProvider must be overridden in main()');
+});
+
+/// Bump after saving/clearing the Kapowarr config so watchers refetch.
+final kapowarrConfigRevisionProvider = StateProvider<int>((ref) => 0);
+
+final kapowarrConfigProvider = FutureProvider<KapowarrConfig?>((ref) {
+  ref.watch(kapowarrConfigRevisionProvider);
+  return ref.watch(kapowarrConfigStoreProvider).getWithApiKey();
 });
