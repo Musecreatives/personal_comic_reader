@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backends/kavita/kavita_backend.dart';
 import '../backends/komga/komga_backend.dart';
 import '../core/backend/reader_backend.dart';
+import '../core/reader/page_cache.dart';
+import '../core/reader/progress_sync.dart';
+import '../core/reader/reader_settings_store.dart';
 import '../core/storage/server_store.dart';
 
 /// Set once in main() after ServerStore.init() completes.
@@ -45,4 +48,22 @@ final activeBackendProvider = FutureProvider<ReaderBackend?>((ref) async {
     case ServerType.kavita:
       return KavitaBackend(config: config, password: password);
   }
+});
+
+/// Set once in main() after ReaderSettingsStore.init() completes.
+final readerSettingsStoreProvider = Provider<ReaderSettingsStore>((ref) {
+  throw UnimplementedError(
+      'readerSettingsStoreProvider must be overridden in main()');
+});
+
+/// Set once in main() after ProgressSync.init() completes. Lives for the
+/// whole app so its debounce timer and offline queue survive navigating
+/// away from and back into the reader.
+final progressSyncProvider = Provider<ProgressSync>((ref) {
+  throw UnimplementedError('progressSyncProvider must be overridden in main()');
+});
+
+/// Set once in main() after PageCache.init() completes.
+final pageCacheProvider = Provider<PageCache>((ref) {
+  throw UnimplementedError('pageCacheProvider must be overridden in main()');
 });

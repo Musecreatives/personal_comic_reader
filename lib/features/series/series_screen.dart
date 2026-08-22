@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
@@ -177,12 +178,7 @@ class _BookList extends StatelessWidget {
           trailing: book.completed
               ? const Icon(Icons.check_circle, size: 20)
               : null,
-          onTap: () {
-            // Reader route lands in Phase 2.
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Reader arrives in Phase 2')),
-            );
-          },
+          onTap: () => context.push('/read/${book.id}'),
         );
       },
     );
