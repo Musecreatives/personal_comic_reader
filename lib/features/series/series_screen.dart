@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import '../../core/downloads/download_models.dart';
 import '../shared/series_cover.dart';
 
 class SeriesScreen extends ConsumerWidget {
@@ -30,17 +31,17 @@ class SeriesScreen extends ConsumerWidget {
   }
 }
 
-class _SeriesDetail extends StatefulWidget {
+class _SeriesDetail extends ConsumerStatefulWidget {
   final ReaderBackend backend;
   final String seriesId;
 
   const _SeriesDetail({required this.backend, required this.seriesId});
 
   @override
-  State<_SeriesDetail> createState() => _SeriesDetailState();
+  ConsumerState<_SeriesDetail> createState() => _SeriesDetailState();
 }
 
-class _SeriesDetailState extends State<_SeriesDetail> {
+class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
   late Future<Series> _seriesFuture;
   late Future<List<Book>> _booksFuture;
 
@@ -51,10 +52,18 @@ class _SeriesDetailState extends State<_SeriesDetail> {
     _booksFuture = widget.backend.listBooks(widget.seriesId);
   }
 
+  Future<void> _downloadSeries(Series series) async {
+    final books = await _booksFuture;
+    await ref.read(downloadManagerProvider).enqueueBooks(
+        widget.backend, books, widget.seriesId, series.title);
+  }
+
   @override
   Widget build(BuildContext context) {
     final headers = widget.backend.imageHeaders;
     final wide = MediaQuery.of(context).size.width > 700;
+    final tasksAsync = ref.watch(downloadQueueProvider);
+    final tasks = tasksAsync.valueOrNull ?? const <DownloadTask>[];
 
     return Scaffold(
       body: FutureBuilder<Series>(
@@ -83,14 +92,38 @@ class _SeriesDetailState extends State<_SeriesDetail> {
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
-              return _BookList(books: snapshot.data!, headers: headers);
+              return _BookList(
+                books: snapshot.data!,
+                headers: headers,
+                tasks: tasks,
+                onDownloadBook: (book) => ref.read(downloadManagerProvider).enqueueBook(
+                      widget.backend,
+                      bookId: book.id,
+                      seriesId: widget.seriesId,
+                      seriesTitle: series.title,
+                      title: book.title,
+                      totalPages: book.pageCount,
+                    ),
+              );
             },
+          );
+
+          final appBar = SliverAppBar(
+            title: Text(series.title),
+            pinned: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.download_outlined),
+                tooltip: 'Download series',
+                onPressed: () => _downloadSeries(series),
+              ),
+            ],
           );
 
           if (wide) {
             return CustomScrollView(
               slivers: [
-                SliverAppBar(title: Text(series.title), pinned: true),
+                appBar,
                 SliverToBoxAdapter(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,7 +139,7 @@ class _SeriesDetailState extends State<_SeriesDetail> {
 
           return CustomScrollView(
             slivers: [
-              SliverAppBar(title: Text(series.title), pinned: true),
+              appBar,
               SliverToBoxAdapter(child: header),
               SliverToBoxAdapter(child: bookList),
             ],
@@ -157,8 +190,15 @@ class _SeriesHeader extends StatelessWidget {
 class _BookList extends StatelessWidget {
   final List<Book> books;
   final Map<String, String> headers;
+  final List<DownloadTask> tasks;
+  final ValueChanged<Book> onDownloadBook;
 
-  const _BookList({required this.books, required this.headers});
+  const _BookList({
+    required this.books,
+    required this.headers,
+    required this.tasks,
+    required this.onDownloadBook,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +208,7 @@ class _BookList extends StatelessWidget {
       itemCount: books.length,
       itemBuilder: (context, i) {
         final book = books[i];
+        final task = tasks.where((t) => t.bookId == book.id).firstOrNull;
         return ListTile(
           leading: SizedBox(
             width: 40,
@@ -184,12 +225,50 @@ class _BookList extends StatelessWidget {
             backgroundColor:
                 Theme.of(context).colorScheme.surfaceContainerHighest,
           ),
-          trailing: book.completed
-              ? const Icon(Icons.check_circle, size: 20)
-              : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (book.completed)
+                const Icon(Icons.check_circle, size: 20)
+              else if (task != null)
+                _DownloadStateIcon(task: task)
+              else
+                IconButton(
+                  icon: const Icon(Icons.download_outlined, size: 20),
+                  onPressed: () => onDownloadBook(book),
+                ),
+            ],
+          ),
           onTap: () => context.push('/read/${book.id}'),
         );
       },
     );
+  }
+}
+
+class _DownloadStateIcon extends StatelessWidget {
+  final DownloadTask task;
+  const _DownloadStateIcon({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (task.state) {
+      case DownloadState.done:
+        return const Icon(Icons.download_done, size: 20);
+      case DownloadState.failed:
+        return const Icon(Icons.error_outline, size: 20, color: Colors.redAccent);
+      case DownloadState.paused:
+        return const Icon(Icons.pause_circle_outline, size: 20);
+      case DownloadState.queued:
+      case DownloadState.running:
+        return SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            value: task.progress == 0 ? null : task.progress,
+          ),
+        );
+    }
   }
 }

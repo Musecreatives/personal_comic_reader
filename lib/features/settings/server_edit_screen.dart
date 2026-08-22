@@ -33,6 +33,20 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
 
   bool get _isEditing => widget.serverId != null;
 
+  /// When the PWA is itself served from reader.shaddai.home (see
+  /// deploy/Caddyfile.snippet), a Caddy reverse proxy makes Komga and
+  /// Kavita reachable same-origin under /komga and /kavita - avoiding the
+  /// browser CORS restriction that a bare Tailscale IP always hits. Direct
+  /// IP entry still works fine for local dev.
+  String? _sameOriginDefaultUrl(ServerType type) {
+    if (Uri.base.host != 'reader.shaddai.home') return null;
+    return switch (type) {
+      ServerType.komga => '${Uri.base.origin}/komga',
+      ServerType.kavita => '${Uri.base.origin}/kavita',
+      ServerType.suwayomi => null,
+    };
+  }
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +62,9 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
             .getPassword(existing.id)
             .then((p) => _passwordController.text = p ?? '');
       }
+    } else {
+      final defaultUrl = _sameOriginDefaultUrl(_type);
+      if (defaultUrl != null) _urlController.text = defaultUrl;
     }
   }
 
@@ -145,7 +162,14 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
                     value: ServerType.suwayomi, label: Text('Suwayomi')),
               ],
               selected: {_type},
-              onSelectionChanged: (s) => setState(() => _type = s.first),
+              onSelectionChanged: (s) => setState(() {
+                final wasDefault = _urlController.text.isEmpty ||
+                    _urlController.text == _sameOriginDefaultUrl(_type);
+                _type = s.first;
+                if (!_isEditing && wasDefault) {
+                  _urlController.text = _sameOriginDefaultUrl(_type) ?? '';
+                }
+              }),
             ),
             const SizedBox(height: 16),
             TextFormField(

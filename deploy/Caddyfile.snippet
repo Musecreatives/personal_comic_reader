@@ -1,0 +1,41 @@
+# Append this block to /home/server/docker/caddy/Caddyfile, then reload
+# Caddy (`docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`
+# or restart the container).
+#
+# Serves the built Flutter web app at reader.shaddai.home, and reverse-
+# proxies /komga and /kavita same-origin so the browser never has to make
+# a cross-origin request to the bare Tailscale IP (which Komga/Kavita
+# don't send CORS headers for - see CHANGELOG Phase 2/3 for what that
+# looks like when it's missing).
+#
+# `tls internal` issues a locally-trusted cert since this is a private
+# Tailscale-only hostname, not a publicly resolvable domain.
+
+reader.shaddai.home {
+    tls internal
+    root * /srv/reader
+    encode gzip
+
+    handle_path /komga/* {
+        reverse_proxy 100.108.109.63:8081
+    }
+    handle_path /kavita/* {
+        reverse_proxy 100.108.109.63:5000
+    }
+
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+}
+
+# Notes:
+# - /srv/reader must be bind-mounted from the sites dir in the Caddy
+#   compose service, e.g.:
+#     volumes:
+#       - /home/server/docker/caddy/sites/reader:/srv/reader:ro
+# - The reverse_proxy targets above hit Komga/Kavita directly by Tailscale
+#   IP:port, which works from any network Caddy can reach without extra
+#   setup. If Caddy instead joins the comics-manga compose network, you
+#   can swap in the container/service names (e.g. `reverse_proxy komga:25600`)
+#   for one less network hop - not required, just an option.

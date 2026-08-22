@@ -24,6 +24,20 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/kapowarr'),
           ),
+          ListTile(
+            leading: const Icon(Icons.downloading_outlined),
+            title: const Text('Downloads'),
+            subtitle: const Text('Queue, pause/resume, Wi-Fi-only'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/downloads'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.storage_outlined),
+            title: const Text('Storage'),
+            subtitle: const Text('Downloaded size per series, clear cache'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/storage'),
+          ),
         ],
       ),
     );
