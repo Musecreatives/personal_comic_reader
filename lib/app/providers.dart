@@ -4,6 +4,9 @@ import '../backends/kavita/kavita_backend.dart';
 import '../backends/komga/komga_backend.dart';
 import '../backends/suwayomi/suwayomi_backend.dart';
 import '../core/backend/reader_backend.dart';
+import '../core/downloads/download_manager.dart';
+import '../core/downloads/download_models.dart';
+import '../core/downloads/download_store.dart';
 import '../core/kapowarr/kapowarr_config.dart';
 import '../core/kapowarr/kapowarr_config_store.dart';
 import '../core/reader/page_cache.dart';
@@ -85,4 +88,26 @@ final kapowarrConfigRevisionProvider = StateProvider<int>((ref) => 0);
 final kapowarrConfigProvider = FutureProvider<KapowarrConfig?>((ref) {
   ref.watch(kapowarrConfigRevisionProvider);
   return ref.watch(kapowarrConfigStoreProvider).getWithApiKey();
+});
+
+/// Set once in main() after DownloadStore.init() completes.
+final downloadStoreProvider = Provider<DownloadStore>((ref) {
+  throw UnimplementedError('downloadStoreProvider must be overridden in main()');
+});
+
+/// Set once in main() - lives for the whole app so downloads keep running
+/// across navigation.
+final downloadManagerProvider = Provider<DownloadManager>((ref) {
+  throw UnimplementedError('downloadManagerProvider must be overridden in main()');
+});
+
+/// The live download queue, re-emitted every time [DownloadManager] reports
+/// a change (progress tick, state change, enqueue, cancel...).
+final downloadQueueProvider = StreamProvider<List<DownloadTask>>((ref) async* {
+  final manager = ref.watch(downloadManagerProvider);
+  final store = ref.watch(downloadStoreProvider);
+  yield store.listTasks();
+  await for (final _ in manager.changes) {
+    yield store.listTasks();
+  }
 });
