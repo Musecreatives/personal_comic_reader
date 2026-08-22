@@ -1,6 +1,8 @@
 import 'package:go_router/go_router.dart';
 
 import '../features/home/home_screen.dart';
+import '../features/kapowarr/kapowarr_settings_screen.dart';
+import '../features/kapowarr/kapowarr_status_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/reader/reader_screen.dart';
 import '../features/series/series_screen.dart';
@@ -46,6 +48,14 @@ final appRouter = GoRouter(
       path: '/settings/servers/:id/edit',
       builder: (context, state) =>
           ServerEditScreen(serverId: state.pathParameters['id']),
+    ),
+    GoRoute(
+      path: '/settings/kapowarr',
+      builder: (context, state) => const KapowarrStatusScreen(),
+    ),
+    GoRoute(
+      path: '/settings/kapowarr/edit',
+      builder: (context, state) => const KapowarrSettingsScreen(),
     ),
   ],
 );
