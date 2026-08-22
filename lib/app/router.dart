@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/home/home_screen.dart';
 import '../features/library/library_screen.dart';
+import '../features/reader/reader_screen.dart';
 import '../features/series/series_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/servers_screen.dart';
@@ -20,6 +21,16 @@ final appRouter = GoRouter(
       path: '/series/:id',
       builder: (context, state) =>
           SeriesScreen(seriesId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/read/:bookId',
+      builder: (context, state) {
+        final pageParam = state.uri.queryParameters['page'];
+        return ReaderScreen(
+          bookId: state.pathParameters['bookId']!,
+          initialPage: pageParam == null ? null : int.tryParse(pageParam),
+        );
+      },
     ),
     GoRoute(
         path: '/settings', builder: (context, state) => const SettingsScreen()),
