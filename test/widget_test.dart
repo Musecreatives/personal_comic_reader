@@ -29,7 +29,7 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: buildAppTheme(),
-          routerConfig: appRouter,
+          routerConfig: buildRouter(),
         ),
       ),
     );

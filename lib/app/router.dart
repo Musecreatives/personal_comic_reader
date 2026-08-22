@@ -1,5 +1,7 @@
 import 'package:go_router/go_router.dart';
 
+import '../features/downloads/downloads_screen.dart';
+import '../features/downloads/storage_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/kapowarr/kapowarr_settings_screen.dart';
 import '../features/kapowarr/kapowarr_status_screen.dart';
@@ -10,8 +12,16 @@ import '../features/settings/settings_screen.dart';
 import '../features/settings/servers_screen.dart';
 import '../features/settings/server_edit_screen.dart';
 
-final appRouter = GoRouter(
-  initialLocation: '/home',
+GoRouter buildRouter({
+  String initialLocation = '/home',
+  void Function(String path)? onRouteChange,
+}) =>
+    GoRouter(
+  initialLocation: initialLocation,
+  redirect: (context, state) {
+    onRouteChange?.call(state.uri.toString());
+    return null;
+  },
   routes: [
     GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
     GoRoute(
@@ -56,6 +66,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/settings/kapowarr/edit',
       builder: (context, state) => const KapowarrSettingsScreen(),
+    ),
+    GoRoute(
+      path: '/settings/downloads',
+      builder: (context, state) => const DownloadsScreen(),
+    ),
+    GoRoute(
+      path: '/settings/storage',
+      builder: (context, state) => const StorageScreen(),
     ),
   ],
 );

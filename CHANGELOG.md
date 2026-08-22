@@ -1,5 +1,73 @@
 # Changelog
 
+## Phase 4 — Offline downloads + Caddy hosting
+
+- **Download queue** (`lib/core/downloads/`): `DownloadManager` runs up
+  to 2 books downloading at once, pulling from a Hive-persisted queue
+  (`DownloadStore`). Pause/resume/cancel just flip queue state; the pump
+  loop picks up the next queued task whenever a slot frees. Wi-Fi-only
+  mode (checked via `connectivity_plus` before each page, no-op on web
+  per the original spec) pauses a task rather than failing it when it's
+  on cellular. Downloaded page bytes live in their own Hive box, kept
+  separate from the reader's opportunistic LRU/disk cache - a deliberate
+  download should survive an app restart and never get silently evicted
+  the way a "just read recently" page can.
+- **Offline-first page resolution**: `PageCache.getPage()` now checks
+  the download store before its own cache or the network. The reader
+  doesn't need to know or care whether a page came from a download or a
+  live fetch.
+- **Download UI**: a download button per book (and one for the whole
+  series) on the series screen, with a live state icon (spinner/done/
+  paused/error) driven by a `StreamProvider` over `DownloadManager`'s
+  change notifications; a Downloads screen (queue, pause/resume/cancel,
+  Wi-Fi-only toggle); a Storage screen (total size, size per series,
+  clear one series / all downloads / the opportunistic page cache, plus
+  a Safari storage-eviction warning on web).
+- **PWA hardening**:
+  - `ConnectivityBanner` (`lib/app/connectivity_banner.dart`) shows a
+    slim "offline - showing downloaded content" banner and flushes the
+    progress-sync queue the moment connectivity returns.
+  - `LastRouteStore` persists the current route (skipping the reader and
+    any add/edit form, which can't safely replay without their original
+    state) so a cold start - especially while offline - reopens where
+    you left off instead of always landing on Home. `router.dart`'s
+    `appRouter` constant became `buildRouter({initialLocation,
+    onRouteChange})` to make this possible; `main.dart` now constructs
+    the router after reading the saved route.
+  - Flutter's own release-build service worker already caches the app
+    shell precache-first; no custom service worker was needed on top of
+    that for this phase.
+- **Same-origin defaults**: when the app detects it's being served from
+  `reader.shaddai.home` (`Uri.base.host`), a new Komga/Kavita server's
+  URL field defaults to `/komga` or `/kavita` off that same origin -
+  side-stepping the CORS block a bare Tailscale IP always hits from a
+  browser (see Phase 2/3). Direct-IP entry still works for local dev.
+- **`deploy/`**: `build.ps1` (builds the release bundle and `scp`s it to
+  the Caddy host), `Caddyfile.snippet` (serves the app at
+  `reader.shaddai.home` and reverse-proxies `/komga` + `/kavita`
+  same-origin), and a full manual-steps writeup in `README.md`
+  (bind-mount, Caddyfile append + reload, AdGuard DNS rewrite, iOS Add
+  to Home Screen).
+- Tests: `DownloadManager` (full download to completion, pause mid-flight
+  then resume to completion, cancel clears task + pages, re-enqueueing an
+  already-downloaded book doesn't re-fetch) and offline-first page
+  resolution (a downloaded page is returned without the backend ever
+  being called, a missing download correctly falls through to the
+  network, a downloaded page wins over a *different* page already
+  sitting in the opportunistic cache). 45 tests total, all passing;
+  `flutter analyze` clean.
+
+### Manual verification
+
+Downloaded a real chapter (21 pages) from the live Suwayomi instance
+through the actual UI: watched the per-book spinner progress, confirmed
+the Downloads screen showed live "N / 21 pages - running" progress,
+paused it mid-download (stopped cleanly at 4/21, no further network
+calls after pause), and confirmed the Storage screen reported the
+correct real size (2.5 MB) and series grouping. All against
+`http://100.108.109.63:4567` via the same headless-Edge / release-build
+setup used in Phases 2-3.
+
 ## Phase 3 — Kavita backend, Suwayomi backend, Kapowarr status view
 
 Scope expanded mid-phase at the user's request: Suwayomi (Tachidesk) is
