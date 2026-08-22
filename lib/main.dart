@@ -5,6 +5,9 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'app/providers.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
+import 'core/reader/page_cache.dart';
+import 'core/reader/progress_sync.dart';
+import 'core/reader/reader_settings_store.dart';
 import 'core/storage/server_store.dart';
 
 Future<void> main() async {
@@ -14,10 +17,22 @@ Future<void> main() async {
   final serverStore = ServerStore();
   await serverStore.init();
 
+  final readerSettingsStore = ReaderSettingsStore();
+  await readerSettingsStore.init();
+
+  final progressSync = ProgressSync();
+  await progressSync.init();
+
+  final pageCache = PageCache();
+  await pageCache.init();
+
   runApp(
     ProviderScope(
       overrides: [
         serverStoreProvider.overrideWithValue(serverStore),
+        readerSettingsStoreProvider.overrideWithValue(readerSettingsStore),
+        progressSyncProvider.overrideWithValue(progressSync),
+        pageCacheProvider.overrideWithValue(pageCache),
       ],
       child: const ShaddaiReaderApp(),
     ),
