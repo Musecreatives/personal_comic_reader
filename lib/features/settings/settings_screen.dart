@@ -17,6 +17,13 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/servers'),
           ),
+          ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: const Text('Kapowarr'),
+            subtitle: const Text('Acquisition status - not a reading source'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/kapowarr'),
+          ),
         ],
       ),
     );

@@ -60,6 +60,9 @@ class _SeriesDetailState extends State<_SeriesDetail> {
       body: FutureBuilder<Series>(
         future: _seriesFuture,
         builder: (context, seriesSnapshot) {
+          if (seriesSnapshot.hasError) {
+            return Center(child: Text('${seriesSnapshot.error}'));
+          }
           if (!seriesSnapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -68,6 +71,12 @@ class _SeriesDetailState extends State<_SeriesDetail> {
           final bookList = FutureBuilder<List<Book>>(
             future: _booksFuture,
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(child: Text('${snapshot.error}')),
+                );
+              }
               if (!snapshot.hasData) {
                 return const Padding(
                   padding: EdgeInsets.all(24),

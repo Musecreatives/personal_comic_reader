@@ -1,5 +1,108 @@
 # Changelog
 
+## Phase 3 — Kavita backend, Suwayomi backend, Kapowarr status view
+
+Scope expanded mid-phase at the user's request: Suwayomi (Tachidesk) is
+now a full fourth `ReaderBackend`, and Kapowarr gets a lightweight,
+read-only status view (not a backend - it's an acquisition tool, not a
+source of readable content).
+
+- **`KavitaBackend`** (`lib/backends/kavita/kavita_backend.dart`): real
+  implementation replacing the Phase 1 stub. JWT login via
+  `/api/Account/login`, lazy auth (first request triggers login) with
+  automatic re-login on a 401, `Series`/`Chapter` mapped from
+  `/api/Series/all-v2`, `/api/Series/volumes`, `/api/Chapter`. Progress
+  updates require Kavita's full `ProgressDto` (chapterId, pageNum,
+  seriesId, volumeId, libraryId), so the backend caches chapter→series
+  and series→library lookups as it encounters them, backfilling with an
+  extra request only on a cache miss. Verified against a live instance
+  for auth, routing, the `Pagination` response header shape, and error
+  responses; the account had zero series indexed in any library, so
+  populated-response field names are best-effort from Kavita's known API
+  conventions rather than confirmed against real content - worth a
+  revisit once the library has something scanned in. The `all-v2` filter
+  DTO shape specifically wasn't verified, so `listSeries` fetches
+  unfiltered pages and filters library/unread/search client-side rather
+  than risk a malformed filter silently returning nothing.
+- **`SuwayomiBackend`** (`lib/backends/suwayomi/suwayomi_backend.dart`):
+  GraphQL implementation against `/api/graphql`. No login required (runs
+  open on the Tailscale network). Maps a `Library` to a Suwayomi
+  Category, a `Series` to a Manga, and a `Book` to a Chapter. Page bytes
+  require calling the `fetchChapterPages` mutation first (Suwayomi
+  fetches a chapter's page list from its source lazily, hence
+  `pageCount: -1` until then) before hitting the predictable
+  `/api/v1/manga/{id}/chapter/{id}/page/{n}` REST route. Verified
+  end-to-end against a live instance with real content (see Manual
+  verification below) - this is the most confidently-tested of the four
+  backends. Collections and reading lists return empty lists; Suwayomi
+  has no concept distinct from categories, which are already used as
+  libraries.
+- Server type selector (`ServerEditScreen`) now offers Komga/Kavita/
+  Suwayomi; username/password are optional (and labeled as such) when
+  Suwayomi is selected, since it needs neither.
+- **Kapowarr status view** (`lib/core/kapowarr/`,
+  `lib/features/kapowarr/`): a separate, minimal connection (URL + API
+  key, not folded into the server list) with a read-only screen showing
+  volume/issue/file stats, the current download queue, and recent
+  download history. Shaddai Reader never triggers downloads or edits
+  volumes through this - it's a status mirror, not a Kapowarr client.
+  Reachable from Settings.
+- `series_screen.dart`'s book-list `FutureBuilder` now surfaces errors
+  instead of spinning forever on failure - found via a real bug (see
+  below) where it was silently masking a broken Suwayomi query.
+- Tests: `KavitaBackend` (lazy login + bearer header, library/series
+  mapping, the full progress DTO round-trip via the location-cache
+  lookup) and `SuwayomiBackend` (category/manga/chapter mapping,
+  progress mutation) against mocked dio, plus `KapowarrClient` (stats/
+  queue/history parsing, including the `file_title` fallback when
+  `web_title` is absent). 46 tests total, all passing; `flutter analyze`
+  clean.
+
+### A real bug found and fixed during manual verification
+
+`SuwayomiBackend.listBooks()` originally queried
+`manga(id) { chapters(orderBy: SOURCE_ORDER) { ... } }`, but Suwayomi's
+`Manga.chapters` field takes **no arguments at all** - confirmed via
+GraphQL introspection after the fact. The invalid argument made every
+`listBooks()` call return a GraphQL error, which `series_screen.dart`'s
+`FutureBuilder` silently swallowed into an infinite loading spinner
+(only visible as a generic unhandled-JS-error in the browser console,
+not surfaced in the UI). Fixed by dropping the argument - the result
+list is already sorted client-side by chapter number afterward, so
+server-side ordering wasn't load-bearing. This is exactly the kind of
+mismatch the "verified against a live instance" claims below are meant
+to catch; it shipped once, and the fix for *why* it went unnoticed
+(the swallowed-error FutureBuilder) is arguably more important than the
+one-line GraphQL fix itself.
+
+### Manual verification
+
+Full round trip against real, populated content - not just empty-state
+checks like Phase 1/2:
+- Added Komga, Kavita, and Suwayomi servers through the actual UI
+  against their live Tailscale addresses; all three reported "Connected
+  successfully."
+- Switched active server to Suwayomi, browsed Home → Library (Default
+  category) → "Chronicles of the Demon Faction" (real manga, real
+  cover, real synopsis, "0/184 read") → Chapter 1 → **the actual reader
+  screen**, with real page images loading, a real page count (22, not
+  the placeholder -1), the Panels-style overlay showing "Chapter 1 /
+  Vol/Ch 1", and a working page slider. This is the first time the
+  reader has been verified against real content end-to-end.
+- Kapowarr: connected with the API key, "Connected - 4 volumes
+  tracked." on test, then the status screen rendered real stats (4
+  volumes, 34 issues, 164.9 MB), an empty download queue, and real
+  history entries ("One World Under Doom #6 (2025) • 45m ago").
+- Kavita: connected successfully and reached the empty-library screen
+  without error (still nothing scanned into that instance - see the
+  KavitaBackend note above for what that means for field-mapping
+  confidence).
+- All of the above via a headless Edge (`playwright-core`, no
+  `chromium-cli` in this environment) against a `flutter build web
+  --release` bundle - the debug `flutter run -d web-server` target hung
+  indefinitely in this environment (noted in Phase 2), so release builds
+  are the reliable path for this kind of check here.
+
 ## Phase 2 — Reader core + progress sync
 
 - Reader settings model (`lib/core/reader/reader_settings.dart`): mode

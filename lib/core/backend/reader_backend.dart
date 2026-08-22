@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'models.dart';
 
 /// Server type a [ReaderBackend] talks to.
-enum ServerType { komga, kavita }
+enum ServerType { komga, kavita, suwayomi }
 
 /// Everything the UI needs to know about a configured server.
 ///
