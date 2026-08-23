@@ -8,6 +8,7 @@ import '../features/kapowarr/kapowarr_status_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/reader/reader_screen.dart';
 import '../features/series/series_screen.dart';
+import '../features/stats/stats_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/servers_screen.dart';
 import '../features/settings/server_edit_screen.dart';
@@ -74,6 +75,10 @@ GoRouter buildRouter({
     GoRoute(
       path: '/settings/storage',
       builder: (context, state) => const StorageScreen(),
+    ),
+    GoRoute(
+      path: '/stats',
+      builder: (context, state) => const StatsScreen(),
     ),
   ],
 );

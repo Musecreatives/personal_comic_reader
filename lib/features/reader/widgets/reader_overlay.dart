@@ -20,6 +20,7 @@ class ReaderOverlay extends StatelessWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onToggleDirection;
   final VoidCallback onCycleMode;
+  final VoidCallback? onTogglePanelMode;
 
   const ReaderOverlay({
     super.key,
@@ -34,6 +35,7 @@ class ReaderOverlay extends StatelessWidget {
     required this.onOpenSettings,
     required this.onToggleDirection,
     required this.onCycleMode,
+    this.onTogglePanelMode,
   });
 
   @override
@@ -77,6 +79,12 @@ class ReaderOverlay extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (onTogglePanelMode != null)
+                        IconButton(
+                          tooltip: 'Panel view (experimental)',
+                          icon: const Icon(Icons.crop_free),
+                          onPressed: onTogglePanelMode,
+                        ),
                       IconButton(
                         tooltip: 'Reading mode',
                         icon: Icon(_modeIcon(settings.mode)),

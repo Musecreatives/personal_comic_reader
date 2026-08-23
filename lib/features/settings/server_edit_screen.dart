@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../app/providers.dart';
 import '../../backends/kavita/kavita_backend.dart';
 import '../../backends/komga/komga_backend.dart';
+import '../../backends/opds/opds_backend.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/backend/reader_backend.dart';
 
@@ -44,6 +45,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
       ServerType.komga => '${Uri.base.origin}/komga',
       ServerType.kavita => '${Uri.base.origin}/kavita',
       ServerType.suwayomi => null,
+      ServerType.opds => null,
     };
   }
 
@@ -107,6 +109,8 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
         KavitaBackend(config: config, password: _passwordController.text),
       ServerType.suwayomi =>
         SuwayomiBackend(config: config, password: _passwordController.text),
+      ServerType.opds =>
+        OpdsBackend(config: config, password: _passwordController.text),
     };
 
     try {
@@ -160,6 +164,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
                 ButtonSegment(value: ServerType.kavita, label: Text('Kavita')),
                 ButtonSegment(
                     value: ServerType.suwayomi, label: Text('Suwayomi')),
+                ButtonSegment(value: ServerType.opds, label: Text('OPDS')),
               ],
               selected: {_type},
               onSelectionChanged: (s) => setState(() {
@@ -181,9 +186,11 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _urlController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Server URL',
-                hintText: 'http://100.108.109.63:8081',
+                hintText: _type == ServerType.opds
+                    ? 'http://host:port/opds/v1.2/catalog'
+                    : 'http://100.108.109.63:8081',
               ),
               keyboardType: TextInputType.url,
               validator: (v) {

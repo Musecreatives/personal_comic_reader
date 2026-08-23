@@ -19,6 +19,11 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('Shaddai Reader'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.bar_chart_outlined),
+            tooltip: 'Reading stats',
+            onPressed: () => context.push('/stats'),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.push('/settings'),
           ),
@@ -148,7 +153,7 @@ class _HomeContentState extends State<_HomeContent> {
                         leading: const Icon(Icons.folder_outlined),
                         title: Text(lib.name),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => context.push('/library/${lib.id}'),
+                        onTap: () => context.push('/library/${Uri.encodeComponent(lib.id)}'),
                       ),
                     ),
                   ],
@@ -190,7 +195,7 @@ class _SeriesRow extends StatelessWidget {
               imageUrl: s.thumbnailUrl,
               headers: headers,
               label: s.title,
-              onTap: () => context.push('/series/${s.id}'),
+              onTap: () => context.push('/series/${Uri.encodeComponent(s.id)}'),
             );
           },
         );
@@ -227,7 +232,7 @@ class _BookRow extends StatelessWidget {
               imageUrl: b.thumbnailUrl,
               headers: headers,
               label: b.title,
-              onTap: () => context.push('/series/${b.seriesId}'),
+              onTap: () => context.push('/series/${Uri.encodeComponent(b.seriesId)}'),
             );
           },
         );
