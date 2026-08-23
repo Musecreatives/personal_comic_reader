@@ -27,6 +27,7 @@ class ServersScreen extends ConsumerWidget {
                     ServerType.komga => Icons.local_library,
                     ServerType.kavita => Icons.menu_book,
                     ServerType.suwayomi => Icons.auto_stories,
+                    ServerType.opds => Icons.rss_feed,
                   }),
                   title: Text(server.name),
                   subtitle: Text('${server.type.name} • ${server.baseUrl}'),

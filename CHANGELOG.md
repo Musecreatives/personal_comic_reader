@@ -1,5 +1,103 @@
 # Changelog
 
+## Phase 5 — OPDS backend, stats, smart panel view, wide layout, iOS prep
+
+- **`OpdsBackend`** (`lib/backends/opds/`): a fifth `ReaderBackend`,
+  generic OPDS 1.2 + OPDS-PSE over any catalog, not just Komga's. A
+  `Library` is whatever top-level navigation entries the root catalog
+  exposes; a `Series` is a subsection entry one level in; a `Book` is an
+  entry with either a PSE stream link (`pse:count` + a `{pageNumber}`
+  href template) or a plain acquisition link. Page streaming prefers PSE;
+  when a book has none, the whole acquisition file is downloaded once and
+  unzipped in-app via `package:archive` (CBZ fallback, web-safe - no
+  native unzip dependency), with pages cached in memory per book.
+  Book/series identity is feed-URL-based (OPDS has no stable numeric
+  IDs), cached internally as `listSeries`/`listBooks` encounter entries -
+  same tradeoff already made for Kavita's and Suwayomi's location
+  caches. Verified end-to-end against the live Komga OPDS catalog (root
+  feed → "All libraries" → "Comics"/"Manga" library feeds all parse and
+  render correctly); PSE and the CBZ fallback are unit-tested against
+  synthetic feeds/zips since no currently-populated OPDS server was
+  available to verify page streaming against real content.
+- **Reading stats** (`lib/core/stats/`, `lib/features/stats/`): local-
+  only per-day page/time tracking, a streak counter, and a weekly
+  fl_chart bar chart, with a toggle to disable (record calls become a
+  no-op). Wired into the reader: a page counts once per book session
+  (deduped via a seen-pages set, so re-scrolling doesn't inflate the
+  count) and reading time is recorded on dispose. Reachable from a new
+  bar-chart icon on Home.
+- **Smart panel view** (experimental): `lib/core/panels/panel_detector.dart`
+  finds gutters via row/column *luminance variance* (not a fixed
+  white/black threshold - a solid-color panel would otherwise be
+  indistinguishable from a gutter) to split a page into a reading-order
+  grid of panels. `PanelZoomView` animates between them using the same
+  `BoxFit.contain` placement math for both the crop rectangle and the
+  actual paint, so they agree pixel-for-pixel. Deliberately isolated
+  from the normal pager widgets: it's a same-page overlay activated via
+  a button in the reader overlay (single-page mode only), not a rewrite
+  of `SinglePageView`. Tested via a pure-geometry function fed synthetic
+  RGBA buffers (checkerboard panels, not solid color - solid rectangles
+  have zero internal variance in every direction and would be
+  indistinguishable from a gutter to this detector, which the test
+  fixture had to account for).
+- **iPad/wide layout**: `LibraryScreen` grows a persistent sidebar
+  (every library) next to the series grid at ≥800px width, so switching
+  libraries doesn't need a round trip back through Home. Library
+  selection is in-place state, not a new route push.
+- **iOS prep**: bundle ID changed to `home.shaddai.reader` (was
+  `home.shaddai.shaddaiReader`) across the Xcode project;
+  `NSLocalNetworkUsageDescription` and an `NSAppTransportSecurity`
+  arbitrary-loads exception added to Info.plist (self-hosted servers are
+  plain HTTP on a private network, not public HTTPS domains ATS's
+  per-domain exceptions are designed for); `codemagic.yaml` with a
+  TestFlight-publishing workflow (placeholders - needs a real App Store
+  Connect API key configured in Codemagic itself) and an unsigned-build
+  sanity-check workflow. None of this could be executed locally (no Mac/
+  Xcode toolchain in this environment) - it's configuration, not a
+  verified build.
+- Tests: `OpdsBackend` (navigation/series/book mapping, PSE URL
+  substitution, CBZ download+unzip+sort, the unseen-book-id error path),
+  `ReadingStatsStore` (accumulation, disabled-is-a-no-op, `lastDays`
+  ordering, streak counting including the gap and today-not-required-yet
+  cases), `panelsFromRgba` (grid splitting, rtl reversal, whole-page
+  fallback), and a new wide-layout sidebar test for `LibraryScreen`. 64
+  tests total, all passing; `flutter analyze` clean.
+
+### A real bug found and fixed during manual verification
+
+Every `context.push('/library/${lib.id}')`-style navigation call used
+the entity ID as a raw path segment. That's fine for Komga/Kavita/
+Suwayomi's plain string/numeric IDs, but `OpdsBackend`'s IDs are full
+feed URLs containing literal slashes and colons - tapping "All
+libraries" threw `GoException: no routes for location:
+/library/http://100.108.109.63:8081/opds/v1.2/libraries`, since
+go_router's `/library/:id` pattern matches exactly one path segment.
+Fixed by `Uri.encodeComponent`-ing every entity ID at every navigation
+call site (`home_screen.dart`, `library_screen.dart`, `series_screen.dart`,
+`reader_screen.dart`); go_router decodes `pathParameters` back
+automatically, so no change was needed on the receiving end in
+`router.dart`. This is a no-op for the other three backends' plain IDs,
+so nothing about their behavior changed - confirmed by the full test
+suite and by re-driving Komga/Kavita/Suwayomi navigation manually after
+the fix. Found by actually clicking through the live Komga OPDS catalog
+rather than trusting the unit tests' synthetic feeds alone, which is
+exactly the kind of thing synthetic feeds can't catch (they never
+happen to contain a URL as an "id").
+
+### Manual verification
+
+- OPDS: added a real server against `http://100.108.109.63:8081/opds/v1.2/catalog`
+  with real Komga credentials - "Connected successfully", then full
+  navigation from Home through "All libraries" to the Comics/Manga
+  library tiles, all against live server responses (not mocks).
+- Stats and the OPDS server-type option both render correctly in the UI
+  (screenshots via the same headless-Edge/release-build setup used in
+  every prior phase).
+- iOS changes are configuration-only and unverified beyond visual
+  inspection of the modified files - there's no Mac in this environment
+  to actually run `flutter build ios --no-codesign` or exercise
+  Codemagic. Flagged explicitly rather than claimed as tested.
+
 ## Phase 4 — Offline downloads + Caddy hosting
 
 - **Download queue** (`lib/core/downloads/`): `DownloadManager` runs up

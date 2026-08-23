@@ -22,6 +22,8 @@ class _FakeBackend implements ReaderBackend {
         username: 'u',
       );
 
+  final List<String> requestedLibraryIds = [];
+
   @override
   Future<PagedResult<Series>> listSeries({
     String? libraryId,
@@ -32,6 +34,7 @@ class _FakeBackend implements ReaderBackend {
     bool unreadOnly = false,
     String? search,
   }) async {
+    if (libraryId != null) requestedLibraryIds.add(libraryId);
     return PagedResult(
       items: series,
       page: 0,
@@ -44,11 +47,15 @@ class _FakeBackend implements ReaderBackend {
   @override
   Map<String, String> get imageHeaders => const {};
 
+  @override
+  Future<List<Library>> listLibraries() async => const [
+        Library(id: 'lib1', name: 'Lib One'),
+        Library(id: 'lib2', name: 'Lib Two'),
+      ];
+
   // Unused by LibraryScreen - not exercised in this test.
   @override
   Future<void> authenticate() => throw UnimplementedError();
-  @override
-  Future<List<Library>> listLibraries() => throw UnimplementedError();
   @override
   Future<Series> getSeries(String id) => throw UnimplementedError();
   @override
@@ -118,5 +125,47 @@ void main() {
     expect(find.text('One Piece'), findsOneWidget);
     // Unread badge only on the series with unread books.
     expect(find.text('3'), findsOneWidget);
+  });
+
+  testWidgets(
+      'on a wide screen, tapping a different library in the sidebar '
+      'reloads series for that library', (tester) async {
+    final fakeBackend = _FakeBackend([
+      const Series(
+        id: 's1',
+        libraryId: 'lib1',
+        title: 'Absolute Batman',
+        booksCount: 1,
+        booksReadCount: 0,
+        booksUnreadCount: 1,
+      ),
+    ]);
+
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          activeBackendProvider.overrideWith((ref) async => fakeBackend),
+        ],
+        child: const MaterialApp(
+          home: LibraryScreen(libraryId: 'lib1'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Libraries'), findsOneWidget);
+    expect(find.text('Lib One'), findsOneWidget);
+    expect(find.text('Lib Two'), findsOneWidget);
+    expect(fakeBackend.requestedLibraryIds, contains('lib1'));
+
+    await tester.tap(find.text('Lib Two'));
+    await tester.pumpAndSettle();
+
+    expect(fakeBackend.requestedLibraryIds.last, 'lib2');
   });
 }
