@@ -19,11 +19,16 @@ class LibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  static const _wideBreakpoint = 800;
+
   _ViewMode _viewMode = _ViewMode.grid;
   bool _unreadOnly = false;
   SeriesSort _sort = SeriesSort.title;
   final _searchController = TextEditingController();
   String _search = '';
+
+  late String _libraryId = widget.libraryId;
+  Future<List<Library>>? _librariesFuture;
 
   final List<Series> _items = [];
   int _page = 0;
@@ -35,6 +40,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _selectLibrary(String libraryId) {
+    if (libraryId == _libraryId) return;
+    setState(() => _libraryId = libraryId);
+    if (_backend != null) _loadPage(_backend!, reset: true);
   }
 
   Future<void> _loadPage(ReaderBackend backend, {bool reset = false}) async {
@@ -51,7 +62,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     setState(() => _loading = true);
     try {
       final result = await backend.listSeries(
-        libraryId: widget.libraryId,
+        libraryId: _libraryId,
         page: _page,
         sort: _sort,
         unreadOnly: _unreadOnly,
@@ -81,12 +92,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         }
         if (_backend != backend) {
           _backend = backend;
+          _librariesFuture = null;
           WidgetsBinding.instance.addPostFrameCallback(
               (_) => _loadPage(backend, reset: true));
         }
 
-        return Scaffold(
+        final wide = MediaQuery.of(context).size.width >= _wideBreakpoint;
+        if (wide) _librariesFuture ??= backend.listLibraries();
+
+        final content = Scaffold(
           appBar: AppBar(
+            automaticallyImplyLeading: !wide,
             title: const Text('Library'),
             actions: [
               IconButton(
@@ -160,6 +176,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 : _SeriesList(items: _items, backend: backend),
           ),
         );
+
+        if (!wide) return content;
+
+        return Scaffold(
+          body: Row(
+            children: [
+              SizedBox(
+                width: 240,
+                child: _LibrarySidebar(
+                  librariesFuture: _librariesFuture!,
+                  selectedId: _libraryId,
+                  onSelect: _selectLibrary,
+                ),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(child: content),
+            ],
+          ),
+        );
       },
     );
   }
@@ -185,7 +220,7 @@ class _SeriesGrid extends StatelessWidget {
       itemBuilder: (context, i) {
         final s = items[i];
         return GestureDetector(
-          onTap: () => context.push('/series/${s.id}'),
+          onTap: () => context.push('/series/${Uri.encodeComponent(s.id)}'),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -252,9 +287,61 @@ class _SeriesList extends StatelessWidget {
           subtitle: Text('${s.booksCount} books'),
           trailing:
               s.booksUnreadCount > 0 ? _UnreadBadge(count: s.booksUnreadCount) : null,
-          onTap: () => context.push('/series/${s.id}'),
+          onTap: () => context.push('/series/${Uri.encodeComponent(s.id)}'),
         );
       },
+    );
+  }
+}
+
+/// Wide-screen (iPad/desktop) sidebar: every library, so switching doesn't
+/// need a full navigation round trip back through Home.
+class _LibrarySidebar extends StatelessWidget {
+  final Future<List<Library>> librariesFuture;
+  final String selectedId;
+  final ValueChanged<String> onSelect;
+
+  const _LibrarySidebar({
+    required this.librariesFuture,
+    required this.selectedId,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text('Libraries',
+                style: Theme.of(context).textTheme.titleMedium),
+          ),
+        ),
+        Expanded(
+          child: FutureBuilder<List<Library>>(
+            future: librariesFuture,
+            builder: (context, snapshot) {
+              final libraries = snapshot.data ?? const <Library>[];
+              return ListView.builder(
+                itemCount: libraries.length,
+                itemBuilder: (context, i) {
+                  final lib = libraries[i];
+                  final selected = lib.id == selectedId;
+                  return ListTile(
+                    selected: selected,
+                    leading: const Icon(Icons.folder_outlined),
+                    title: Text(lib.name),
+                    onTap: () => onSelect(lib.id),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

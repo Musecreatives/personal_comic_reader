@@ -13,6 +13,7 @@ import 'core/kapowarr/kapowarr_config_store.dart';
 import 'core/reader/page_cache.dart';
 import 'core/reader/progress_sync.dart';
 import 'core/reader/reader_settings_store.dart';
+import 'core/stats/reading_stats_store.dart';
 import 'core/storage/last_route_store.dart';
 import 'core/storage/server_store.dart';
 
@@ -39,6 +40,9 @@ Future<void> main() async {
   final kapowarrConfigStore = KapowarrConfigStore();
   await kapowarrConfigStore.init();
 
+  final readingStatsStore = ReadingStatsStore();
+  await readingStatsStore.init();
+
   final lastRouteStore = LastRouteStore();
   final lastRoute = await lastRouteStore.getLastRoute();
   final router = buildRouter(
@@ -56,6 +60,7 @@ Future<void> main() async {
         kapowarrConfigStoreProvider.overrideWithValue(kapowarrConfigStore),
         downloadStoreProvider.overrideWithValue(downloadStore),
         downloadManagerProvider.overrideWithValue(downloadManager),
+        readingStatsStoreProvider.overrideWithValue(readingStatsStore),
       ],
       child: ShaddaiReaderApp(router: router),
     ),

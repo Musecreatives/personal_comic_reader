@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backends/kavita/kavita_backend.dart';
 import '../backends/komga/komga_backend.dart';
+import '../backends/opds/opds_backend.dart';
 import '../backends/suwayomi/suwayomi_backend.dart';
 import '../core/backend/reader_backend.dart';
 import '../core/downloads/download_manager.dart';
@@ -12,6 +13,7 @@ import '../core/kapowarr/kapowarr_config_store.dart';
 import '../core/reader/page_cache.dart';
 import '../core/reader/progress_sync.dart';
 import '../core/reader/reader_settings_store.dart';
+import '../core/stats/reading_stats_store.dart';
 import '../core/storage/server_store.dart';
 
 /// Set once in main() after ServerStore.init() completes.
@@ -55,6 +57,8 @@ final activeBackendProvider = FutureProvider<ReaderBackend?>((ref) async {
       return KavitaBackend(config: config, password: password);
     case ServerType.suwayomi:
       return SuwayomiBackend(config: config, password: password);
+    case ServerType.opds:
+      return OpdsBackend(config: config, password: password);
   }
 });
 
@@ -110,4 +114,10 @@ final downloadQueueProvider = StreamProvider<List<DownloadTask>>((ref) async* {
   await for (final _ in manager.changes) {
     yield store.listTasks();
   }
+});
+
+/// Set once in main() after ReadingStatsStore.init() completes.
+final readingStatsStoreProvider = Provider<ReadingStatsStore>((ref) {
+  throw UnimplementedError(
+      'readingStatsStoreProvider must be overridden in main()');
 });

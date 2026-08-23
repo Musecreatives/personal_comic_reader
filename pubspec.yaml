@@ -47,6 +47,8 @@ dependencies:
   archive: ^4.1.0
   path_provider: ^2.1.6
   uuid: ^4.6.0
+  xml: ^6.5.0
+  fl_chart: ^0.70.2
 
 dev_dependencies:
   flutter_test:

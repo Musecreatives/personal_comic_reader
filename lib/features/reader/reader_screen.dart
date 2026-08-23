@@ -11,7 +11,10 @@ import '../../core/reader/page_cache.dart';
 import '../../core/reader/progress_sync.dart';
 import '../../core/reader/reader_settings.dart';
 import '../../core/reader/reader_settings_store.dart';
+import '../../core/panels/panel_detector.dart';
+import '../../core/stats/reading_stats_store.dart';
 import 'widgets/double_page_view.dart';
+import 'widgets/panel_zoom_view.dart';
 import 'widgets/reader_overlay.dart';
 import 'widgets/reader_settings_sheet.dart';
 import 'widgets/single_page_view.dart';
@@ -125,9 +128,19 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
   bool _overlayVisible = false;
   bool _showEndCard = false;
 
+  // Experimental smart panel view (single-page mode only).
+  bool _panelModeActive = false;
+  bool _panelLoading = false;
+  Uint8List? _panelPageBytes;
+  List<PanelRect>? _panelRects;
+
+  final Set<int> _seenPages = {};
+  late final DateTime _sessionStart;
+
   ReaderSettingsStore get _settingsStore => ref.read(readerSettingsStoreProvider);
   ProgressSync get _progressSync => ref.read(progressSyncProvider);
   PageCache get _pageCache => ref.read(pageCacheProvider);
+  ReadingStatsStore get _statsStore => ref.read(readingStatsStoreProvider);
 
   @override
   void initState() {
@@ -138,6 +151,8 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
     if (_currentPage < 0 || _currentPage >= widget.book.pageCount) {
       _currentPage = 0;
     }
+    _sessionStart = DateTime.now();
+    _seenPages.add(_currentPage);
     _applyWakelock();
     _pageCache.prefetch(widget.backend, widget.book.id, _currentPage + 1,
         widget.book.pageCount);
@@ -152,6 +167,8 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
       page: _currentPage,
       completed: _currentPage >= widget.book.pageCount - 1,
     );
+    final elapsed = DateTime.now().difference(_sessionStart).inSeconds;
+    _statsStore.recordSeconds(elapsed);
     super.dispose();
   }
 
@@ -170,9 +187,36 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
         page: page, completed: completed);
     _pageCache.prefetch(
         widget.backend, widget.book.id, page + 1, widget.book.pageCount);
+    if (_seenPages.add(page)) {
+      _statsStore.recordPages(1);
+    }
   }
 
   void _toggleOverlay() => setState(() => _overlayVisible = !_overlayVisible);
+
+  Future<void> _togglePanelMode() async {
+    if (_panelModeActive) {
+      setState(() => _panelModeActive = false);
+      return;
+    }
+    if (_panelLoading) return;
+    setState(() => _panelLoading = true);
+    try {
+      final bytes =
+          await _pageCache.getPage(widget.backend, widget.book.id, _currentPage);
+      final panels = await detectPanels(bytes,
+          rtl: _settings.direction == ReadingDirection.rtl);
+      if (!mounted) return;
+      setState(() {
+        _panelPageBytes = bytes;
+        _panelRects = panels;
+        _panelModeActive = true;
+        _panelLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _panelLoading = false);
+    }
+  }
 
   void _seek(int page) {
     switch (_settings.mode) {
@@ -328,14 +372,25 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
               onOpenSettings: _openSettingsSheet,
               onToggleDirection: _toggleDirection,
               onCycleMode: _cycleMode,
+              onTogglePanelMode:
+                  _settings.mode == ReaderMode.single ? _togglePanelMode : null,
             ),
+            if (_panelModeActive && _panelRects != null && _panelPageBytes != null)
+              Positioned.fill(
+                child: PanelZoomView(
+                  imageBytes: _panelPageBytes!,
+                  panels: _panelRects!,
+                  onExhausted: () => setState(() => _panelModeActive = false),
+                  onExit: () => setState(() => _panelModeActive = false),
+                ),
+              ),
             if (_showEndCard) _EndOfBookCard(
               nextBook: _nextBook,
               onNext: (id) {
                 setState(() => _showEndCard = false);
-                context.pushReplacement('/read/$id');
+                context.pushReplacement('/read/${Uri.encodeComponent(id)}');
               },
-              onBackToSeries: () => context.go('/series/${widget.book.seriesId}'),
+              onBackToSeries: () => context.go('/series/${Uri.encodeComponent(widget.book.seriesId)}'),
               onDismiss: () => setState(() => _showEndCard = false),
             ),
           ],

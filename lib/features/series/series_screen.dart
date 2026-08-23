@@ -239,7 +239,7 @@ class _BookList extends StatelessWidget {
                 ),
             ],
           ),
-          onTap: () => context.push('/read/${book.id}'),
+          onTap: () => context.push('/read/${Uri.encodeComponent(book.id)}'),
         );
       },
     );

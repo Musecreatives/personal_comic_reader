@@ -1,0 +1,82 @@
+workflows:
+  ios-testflight:
+    name: Shaddai Reader - iOS TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      # Configure these in Codemagic's app settings (Environment variables /
+      # Code signing identities), not in this file:
+      #   - App Store Connect API key (issuer ID, key ID, private key)
+      #   - iOS distribution certificate + provisioning profile for
+      #     home.shaddai.reader, or let Codemagic manage signing
+      #     automatically via the App Store Connect API key.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: home.shaddai.reader
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Install Flutter dependencies
+        script: flutter pub get
+      - name: Run analyzer
+        script: flutter analyze
+      - name: Run tests
+        script: flutter test
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios && pod install
+      - name: Flutter build ipa
+        script: |
+          flutter build ipa \
+            --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/ios/xcarchive/*.xcarchive
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      # Placeholder - fill in a real App Store Connect API key / app-specific
+      # password in Codemagic's publishing settings before enabling this.
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - Internal Testers
+
+  # Sanity-check workflow: confirms the app builds without needing any
+  # signing credentials at all - useful to validate this file and the iOS
+  # project itself independent of the TestFlight publishing setup.
+  ios-unsigned-check:
+    name: Shaddai Reader - iOS unsigned build check
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install Flutter dependencies
+        script: flutter pub get
+      - name: Run analyzer
+        script: flutter analyze
+      - name: Run tests
+        script: flutter test
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios && pod install
+      - name: Build unsigned iOS app
+        script: flutter build ios --release --no-codesign
+    artifacts:
+      - build/ios/iphoneos/Runner.app
