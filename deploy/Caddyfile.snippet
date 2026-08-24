@@ -1,12 +1,12 @@
 # Append this block to /home/server/docker/caddy/Caddyfile, then reload
-# Caddy (`docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`
-# or restart the container).
+# Caddy (`docker exec caddy caddy reload --config /etc/caddy/Caddyfile`).
 #
 # Serves the built Flutter web app at reader.shaddai.home, and reverse-
-# proxies /komga and /kavita same-origin so the browser never has to make
-# a cross-origin request to the bare Tailscale IP (which Komga/Kavita
-# don't send CORS headers for - see CHANGELOG Phase 2/3 for what that
-# looks like when it's missing).
+# proxies /komga, /kavita, and /suwayomi same-origin so the browser never
+# has to make a cross-origin request to the bare Tailscale IP (which none
+# of those three send CORS headers for - see CHANGELOG Phase 2/3 for what
+# that looks like when it's missing). OPDS has no proxy path since it
+# isn't tied to one fixed server the way the other three are.
 #
 # `tls internal` issues a locally-trusted cert since this is a private
 # Tailscale-only hostname, not a publicly resolvable domain.
@@ -22,6 +22,9 @@ reader.shaddai.home {
     handle_path /kavita/* {
         reverse_proxy 100.108.109.63:5000
     }
+    handle_path /suwayomi/* {
+        reverse_proxy 100.108.109.63:4567
+    }
 
     handle {
         try_files {path} /index.html
@@ -30,12 +33,27 @@ reader.shaddai.home {
 }
 
 # Notes:
-# - /srv/reader must be bind-mounted from the sites dir in the Caddy
-#   compose service, e.g.:
+# - /srv/reader must be reachable from inside the Caddy container. The
+#   simplest way (what's actually deployed): bind-mount the whole sites
+#   directory as `/srv` in the Caddy compose service -
 #     volumes:
-#       - /home/server/docker/caddy/sites/reader:/srv/reader:ro
-# - The reverse_proxy targets above hit Komga/Kavita directly by Tailscale
-#   IP:port, which works from any network Caddy can reach without extra
-#   setup. If Caddy instead joins the comics-manga compose network, you
-#   can swap in the container/service names (e.g. `reverse_proxy komga:25600`)
-#   for one less network hop - not required, just an option.
+#       - ./sites:/srv
+#   - with the built app living at ./sites/reader relative to the
+#   compose file, i.e. /home/server/docker/caddy/sites/reader on the host.
+# - The reverse_proxy targets above hit Komga/Kavita/Suwayomi directly by
+#   Tailscale IP:port, which works from any network Caddy can reach
+#   without extra setup. If Caddy instead joins the comics-manga compose
+#   network, you can swap in the container/service names (e.g.
+#   `reverse_proxy komga:25600`) for one less network hop - not required,
+#   just an option.
+# - GOTCHA: if your Caddy compose file bind-mounts the *Caddyfile itself*
+#   as a single file (`- ./Caddyfile:/etc/caddy/Caddyfile`, not a
+#   directory), editing it with a tool that replaces-via-rename (scp,
+#   most editors' "atomic save") swaps the inode - the running container's
+#   bind mount stays attached to the *old* inode and silently keeps
+#   serving the old content. `caddy reload` won't fix this because it's
+#   reading the same stale mount. Editing the file with something that
+#   truncates-and-rewrites in place (e.g. `cat > file` on the host itself,
+#   not scp) avoids it; otherwise a full `docker compose up -d
+#   --force-recreate caddy` after any edit guarantees the container picks
+#   up the current content.
