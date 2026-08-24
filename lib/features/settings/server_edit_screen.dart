@@ -35,16 +35,18 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
   bool get _isEditing => widget.serverId != null;
 
   /// When the PWA is itself served from reader.shaddai.home (see
-  /// deploy/Caddyfile.snippet), a Caddy reverse proxy makes Komga and
-  /// Kavita reachable same-origin under /komga and /kavita - avoiding the
-  /// browser CORS restriction that a bare Tailscale IP always hits. Direct
-  /// IP entry still works fine for local dev.
+  /// deploy/Caddyfile.snippet), a Caddy reverse proxy makes Komga, Kavita,
+  /// and Suwayomi reachable same-origin under /komga, /kavita, and
+  /// /suwayomi - avoiding the browser CORS restriction that a bare
+  /// Tailscale IP always hits. Direct IP entry still works fine for local
+  /// dev. OPDS has no proxy path since it's not tied to a single fixed
+  /// server the way the other three are.
   String? _sameOriginDefaultUrl(ServerType type) {
     if (Uri.base.host != 'reader.shaddai.home') return null;
     return switch (type) {
       ServerType.komga => '${Uri.base.origin}/komga',
       ServerType.kavita => '${Uri.base.origin}/kavita',
-      ServerType.suwayomi => null,
+      ServerType.suwayomi => '${Uri.base.origin}/suwayomi',
       ServerType.opds => null,
     };
   }

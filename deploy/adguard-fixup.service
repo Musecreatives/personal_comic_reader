@@ -1,0 +1,15 @@
+[Unit]
+Description=Wait for real Tailscale IP then force-recreate AdGuard Home (works around Docker publishing zero ports if adguardhome starts before Tailscale is connected)
+After=docker.service tailscaled.service network-online.target
+Wants=tailscaled.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/server/docker/adguard/wait-and-recreate.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
