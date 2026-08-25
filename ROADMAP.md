@@ -52,23 +52,61 @@ are worth remembering:
 ## Parked decisions
 
 - **CLU** (`allaboutduncan/comic-utils-web`, running at
-  `100.108.109.63:5577`): a server-rendered file-management tool
-  (rename/organize comics on disk), no JSON API. Real integration would
-  mean reverse-engineering its internal form/AJAX endpoints — nontrivial.
-  **Decision: parked until after the UI/UX pass below.** Options on the
-  table when we get back to it: give it a `clu.shaddai.home` Caddy entry
-  and leave it standalone, embed it as a link/webview in the app, or a
-  full native rebuild of its features in Shaddai Reader's own UI.
+  `100.108.109.63:5577`): **correction (2026-08-25)** — earlier note said
+  "no JSON API," which was wrong; that was only checking the bare `/api`
+  path. CLU's JS files (`clu-metadata.js`, `collection.js`, `reader.js`,
+  etc.) reveal a real, fairly extensive internal API: `/api/browse`,
+  `/api/browse-thumbnails`, `/api/continue-reading`, `/api/favorites/*`,
+  `/api/reading-lists/*`, `/api/mark-comic-read`, `/api/reading-position`,
+  `/api/read/`, metadata search/scan, and file operations (move, rename,
+  crop, combine CBZ). It has its own reading-position tracking and a
+  built-in reader — real overlap with Shaddai Reader's territory. Still
+  undocumented/unofficial (no auth scheme confirmed, stability unknown),
+  but "no API" is no longer the blocker it was thought to be.
+  **Decision: still parked pending the UI/UX pass, but worth revisiting
+  sooner given this.** Options on the table: give it a
+  `clu.shaddai.home` Caddy entry and leave it standalone, embed it as a
+  link/webview, wrap its API as a lightweight companion feature, or a
+  full native rebuild in Shaddai Reader's own UI.
 - **Komga vs. Kavita**: both stay configured, no consolidation planned
   right now.
 
-## Active thread: Paperback import
+## Active thread: Paperback → Suwayomi migration
 
-Waiting on a fresh backup export from the Paperback iOS app (Settings >
-Backups > Create/Export Backup) to inspect the real file format before
-designing a migration path into Komga/Kavita/Suwayomi's libraries +
-reading history. Not started beyond this — no schema assumptions made
-yet.
+Backup received and analyzed (`Paperback-Archive.24-08-2026.16-58-22.pas5`,
+a zip of Realm-exported JSON — 292 library titles, 36,578 chapters with
+full read/unread history, 30 source sites, 11 custom tabs). Dry-run
+matching against Suwayomi is done and reviewed:
+
+- **248 titles** matched high-confidence against an installed/installed-
+  for-this Suwayomi source (8 extensions installed 2026-08-25: Mangabat,
+  Mangakakalot, Manganato, Read Comics Online, Toonily.me, MangaKatana,
+  Kissmanga.in, Flame Comics). MangaBuddy → "ManhwaBuddy" mapping is
+  unconfirmed (same site renamed, or different site) - flagged, not yet
+  verified.
+- **37 titles** have no Suwayomi-source equivalent. Of those, **8 are
+  user-excluded** (won't be migrated or acquired anywhere): Youngest
+  Scion of the Mages, Absolute Martial Arts, The Chronicles of Heavenly
+  Demon, A Wonderful New World, Childhood Friend of the Zenith, Avengers
+  vs. X-Men: Infinite, World's Strongest Survivor, The Regressed
+  Mercenary's Machinations. Of the remaining 29: **21 are Western comics**
+  (BatCave source) with plausible Kapowarr/ComicVine matches - checked
+  2026-08-25, 20 of 21 found strong year-matched candidates, 2 need a
+  manual pick ("Green Lantern: Legacy...", bare "X-Men (2019)"). Nothing
+  added to Kapowarr yet - queuing a download is a real action, waiting
+  on explicit go-ahead. The other **8 are manhwa/manga/doujin from
+  scan/doujin sites** (MangaForest, UToon, TooniTube, BatoTo,
+  ReadAllComics, Atsumaru, NHentai) with no realistic acquisition path
+  through either Kapowarr (ComicVine doesn't catalog these) or CLU (no
+  acquisition capability at all) - flagged as genuinely unmigratable
+  this way, not yet resolved.
+- **Not yet done**: actually applying the 248 approved matches to
+  Suwayomi (add to library, recreate the 11 Paperback tabs as
+  categories, push the 36,578 chapters of read/unread progress) - still
+  waiting on final go-ahead after the open items above are resolved.
+
+Working files (source data, scripts, match reports) live in this
+session's scratchpad, not the repo - nothing here is committed code yet.
 
 ## Next up: UI/UX pass + feature consolidation
 
