@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
@@ -101,79 +102,56 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         if (wide) _librariesFuture ??= backend.listLibraries();
 
         final content = Scaffold(
-          appBar: AppBar(
-            automaticallyImplyLeading: !wide,
-            title: const Text('Library'),
-            actions: [
-              IconButton(
-                icon: Icon(_viewMode == _ViewMode.grid
-                    ? Icons.view_list
-                    : Icons.grid_view),
-                onPressed: () => setState(() {
-                  _viewMode =
-                      _viewMode == _ViewMode.grid ? _ViewMode.list : _ViewMode.grid;
-                }),
-              ),
-              PopupMenuButton<SeriesSort>(
-                icon: const Icon(Icons.sort),
-                onSelected: (sort) {
-                  setState(() => _sort = sort);
-                  _loadPage(backend, reset: true);
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: SeriesSort.title, child: Text('Title')),
-                  PopupMenuItem(
-                      value: SeriesSort.dateAdded, child: Text('Date added')),
-                  PopupMenuItem(
-                      value: SeriesSort.dateUpdated,
-                      child: Text('Date updated')),
-                  PopupMenuItem(
-                      value: SeriesSort.releaseDate,
-                      child: Text('Release date')),
+          backgroundColor: AppColors.page,
+          body: SafeArea(
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.metrics.pixels >
+                    notification.metrics.maxScrollExtent - 400) {
+                  _loadPage(backend);
+                }
+                return false;
+              },
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _LibraryHeader(
+                      viewMode: _viewMode,
+                      onToggleView: () => setState(() {
+                        _viewMode = _viewMode == _ViewMode.grid
+                            ? _ViewMode.list
+                            : _ViewMode.grid;
+                      }),
+                      sort: _sort,
+                      onSort: (sort) {
+                        setState(() => _sort = sort);
+                        _loadPage(backend, reset: true);
+                      },
+                      searchController: _searchController,
+                      onSearch: (value) {
+                        _search = value;
+                        _loadPage(backend, reset: true);
+                      },
+                      unreadOnly: _unreadOnly,
+                      onToggleUnread: () {
+                        setState(() => _unreadOnly = !_unreadOnly);
+                        _loadPage(backend, reset: true);
+                      },
+                      sourceColor: AppColors.sourceColor(backend.config.type.name),
+                      sourceName: backend.config.name,
+                      count: _items.length,
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: _viewMode == _ViewMode.grid
+                        ? _SeriesGrid(items: _items, backend: backend)
+                        : _SeriesList(items: _items, backend: backend),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
                 ],
               ),
-              IconButton(
-                icon: Icon(_unreadOnly
-                    ? Icons.mark_email_unread
-                    : Icons.mark_email_unread_outlined),
-                tooltip: 'Unread only',
-                onPressed: () {
-                  setState(() => _unreadOnly = !_unreadOnly);
-                  _loadPage(backend, reset: true);
-                },
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(56),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    hintText: 'Search series',
-                    prefixIcon: Icon(Icons.search),
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (value) {
-                    _search = value;
-                    _loadPage(backend, reset: true);
-                  },
-                ),
-              ),
             ),
-          ),
-          body: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification.metrics.pixels >
-                  notification.metrics.maxScrollExtent - 400) {
-                _loadPage(backend);
-              }
-              return false;
-            },
-            child: _viewMode == _ViewMode.grid
-                ? _SeriesGrid(items: _items, backend: backend)
-                : _SeriesList(items: _items, backend: backend),
           ),
         );
 
@@ -208,53 +186,62 @@ class _SeriesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 160,
+    return SliverGrid(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
         childAspectRatio: 0.62,
         crossAxisSpacing: 12,
-        mainAxisSpacing: 16,
+        mainAxisSpacing: 18,
       ),
-      itemCount: items.length,
-      itemBuilder: (context, i) {
-        final s = items[i];
-        return GestureDetector(
-          onTap: () => context.push('/series/${Uri.encodeComponent(s.id)}'),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: SeriesCover(
-                        imageUrl: s.thumbnailUrl,
-                        headers: backend.imageHeaders,
+      delegate: SliverChildBuilderDelegate(
+        (context, i) {
+          final s = items[i];
+          return GestureDetector(
+            onTap: () => context.push('/series/${Uri.encodeComponent(s.id)}'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(13),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: SeriesCover(
+                            imageUrl: s.thumbnailUrl,
+                            headers: backend.imageHeaders,
+                          ),
+                        ),
                       ),
-                    ),
-                    if (s.booksUnreadCount > 0)
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: _UnreadBadge(count: s.booksUnreadCount),
-                      ),
-                  ],
+                      if (s.booksUnreadCount > 0)
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: _UnreadBadge(count: s.booksUnreadCount),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                s.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13),
-              ),
-            ],
-          ),
-        );
-      },
+                const SizedBox(height: 7),
+                Text(
+                  s.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.body(size: 11.5, weight: FontWeight.w500),
+                ),
+                const SizedBox(height: 2),
+                Text('${s.booksCount} VOL', style: AppText.mono(size: 9.5)),
+              ],
+            ),
+          );
+        },
+        childCount: items.length,
+      ),
     );
   }
 }
@@ -267,29 +254,245 @@ class _SeriesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      itemCount: items.length,
-      itemBuilder: (context, i) {
-        final s = items[i];
-        return ListTile(
-          leading: SizedBox(
-            width: 40,
-            height: 56,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: SeriesCover(
-                imageUrl: s.thumbnailUrl,
-                headers: backend.imageHeaders,
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, i) {
+          final s = items[i];
+          return InkWell(
+            onTap: () => context.push('/series/${Uri.encodeComponent(s.id)}'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: AppColors.border)),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 46,
+                    height: 66,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SeriesCover(
+                        imageUrl: s.thumbnailUrl,
+                        headers: backend.imageHeaders,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.body(
+                                size: 14.5, weight: FontWeight.w500)),
+                        const SizedBox(height: 5),
+                        Text('${s.booksCount} VOL', style: AppText.mono(size: 10.5)),
+                      ],
+                    ),
+                  ),
+                  if (s.booksUnreadCount > 0)
+                    _UnreadBadge(count: s.booksUnreadCount)
+                  else
+                    Icon(Icons.check, size: 16, color: AppColors.suwayomiText),
+                ],
               ),
             ),
+          );
+        },
+        childCount: items.length,
+      ),
+    );
+  }
+}
+
+class _LibraryHeader extends StatelessWidget {
+  final _ViewMode viewMode;
+  final VoidCallback onToggleView;
+  final SeriesSort sort;
+  final ValueChanged<SeriesSort> onSort;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearch;
+  final bool unreadOnly;
+  final VoidCallback onToggleUnread;
+  final Color sourceColor;
+  final String sourceName;
+  final int count;
+
+  const _LibraryHeader({
+    required this.viewMode,
+    required this.onToggleView,
+    required this.sort,
+    required this.onSort,
+    required this.searchController,
+    required this.onSearch,
+    required this.unreadOnly,
+    required this.onToggleUnread,
+    required this.sourceColor,
+    required this.sourceName,
+    required this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Library', style: AppText.largeTitle()),
+              Row(
+                children: [
+                  _HeaderIconButton(
+                    icon: viewMode == _ViewMode.grid
+                        ? Icons.view_list_outlined
+                        : Icons.grid_view_rounded,
+                    onTap: onToggleView,
+                  ),
+                  const SizedBox(width: 8),
+                  PopupMenuButton<SeriesSort>(
+                    onSelected: onSort,
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: SeriesSort.title, child: Text('Title')),
+                      PopupMenuItem(
+                          value: SeriesSort.dateAdded, child: Text('Date added')),
+                      PopupMenuItem(
+                          value: SeriesSort.dateUpdated,
+                          child: Text('Date updated')),
+                      PopupMenuItem(
+                          value: SeriesSort.releaseDate,
+                          child: Text('Release date')),
+                    ],
+                    child: const _HeaderIconButton(icon: Icons.sort_rounded),
+                  ),
+                ],
+              ),
+            ],
           ),
-          title: Text(s.title),
-          subtitle: Text('${s.booksCount} books'),
-          trailing:
-              s.booksUnreadCount > 0 ? _UnreadBadge(count: s.booksUnreadCount) : null,
-          onTap: () => context.push('/series/${Uri.encodeComponent(s.id)}'),
-        );
-      },
+          const SizedBox(height: 14),
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.fillSubtle,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.search, size: 16, color: AppColors.text45),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: TextField(
+                    controller: searchController,
+                    onSubmitted: onSearch,
+                    style: AppText.body(size: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Search series',
+                      hintStyle: AppText.body(size: 14, color: AppColors.text45),
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _FilterChip(label: 'All', selected: !unreadOnly, onTap: () {
+                if (unreadOnly) onToggleUnread();
+              }),
+              const SizedBox(width: 7),
+              _FilterChip(
+                label: 'Unread',
+                selected: unreadOnly,
+                onTap: () {
+                  if (!unreadOnly) onToggleUnread();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration:
+                    BoxDecoration(color: sourceColor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Text(sourceName,
+                  style: AppText.body(size: 15, weight: FontWeight.w600)),
+              const Spacer(),
+              Text('$count SERIES', style: AppText.mono(size: 10)),
+            ],
+          ),
+          const SizedBox(height: 14),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _HeaderIconButton({required this.icon, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.fillSubtle,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 34,
+          height: 34,
+          child: Icon(icon, size: 17, color: AppColors.text),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.accent : AppColors.fillSubtle,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          child: Text(
+            label,
+            style: AppText.body(
+              size: 11.5,
+              weight: FontWeight.w600,
+              color: selected ? Colors.white : AppColors.text60,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
