@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/reader_backend.dart';
 
@@ -14,43 +15,142 @@ class ServersScreen extends ConsumerWidget {
     final activeId = ref.watch(activeServerIdProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Servers')),
-      body: servers.isEmpty
-          ? const _EmptyState()
-          : ListView.builder(
-              itemCount: servers.length,
-              itemBuilder: (context, index) {
-                final server = servers[index];
-                final isActive = server.id == activeId;
-                return ListTile(
-                  leading: Icon(switch (server.type) {
-                    ServerType.komga => Icons.local_library,
-                    ServerType.kavita => Icons.menu_book,
-                    ServerType.suwayomi => Icons.auto_stories,
-                    ServerType.opds => Icons.rss_feed,
-                  }),
-                  title: Text(server.name),
-                  subtitle: Text('${server.type.name} • ${server.baseUrl}'),
-                  trailing: isActive
-                      ? const Chip(label: Text('Active'))
-                      : TextButton(
-                          onPressed: () async {
-                            await ref
-                                .read(serverStoreProvider)
-                                .setActiveServerId(server.id);
-                            ref.read(activeServerIdProvider.notifier).state =
-                                server.id;
-                            if (context.mounted) context.go('/home');
-                          },
-                          child: const Text('Use'),
-                        ),
-                  onTap: () => context.push('/settings/servers/${server.id}/edit'),
-                );
-              },
+      backgroundColor: AppColors.page,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 18),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Sources', style: AppText.largeTitle()),
+                  Material(
+                    color: AppColors.accent,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => context.push('/settings/servers/new'),
+                      child: const SizedBox(
+                        width: 34,
+                        height: 34,
+                        child: Icon(Icons.add, size: 18, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/settings/servers/new'),
-        child: const Icon(Icons.add),
+            Expanded(
+              child: servers.isEmpty
+                  ? const _EmptyState()
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      children: [
+                        for (final server in servers)
+                          _ServerCard(
+                            name: server.name,
+                            type: server.type,
+                            baseUrl: server.baseUrl,
+                            isActive: server.id == activeId,
+                            onUse: () async {
+                              await ref
+                                  .read(serverStoreProvider)
+                                  .setActiveServerId(server.id);
+                              ref.read(activeServerIdProvider.notifier).state =
+                                  server.id;
+                              if (context.mounted) context.go('/home');
+                            },
+                            onTap: () =>
+                                context.push('/settings/servers/${server.id}/edit'),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ServerCard extends StatelessWidget {
+  final String name;
+  final ServerType type;
+  final String baseUrl;
+  final bool isActive;
+  final VoidCallback onUse;
+  final VoidCallback onTap;
+
+  const _ServerCard({
+    required this.name,
+    required this.type,
+    required this.baseUrl,
+    required this.isActive,
+    required this.onUse,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppColors.sourceColor(type.name);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 11),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isActive ? color.withValues(alpha: 0.4) : AppColors.border,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Row(
+          children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: AppText.body(size: 15, weight: FontWeight.w600)),
+                  const SizedBox(height: 5),
+                  Text('${type.name.toUpperCase()} · $baseUrl',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.mono(size: 9.5)),
+                ],
+              ),
+            ),
+            if (isActive)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.suwayomi.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('ACTIVE', style: AppText.mono(size: 9, color: AppColors.suwayomiText)),
+              )
+            else
+              Material(
+                color: AppColors.accent.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(999),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: onUse,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Text('Use',
+                        style: AppText.body(
+                            size: 11.5, weight: FontWeight.w600, color: AppColors.accentLink)),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -67,17 +167,14 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.dns_outlined, size: 48, color: Colors.grey),
+            Icon(Icons.dns_outlined, size: 48, color: AppColors.text45),
             const SizedBox(height: 12),
-            const Text(
-              'No servers yet',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
+            Text('No servers yet', style: AppText.heading(size: 18)),
             const SizedBox(height: 4),
-            const Text(
-              'Add a Komga or Kavita server to get started.',
+            Text(
+              'Add a Komga, Kavita, Suwayomi or OPDS server to get started.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: AppText.body(color: AppColors.text45),
             ),
           ],
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/kapowarr/kapowarr_client.dart';
 
@@ -14,26 +15,50 @@ class KapowarrStatusScreen extends ConsumerWidget {
     final configAsync = ref.watch(kapowarrConfigProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kapowarr'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => context.push('/settings/kapowarr/edit'),
-          ),
-        ],
-      ),
-      body: configAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('$e')),
-        data: (config) {
-          if (config == null) {
-            return _NotConfigured(
-              onSetUp: () => context.push('/settings/kapowarr/edit'),
-            );
-          }
-          return _StatusBody(client: KapowarrClient(config: config));
-        },
+      backgroundColor: AppColors.page,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Kapowarr', style: AppText.largeTitle()),
+                  Material(
+                    color: AppColors.fillSubtle,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => context.push('/settings/kapowarr/edit'),
+                      child: const SizedBox(
+                        width: 34,
+                        height: 34,
+                        child: Icon(Icons.settings_outlined, size: 17, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: configAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, st) =>
+                    Center(child: Text('$e', style: AppText.body(color: AppColors.text60))),
+                data: (config) {
+                  if (config == null) {
+                    return _NotConfigured(
+                      onSetUp: () => context.push('/settings/kapowarr/edit'),
+                    );
+                  }
+                  return _StatusBody(client: KapowarrClient(config: config));
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -51,15 +76,14 @@ class _NotConfigured extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.download_outlined, size: 48, color: Colors.grey),
+            Icon(Icons.download_outlined, size: 48, color: AppColors.text45),
             const SizedBox(height: 12),
-            const Text('Kapowarr not connected',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            Text('Kapowarr not connected', style: AppText.heading(size: 18)),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Connect Kapowarr to see acquisition status here.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: AppText.body(color: AppColors.text45),
             ),
             const SizedBox(height: 16),
             FilledButton(onPressed: onSetUp, child: const Text('Set up')),
@@ -108,7 +132,9 @@ class _StatusBodyState extends State<_StatusBody> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Failed to reach Kapowarr: ${snapshot.error}'));
+          return Center(
+              child: Text('Failed to reach Kapowarr: ${snapshot.error}',
+                  style: AppText.body(color: AppColors.text60)));
         }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -117,37 +143,43 @@ class _StatusBodyState extends State<_StatusBody> {
         return RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             children: [
-              _StatsGrid(stats: stats),
-              const SizedBox(height: 24),
-              Text('Downloading (${queue.length})',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [AppColors.kapowarr.withValues(alpha: 0.12), AppColors.card],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.kapowarr.withValues(alpha: 0.2)),
+                ),
+                child: _StatsGrid(stats: stats),
+              ),
+              const SizedBox(height: 22),
+              Text('ACQUIRING NOW', style: AppText.sectionLabel()),
+              const SizedBox(height: 10),
               if (queue.isEmpty)
-                const Text('Nothing downloading right now.')
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Nothing downloading right now.',
+                      style: AppText.body(color: AppColors.text45)),
+                )
               else
-                ...queue.map((q) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.downloading),
-                      title: Text(q.title),
-                      subtitle: Text(q.source),
-                    )),
-              const SizedBox(height: 24),
-              Text('Recently downloaded',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
+                for (final q in queue) _QueueCard(item: q),
+              const SizedBox(height: 22),
+              Text('LANDED IN KOMGA', style: AppText.sectionLabel()),
+              const SizedBox(height: 6),
               if (history.isEmpty)
-                const Text('No download history yet.')
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text('No download history yet.',
+                      style: AppText.body(color: AppColors.text45)),
+                )
               else
-                ...history.map((h) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(h.success
-                          ? Icons.check_circle_outline
-                          : Icons.error_outline),
-                      title: Text(h.title),
-                      subtitle: Text('${h.source} • ${_relativeTime(h.downloadedAt)}'),
-                    )),
+                for (final h in history) _HistoryRow(item: h, relativeTime: _relativeTime),
             ],
           ),
         );
@@ -157,9 +189,80 @@ class _StatusBodyState extends State<_StatusBody> {
 
   String _relativeTime(DateTime dt) {
     final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}M AGO';
+    if (diff.inHours < 24) return '${diff.inHours}H AGO';
+    return '${diff.inDays}D AGO';
+  }
+}
+
+class _QueueCard extends StatelessWidget {
+  final KapowarrQueueItem item;
+  const _QueueCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.downloading, size: 18, color: AppColors.kavitaText),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body(size: 13.5, weight: FontWeight.w500)),
+                const SizedBox(height: 4),
+                Text(item.source.toUpperCase(), style: AppText.mono(size: 9.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryRow extends StatelessWidget {
+  final KapowarrHistoryItem item;
+  final String Function(DateTime) relativeTime;
+  const _HistoryRow({required this.item, required this.relativeTime});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: item.success ? AppColors.suwayomiText : AppColors.dangerText,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text(item.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.body(size: 13)),
+          ),
+          Text(relativeTime(item.downloadedAt), style: AppText.mono(size: 9.5)),
+        ],
+      ),
+    );
   }
 }
 
@@ -170,33 +273,26 @@ class _StatsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tiles = [
-      ('Volumes', '${stats.volumes}'),
-      ('Monitored', '${stats.monitored}'),
-      ('Issues', '${stats.issues}'),
-      ('Downloaded', '${stats.downloadedIssues}'),
-      ('Files', '${stats.files}'),
-      ('Size', _formatBytes(stats.totalFileSize)),
+      ('${stats.volumes}', 'VOLUMES'),
+      ('${stats.monitored}', 'MONITORED'),
+      ('${stats.issues}', 'ISSUES'),
+      ('${stats.downloadedIssues}', 'DOWNLOADED'),
+      ('${stats.files}', 'FILES'),
+      (_formatBytes(stats.totalFileSize), 'SIZE'),
     ];
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: 1.4,
+    return Wrap(
+      spacing: 22,
+      runSpacing: 16,
       children: tiles
-          .map((t) => Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(t.$2,
-                          style: Theme.of(context).textTheme.titleLarge),
-                      Text(t.$1,
-                          style: Theme.of(context).textTheme.bodySmall),
-                    ],
-                  ),
+          .map((t) => SizedBox(
+                width: 88,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.$1, style: AppText.heading(size: 19)),
+                    const SizedBox(height: 6),
+                    Text(t.$2, style: AppText.mono(size: 9)),
+                  ],
                 ),
               ))
           .toList(),
