@@ -49,6 +49,36 @@ are worth remembering:
   for future fresh deploys. The app's same-origin URL defaults
   (`server_edit_screen.dart`) now cover all three.
 
+## Infrastructure incident: 2026-08-25 mergerfs drive drop
+
+The migration's sustained write load (library adds + ~9,200 chapter
+read-state writes to Suwayomi, 20 volume adds to Kapowarr) exposed a
+real hardware fragility: the "external" USB drive backing part of the
+`/mnt/media-pool` mergerfs union (which Suwayomi, Komga, Kavita,
+Kapowarr, and CLU all store data on) physically disconnected mid-write,
+then reconnected under a new device name (`/dev/sdb1` &rarr; `/dev/sdd1`)
+without cleanly replacing the stale mount - leaving `/mnt/external`
+double-mounted and every app on that pool erroring (Suwayomi H2
+"database has been closed", Komga `SQLITE_CORRUPT`, Kavita's `kavita.db`
+truncated to 0 bytes).
+
+**Recovery** (done, verified): stopped all six containers on that pool
+(suwayomi, komga, kavita, kapowarr, clu, komf) to release open file
+handles - mergerfs itself doesn't release them until every process
+with a file open on a branch has closed it, which was the actual
+blocker on unmounting, not mergerfs itself. Unmounted cleanly, `fsck
+-n`'d the drive (clean, no corruption - only in-flight writes were
+lost), remounted, restarted everything. Suwayomi (245/248 titles + all
+categories intact), Komga, and Kapowarr (all 24 volumes intact) came
+back with no real data loss. Kavita's `kavita.db` was zeroed and had to
+be restored from its own same-day 02:00 automated backup - essentially
+no data lost since nothing had been written to Kavita that day.
+
+**Not yet addressed**: the drive itself is the real risk here - it's a
+physical USB connection that dropped under load once already. Worth
+checking the cable/enclosure, or planning to replace/retire it from the
+mergerfs pool, before any future write-heavy operation like this one.
+
 ## Parked decisions
 
 - **CLU** (`allaboutduncan/comic-utils-web`, running at
@@ -63,11 +93,12 @@ are worth remembering:
   built-in reader — real overlap with Shaddai Reader's territory. Still
   undocumented/unofficial (no auth scheme confirmed, stability unknown),
   but "no API" is no longer the blocker it was thought to be.
-  **Decision: still parked pending the UI/UX pass, but worth revisiting
-  sooner given this.** Options on the table: give it a
-  `clu.shaddai.home` Caddy entry and leave it standalone, embed it as a
-  link/webview, wrap its API as a lightweight companion feature, or a
-  full native rebuild in Shaddai Reader's own UI.
+  **Decision (confirmed 2026-08-25): parked until after the UI/UX design
+  pass lands.** Add to the active task list once that design work is
+  adopted into the app. Options still on the table when we get there:
+  give it a `clu.shaddai.home` Caddy entry and leave it standalone,
+  embed it as a link/webview, wrap its API as a lightweight companion
+  feature, or a full native rebuild in Shaddai Reader's own UI.
 - **Komga vs. Kavita**: both stay configured, no consolidation planned
   right now.
 
@@ -100,13 +131,17 @@ matching against Suwayomi is done and reviewed:
   through either Kapowarr (ComicVine doesn't catalog these) or CLU (no
   acquisition capability at all) - flagged as genuinely unmigratable
   this way, not yet resolved.
-- **Applied 2026-08-25**: 246 of the 248 matched titles were added to
-  Suwayomi's library, the 11 Paperback tabs recreated as categories, and
-  9,209 of 9,242 read chapters marked read (remaining ~33 are chapter-
-  numbering mismatches between Paperback's chapter list and the current
-  Suwayomi source listing - not investigated further, low-impact). The
-  2 MangaBuddy-sourced titles were skipped (unconfirmed site mapping,
-  still open).
+- **Applied 2026-08-25**: all 248 matched titles added to Suwayomi's
+  library (246 initially + 2 MangaBuddy-sourced titles added after
+  confirming MangaBuddy = ManhwaBuddy is correct), the 11 Paperback tabs
+  recreated as categories, and read chapters marked read (~99% match
+  rate; remaining gap is chapter-numbering mismatches between
+  Paperback's chapter list and the current Suwayomi source listing -
+  low-impact, not investigated further).
+- **Still open**: the 8 manga/manhwa/doujin titles with no Kapowarr/CLU
+  acquisition path (MangaForest, UToon, TooniTube, BatoTo,
+  ReadAllComics, Atsumaru, NHentai sources) - alternative sources not
+  yet researched.
 - **Kapowarr comics - applied 2026-08-25**: all 20 non-excluded Western
   comics queued as monitored volumes (Kapowarr auto-searches/downloads
   on add). ComicVine has real per-title data quality issues worth
