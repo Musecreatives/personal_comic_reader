@@ -100,10 +100,33 @@ matching against Suwayomi is done and reviewed:
   through either Kapowarr (ComicVine doesn't catalog these) or CLU (no
   acquisition capability at all) - flagged as genuinely unmigratable
   this way, not yet resolved.
-- **Not yet done**: actually applying the 248 approved matches to
-  Suwayomi (add to library, recreate the 11 Paperback tabs as
-  categories, push the 36,578 chapters of read/unread progress) - still
-  waiting on final go-ahead after the open items above are resolved.
+- **Applied 2026-08-25**: 246 of the 248 matched titles were added to
+  Suwayomi's library, the 11 Paperback tabs recreated as categories, and
+  9,209 of 9,242 read chapters marked read (remaining ~33 are chapter-
+  numbering mismatches between Paperback's chapter list and the current
+  Suwayomi source listing - not investigated further, low-impact). The
+  2 MangaBuddy-sourced titles were skipped (unconfirmed site mapping,
+  still open).
+- **Kapowarr comics - applied 2026-08-25**: all 20 non-excluded Western
+  comics queued as monitored volumes (Kapowarr auto-searches/downloads
+  on add). ComicVine has real per-title data quality issues worth
+  knowing about for future imports: several titles had duplicate-looking
+  volume entries (same title/year/publisher, different internal IDs -
+  picked the first one each time, content should be identical) and one
+  title ("Fall of the House of X") had a French/Panini translated
+  edition ranked above the correct Marvel English one by a naive
+  top-result match - caught and fixed before committing (see below).
+
+**Process note for future imports**: Kapowarr adds a volume with
+`monitor: true` and starts downloading *immediately*, synchronously, no
+confirm step - a wrong `comicvine_id` becomes a wrong download on disk
+within seconds, not just a wrong library entry. Hit this once here (a
+Panini France translated edition of "Fall of the House of X" auto-
+downloaded before the mismatch was caught) and once more on a
+copy-paste ID mistake for "X-Men: Hellfire Gala" - both times fixed by
+unmonitoring, deleting with `delete_folder=true`, and re-adding the
+correct ID. Lesson: always resolve to the exact `comicvine_id` and
+double check publisher/translated flags *before* the POST, not after.
 
 Working files (source data, scripts, match reports) live in this
 session's scratchpad, not the repo - nothing here is committed code yet.
