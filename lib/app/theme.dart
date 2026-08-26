@@ -1,24 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../core/appearance/appearance_settings.dart';
 import 'design_tokens.dart';
 
-/// Dark-first theme built on the "Reading Now & Downloads" design package
-/// tokens (navy surfaces, purple accent seeded from the original brand
-/// color, Inter body type). See [AppColors] / [AppText] for the raw tokens.
-ThemeData buildAppTheme() {
+/// Builds the Material theme from the user's [AppearanceSettings] (6b).
+/// Call [AppColors.configure] with the same settings first (main.dart does
+/// this before every rebuild) so the two stay in sync - this only handles
+/// the parts of the app that go through `Theme.of(context)` rather than
+/// reading `AppColors` directly.
+ThemeData buildAppTheme(AppearanceSettings appearance) {
+  final isLight = appearance.themeMode == AppThemeMode.paper;
+
   final colorScheme = ColorScheme.fromSeed(
     seedColor: AppColors.accent,
-    brightness: Brightness.dark,
+    brightness: isLight ? Brightness.light : Brightness.dark,
   ).copyWith(
     primary: AppColors.accent,
     surface: AppColors.page,
     surfaceContainerHigh: AppColors.card,
-    outline: AppColors.borderStrong,
+    outline: AppColors.border,
     outlineVariant: AppColors.border,
   );
 
-  final baseTextTheme = GoogleFonts.interTextTheme(ThemeData.dark().textTheme);
+  final baseTextTheme = isLight
+      ? GoogleFonts.interTextTheme()
+      : GoogleFonts.interTextTheme(ThemeData.dark().textTheme);
 
   return ThemeData(
     useMaterial3: true,

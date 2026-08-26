@@ -361,7 +361,7 @@ class _ProgressBar extends StatelessWidget {
         value: value.clamp(0, 1),
         minHeight: 3,
         backgroundColor: AppColors.track,
-        valueColor: const AlwaysStoppedAnimation(AppColors.accent),
+        valueColor: AlwaysStoppedAnimation(AppColors.accent),
       ),
     );
   }

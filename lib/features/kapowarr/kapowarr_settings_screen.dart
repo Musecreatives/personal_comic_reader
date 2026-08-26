@@ -233,7 +233,7 @@ class _KapowarrSettingsScreenState
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(13),
-          borderSide: const BorderSide(color: AppColors.accent),
+          borderSide: BorderSide(color: AppColors.accent),
         ),
       );
 }

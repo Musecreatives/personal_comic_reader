@@ -1,25 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../core/appearance/appearance_settings.dart';
+
 /// Design tokens from the "Reading Now & Downloads" design package
-/// (2026-08 UI/UX pass). Colors, type and spacing here are the source of
-/// truth for new screens; existing screens migrate onto these gradually.
+/// (2026-08 UI/UX pass), reconfigurable at runtime by the Appearance
+/// screen (6b). Fields are mutable statics rather than a passed-down
+/// object so every screen can keep reading `AppColors.x` directly; call
+/// [AppColors.configure] once when appearance changes and rebuild the
+/// widget tree under a changed key so everything re-reads the new values
+/// (see `main.dart`).
 class AppColors {
   AppColors._();
 
-  static const accent = Color(0xFF6E56CF);
-  static const accentHover = Color(0xFF7D67D9);
-  static const accentLink = Color(0xFF8F7BEA);
-  static const accentSoft = Color(0xFFB7A6F5);
+  static Color accent = const Color(0xFF6E56CF);
+  static Color accentHover = const Color(0xFF7D67D9);
+  static Color accentLink = const Color(0xFF8F7BEA);
+  static Color accentSoft = const Color(0xFFB7A6F5);
 
-  static const page = Color(0xFF0A1420);
-  static const canvas = Color(0xFF07101B);
-  static const card = Color(0xFF111F31);
-  static const border = Color(0xFF1E3350);
-  static const borderStrong = Color(0xFF223349);
+  static Color page = const Color(0xFF0A1420);
+  static Color canvas = const Color(0xFF07101B);
+  static Color card = const Color(0xFF111F31);
+  static Color border = const Color(0xFF1E3350);
+  static Color borderStrong = const Color(0xFF223349);
 
-  static const text = Color(0xFFF4F3F7);
-  static const textAlt = Color(0xFFF3F6FA);
+  static Color text = const Color(0xFFF4F3F7);
+  static Color textAlt = const Color(0xFFF3F6FA);
   static Color text60 = const Color(0xFFF3F6FA).withValues(alpha: 0.60);
   static Color text45 = const Color(0xFFF3F6FA).withValues(alpha: 0.45);
   static Color text42 = const Color(0xFFF3F6FA).withValues(alpha: 0.42);
@@ -29,6 +35,8 @@ class AppColors {
   static Color fillHover = const Color(0xFF8FC1E8).withValues(alpha: 0.06);
   static Color track = const Color(0xFF8FC1E8).withValues(alpha: 0.18);
 
+  // Backend brand identity colors - fixed regardless of theme/accent, since
+  // these mark a specific external service, not app chrome.
   static const komga = Color(0xFF2E75C4);
   static const komgaText = Color(0xFF8FC1E8);
   static const kavita = Color(0xFFC9821F);
@@ -60,6 +68,64 @@ class AppColors {
         return suwayomi;
       default:
         return text45;
+    }
+  }
+
+  /// Recomputes every token for [settings]. Called once by main.dart
+  /// whenever the Appearance screen changes theme mode or accent, right
+  /// before the app rebuilds under a new key.
+  static void configure(AppearanceSettings settings) {
+    accent = settings.accent.color;
+    accentHover = Color.lerp(accent, Colors.white, 0.12)!;
+    accentLink = Color.lerp(accent, Colors.white, 0.22)!;
+    accentSoft = Color.lerp(accent, Colors.white, 0.42)!;
+
+    switch (settings.themeMode) {
+      case AppThemeMode.midnight:
+        page = const Color(0xFF0A1420);
+        canvas = const Color(0xFF07101B);
+        card = const Color(0xFF111F31);
+        border = const Color(0xFF1E3350);
+        borderStrong = const Color(0xFF223349);
+        text = const Color(0xFFF4F3F7);
+        textAlt = const Color(0xFFF3F6FA);
+        text60 = textAlt.withValues(alpha: 0.60);
+        text45 = textAlt.withValues(alpha: 0.45);
+        text42 = textAlt.withValues(alpha: 0.42);
+        text30 = textAlt.withValues(alpha: 0.30);
+        fillSubtle = const Color(0xFF8FC1E8).withValues(alpha: 0.10);
+        fillHover = const Color(0xFF8FC1E8).withValues(alpha: 0.06);
+        track = const Color(0xFF8FC1E8).withValues(alpha: 0.18);
+      case AppThemeMode.trueBlack:
+        page = Colors.black;
+        canvas = Colors.black;
+        card = const Color(0xFF0D0D0D);
+        border = const Color(0xFF262626);
+        borderStrong = const Color(0xFF303030);
+        text = const Color(0xFFF4F3F7);
+        textAlt = const Color(0xFFF3F6FA);
+        text60 = textAlt.withValues(alpha: 0.60);
+        text45 = textAlt.withValues(alpha: 0.45);
+        text42 = textAlt.withValues(alpha: 0.42);
+        text30 = textAlt.withValues(alpha: 0.30);
+        fillSubtle = Colors.white.withValues(alpha: 0.06);
+        fillHover = Colors.white.withValues(alpha: 0.04);
+        track = Colors.white.withValues(alpha: 0.14);
+      case AppThemeMode.paper:
+        page = const Color(0xFFF4F1EA);
+        canvas = const Color(0xFFEDE9DF);
+        card = const Color(0xFFFFFFFF);
+        border = const Color(0xFFDDD8CC);
+        borderStrong = const Color(0xFFCFC9B8);
+        text = const Color(0xFF1A1A1A);
+        textAlt = const Color(0xFF1A1A1A);
+        text60 = textAlt.withValues(alpha: 0.62);
+        text45 = textAlt.withValues(alpha: 0.48);
+        text42 = textAlt.withValues(alpha: 0.45);
+        text30 = textAlt.withValues(alpha: 0.32);
+        fillSubtle = Colors.black.withValues(alpha: 0.05);
+        fillHover = Colors.black.withValues(alpha: 0.035);
+        track = Colors.black.withValues(alpha: 0.12);
     }
   }
 }
