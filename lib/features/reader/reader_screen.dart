@@ -7,6 +7,8 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import '../../core/history/history_entry.dart';
+import '../../core/history/history_store.dart';
 import '../../core/reader/page_cache.dart';
 import '../../core/reader/progress_sync.dart';
 import '../../core/reader/reader_settings.dart';
@@ -150,6 +152,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
   ProgressSync get _progressSync => ref.read(progressSyncProvider);
   PageCache get _pageCache => ref.read(pageCacheProvider);
   ReadingStatsStore get _statsStore => ref.read(readingStatsStoreProvider);
+  HistoryStore get _historyStore => ref.read(historyStoreProvider);
 
   @override
   void initState() {
@@ -170,14 +173,29 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
   @override
   void dispose() {
     WakelockPlus.disable();
+    final completed = _currentPage >= widget.book.pageCount - 1;
     _progressSync.sendNow(
       widget.backend,
       widget.book.id,
       page: _currentPage,
-      completed: _currentPage >= widget.book.pageCount - 1,
+      completed: completed,
     );
     final elapsed = DateTime.now().difference(_sessionStart).inSeconds;
     _statsStore.recordSeconds(elapsed);
+    // Only log a session that actually turned a page - opening a book and
+    // immediately backing out shouldn't clutter history.
+    if (_seenPages.length > 1 || completed) {
+      _historyStore.record(HistoryEntry(
+        bookId: widget.book.id,
+        seriesId: widget.book.seriesId,
+        bookTitle: widget.book.title,
+        bookNumber: widget.book.number,
+        pageCount: widget.book.pageCount,
+        lastPage: _currentPage,
+        completed: completed,
+        timestamp: DateTime.now(),
+      ));
+    }
     super.dispose();
   }
 

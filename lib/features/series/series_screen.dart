@@ -85,6 +85,58 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
         widget.backend, books, widget.seriesId, series.title);
   }
 
+  void _showCollectionPicker(BuildContext context, String seriesId) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final store = ref.read(collectionsStoreProvider);
+            final collections = store.list();
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Add to collection', style: AppText.body(size: 16, weight: FontWeight.w600)),
+                    const SizedBox(height: 12),
+                    if (collections.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text('No collections yet - make one from Collections in Settings.',
+                            style: AppText.body(size: 12.5, color: AppColors.text45)),
+                      ),
+                    for (final c in collections)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(c.name, style: AppText.body(size: 14)),
+                        value: c.seriesIds.contains(seriesId),
+                        onChanged: (checked) async {
+                          if (checked == true) {
+                            await store.addSeries(c.id, seriesId);
+                          } else {
+                            await store.removeSeries(c.id, seriesId);
+                          }
+                          ref.read(collectionsRevisionProvider.notifier).state++;
+                          setSheetState(() {});
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final headers = widget.backend.imageHeaders;
@@ -115,6 +167,14 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                 .where((t) => t.state == DownloadState.done)
                 .length,
             onDownloadAll: () => _downloadSeries(series),
+            onRead: () async {
+              final books = await _booksFuture;
+              if (!mounted) return;
+              if (books.isEmpty) return;
+              final next = books.firstWhere((b) => !b.completed, orElse: () => books.first);
+              context.push('/read/${Uri.encodeComponent(next.id)}');
+            },
+            onSaveToCollection: () => _showCollectionPicker(context, series.id),
           );
 
           final bookList = FutureBuilder<List<Book>>(
@@ -189,12 +249,16 @@ class _SeriesHeader extends StatelessWidget {
   final Map<String, String> headers;
   final int downloadedCount;
   final VoidCallback onDownloadAll;
+  final VoidCallback onRead;
+  final VoidCallback onSaveToCollection;
 
   const _SeriesHeader({
     required this.series,
     required this.headers,
     required this.downloadedCount,
     required this.onDownloadAll,
+    required this.onRead,
+    required this.onSaveToCollection,
   });
 
   @override
@@ -296,14 +360,15 @@ class _SeriesHeader extends StatelessWidget {
                   icon: Icons.play_arrow_rounded,
                   label: 'Read',
                   filled: true,
-                  onTap: () {},
+                  onTap: onRead,
                 ),
               ),
               const SizedBox(width: 10),
               _ActionIconButton(
                   icon: Icons.download_outlined, onTap: onDownloadAll),
               const SizedBox(width: 10),
-              const _ActionIconButton(icon: Icons.bookmark_border),
+              _ActionIconButton(
+                  icon: Icons.bookmark_border, onTap: onSaveToCollection),
             ],
           ),
         ),

@@ -4,10 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app/connectivity_banner.dart';
+import 'app/design_tokens.dart';
 import 'app/providers.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
+import 'core/appearance/appearance_store.dart';
+import 'core/collections/collections_store.dart';
 import 'core/downloads/download_manager.dart';
+import 'core/history/history_store.dart';
 import 'core/downloads/download_store.dart';
 import 'core/kapowarr/kapowarr_config_store.dart';
 import 'core/reader/page_cache.dart';
@@ -43,6 +47,17 @@ Future<void> main() async {
   final readingStatsStore = ReadingStatsStore();
   await readingStatsStore.init();
 
+  final appearanceStore = AppearanceStore();
+  await appearanceStore.init();
+  final initialAppearance = appearanceStore.get();
+  AppColors.configure(initialAppearance);
+
+  final historyStore = HistoryStore();
+  await historyStore.init();
+
+  final collectionsStore = CollectionsStore();
+  await collectionsStore.init();
+
   final lastRouteStore = LastRouteStore();
   final lastRoute = await lastRouteStore.getLastRoute();
   final defaultLocation =
@@ -63,21 +78,33 @@ Future<void> main() async {
         downloadStoreProvider.overrideWithValue(downloadStore),
         downloadManagerProvider.overrideWithValue(downloadManager),
         readingStatsStoreProvider.overrideWithValue(readingStatsStore),
+        appearanceStoreProvider.overrideWithValue(appearanceStore),
+        appearanceProvider.overrideWith((ref) => initialAppearance),
+        historyStoreProvider.overrideWithValue(historyStore),
+        collectionsStoreProvider.overrideWithValue(collectionsStore),
       ],
       child: ShaddaiReaderApp(router: router),
     ),
   );
 }
 
-class ShaddaiReaderApp extends StatelessWidget {
+class ShaddaiReaderApp extends ConsumerWidget {
   final GoRouter router;
   const ShaddaiReaderApp({super.key, required this.router});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appearance = ref.watch(appearanceProvider);
+    // AppColors is a set of mutable statics (every screen reads them
+    // directly rather than via Theme.of(context) for the design-package
+    // surfaces) - resync them here, then key the subtree on the settings so
+    // Flutter tears down and rebuilds every descendant from scratch instead
+    // of diffing against widgets built with the old colors.
+    AppColors.configure(appearance);
     return MaterialApp.router(
+      key: ValueKey(appearance),
       title: 'Shaddai Reader',
-      theme: buildAppTheme(),
+      theme: buildAppTheme(appearance),
       routerConfig: router,
       debugShowCheckedModeBanner: false,
       builder: (context, child) =>

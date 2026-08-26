@@ -1,7 +1,10 @@
 import 'package:go_router/go_router.dart';
 
 import '../core/backend/reader_backend.dart';
+import '../features/collections/collections_screen.dart';
 import '../features/downloads/downloads_screen.dart';
+import '../features/history/history_screen.dart';
+import '../features/settings/appearance_screen.dart';
 import '../features/downloads/storage_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/kapowarr/kapowarr_settings_screen.dart';
@@ -58,6 +61,18 @@ GoRouter buildRouter({
     ),
     GoRoute(
         path: '/settings', builder: (context, state) => const SettingsScreen()),
+    GoRoute(
+      path: '/settings/appearance',
+      builder: (context, state) => const AppearanceScreen(),
+    ),
+    GoRoute(
+      path: '/history',
+      builder: (context, state) => const HistoryScreen(),
+    ),
+    GoRoute(
+      path: '/collections',
+      builder: (context, state) => const CollectionsScreen(),
+    ),
     GoRoute(
       path: '/settings/servers',
       builder: (context, state) => const ServersScreen(),
