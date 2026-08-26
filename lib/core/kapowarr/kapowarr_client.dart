@@ -69,6 +69,75 @@ class KapowarrHistoryItem {
       );
 }
 
+class KapowarrIssue {
+  final int id;
+  final String issueNumber;
+  final String? title;
+  final String? date;
+  final bool monitored;
+  final bool hasFile;
+
+  const KapowarrIssue({
+    required this.id,
+    required this.issueNumber,
+    this.title,
+    this.date,
+    required this.monitored,
+    required this.hasFile,
+  });
+
+  factory KapowarrIssue.fromJson(Map<String, dynamic> json) => KapowarrIssue(
+        id: json['id'] as int,
+        issueNumber: (json['issue_number'] as String?) ?? '?',
+        title: json['title'] as String?,
+        date: json['date'] as String?,
+        monitored: json['monitored'] as bool? ?? false,
+        hasFile: (json['files'] as List?)?.isNotEmpty ?? false,
+      );
+}
+
+class KapowarrVolume {
+  final int id;
+  final String title;
+  final int year;
+  final String publisher;
+  final int volumeNumber;
+  final bool monitored;
+  final int issueCount;
+  final int issuesDownloaded;
+  final String folder;
+  final List<KapowarrIssue> issues;
+
+  const KapowarrVolume({
+    required this.id,
+    required this.title,
+    required this.year,
+    required this.publisher,
+    required this.volumeNumber,
+    required this.monitored,
+    required this.issueCount,
+    required this.issuesDownloaded,
+    required this.folder,
+    this.issues = const [],
+  });
+
+  factory KapowarrVolume.fromJson(Map<String, dynamic> json) => KapowarrVolume(
+        id: json['id'] as int,
+        title: json['title'] as String? ?? 'Untitled',
+        year: json['year'] as int? ?? 0,
+        publisher: json['publisher'] as String? ?? '',
+        volumeNumber: json['volume_number'] as int? ?? 1,
+        monitored: json['monitored'] as bool? ?? false,
+        issueCount: json['issue_count'] as int? ?? 0,
+        issuesDownloaded: json['issues_downloaded'] as int? ?? 0,
+        folder: json['folder'] as String? ?? '',
+        issues: (json['issues'] as List?)
+                ?.map((e) => KapowarrIssue.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
+      );
+}
+
 /// Thin client over Kapowarr's REST API, used only for the read-only
 /// status view - Shaddai Reader never triggers downloads or edits volumes.
 class KapowarrClient {
@@ -112,5 +181,21 @@ class KapowarrClient {
         .take(limit)
         .map((e) => KapowarrHistoryItem.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// All volumes Kapowarr is tracking, without their issue lists (issues
+  /// come from [getVolume] to keep this list call cheap).
+  Future<List<KapowarrVolume>> getVolumes() async {
+    final res = await _dio.get('/api/volumes');
+    final result = (res.data as Map<String, dynamic>)['result'] as List;
+    return result
+        .map((e) => KapowarrVolume.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<KapowarrVolume> getVolume(int id) async {
+    final res = await _dio.get('/api/volumes/$id');
+    return KapowarrVolume.fromJson(
+        (res.data as Map<String, dynamic>)['result'] as Map<String, dynamic>);
   }
 }

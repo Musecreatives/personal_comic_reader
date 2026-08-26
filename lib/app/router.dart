@@ -9,9 +9,12 @@ import '../features/downloads/storage_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/kapowarr/kapowarr_settings_screen.dart';
 import '../features/kapowarr/kapowarr_status_screen.dart';
+import '../features/kapowarr/kapowarr_volume_detail_screen.dart';
+import '../features/kapowarr/kapowarr_volumes_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/reader/reader_screen.dart';
+import '../features/search/cross_server_search_screen.dart';
 import '../features/series/series_screen.dart';
 import '../features/stats/stats_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -39,6 +42,10 @@ GoRouter buildRouter({
       ),
     ),
     GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+    GoRoute(
+      path: '/search',
+      builder: (context, state) => const CrossServerSearchScreen(),
+    ),
     GoRoute(
       path: '/library/:id',
       builder: (context, state) =>
@@ -93,6 +100,16 @@ GoRouter buildRouter({
     GoRoute(
       path: '/settings/kapowarr/edit',
       builder: (context, state) => const KapowarrSettingsScreen(),
+    ),
+    GoRoute(
+      path: '/settings/kapowarr/volumes',
+      builder: (context, state) => const KapowarrVolumesScreen(),
+    ),
+    GoRoute(
+      path: '/settings/kapowarr/volumes/:id',
+      builder: (context, state) => KapowarrVolumeDetailScreen(
+        volumeId: int.parse(state.pathParameters['id']!),
+      ),
     ),
     GoRoute(
       path: '/settings/downloads',

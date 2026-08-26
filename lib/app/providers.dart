@@ -45,15 +45,10 @@ final activeServerConfigProvider = Provider<ServerConfig?>((ref) {
   return ref.watch(serverStoreProvider).getServer(id);
 });
 
-/// The live backend instance for whichever server is active. UI code
-/// should only ever go through this - never construct a backend directly.
-final activeBackendProvider = FutureProvider<ReaderBackend?>((ref) async {
-  final config = ref.watch(activeServerConfigProvider);
-  if (config == null) return null;
-
-  final store = ref.watch(serverStoreProvider);
-  final password = await store.getPassword(config.id) ?? '';
-
+/// Builds the right [ReaderBackend] implementation for [config]. UI code
+/// should never call this directly - go through [activeBackendProvider] or
+/// [allBackendsProvider] instead.
+ReaderBackend buildBackend(ServerConfig config, String password) {
   switch (config.type) {
     case ServerType.komga:
       return KomgaBackend(config: config, password: password);
@@ -64,6 +59,28 @@ final activeBackendProvider = FutureProvider<ReaderBackend?>((ref) async {
     case ServerType.opds:
       return OpdsBackend(config: config, password: password);
   }
+}
+
+/// The live backend instance for whichever server is active. UI code
+/// should only ever go through this - never construct a backend directly.
+final activeBackendProvider = FutureProvider<ReaderBackend?>((ref) async {
+  final config = ref.watch(activeServerConfigProvider);
+  if (config == null) return null;
+
+  final store = ref.watch(serverStoreProvider);
+  final password = await store.getPassword(config.id) ?? '';
+  return buildBackend(config, password);
+});
+
+/// One backend per configured server (not just the active one) - used by
+/// cross-server search (5c), which needs to query every server at once.
+final allBackendsProvider = FutureProvider<List<ReaderBackend>>((ref) async {
+  final servers = ref.watch(serverListProvider);
+  final store = ref.watch(serverStoreProvider);
+  return Future.wait(servers.map((config) async {
+    final password = await store.getPassword(config.id) ?? '';
+    return buildBackend(config, password);
+  }));
 });
 
 /// Set once in main() after ReaderSettingsStore.init() completes.
