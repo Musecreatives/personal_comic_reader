@@ -45,8 +45,10 @@ Future<void> main() async {
 
   final lastRouteStore = LastRouteStore();
   final lastRoute = await lastRouteStore.getLastRoute();
+  final defaultLocation =
+      serverStore.listServers().isEmpty ? '/onboarding' : '/home';
   final router = buildRouter(
-    initialLocation: lastRoute ?? '/home',
+    initialLocation: lastRoute ?? defaultLocation,
     onRouteChange: lastRouteStore.setLastRoute,
   );
 

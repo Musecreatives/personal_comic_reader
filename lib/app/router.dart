@@ -1,11 +1,13 @@
 import 'package:go_router/go_router.dart';
 
+import '../core/backend/reader_backend.dart';
 import '../features/downloads/downloads_screen.dart';
 import '../features/downloads/storage_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/kapowarr/kapowarr_settings_screen.dart';
 import '../features/kapowarr/kapowarr_status_screen.dart';
 import '../features/library/library_screen.dart';
+import '../features/onboarding/onboarding_screen.dart';
 import '../features/reader/reader_screen.dart';
 import '../features/series/series_screen.dart';
 import '../features/stats/stats_screen.dart';
@@ -24,6 +26,15 @@ GoRouter buildRouter({
     return null;
   },
   routes: [
+    GoRoute(
+        path: '/onboarding', builder: (context, state) => const OnboardingScreen()),
+    GoRoute(
+      path: '/onboarding/add-server',
+      builder: (context, state) => ServerEditScreen(
+        initialType: state.extra as ServerType?,
+        isOnboarding: true,
+      ),
+    ),
     GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
     GoRoute(
       path: '/library/:id',

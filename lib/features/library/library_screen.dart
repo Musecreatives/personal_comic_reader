@@ -6,6 +6,7 @@ import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 
 enum _ViewMode { grid, list }
@@ -84,12 +85,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final backendAsync = ref.watch(activeBackendProvider);
 
     return backendAsync.when(
-      loading: () => const Scaffold(
-          body: Center(child: CircularProgressIndicator())),
-      error: (e, st) => Scaffold(body: Center(child: Text('$e'))),
+      loading: () => Scaffold(
+          backgroundColor: AppColors.page,
+          body: const Center(child: CircularProgressIndicator())),
+      error: (e, st) => Scaffold(
+        backgroundColor: AppColors.page,
+        body: AppErrorState(
+          error: e,
+          onRetry: () => ref.invalidate(activeBackendProvider),
+        ),
+      ),
       data: (backend) {
         if (backend == null) {
-          return const Scaffold(body: Center(child: Text('No server')));
+          return Scaffold(
+            backgroundColor: AppColors.page,
+            body: Center(
+                child: Text('No server',
+                    style: AppText.body(color: AppColors.text60))),
+          );
         }
         if (_backend != backend) {
           _backend = backend;

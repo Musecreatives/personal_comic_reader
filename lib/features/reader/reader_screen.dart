@@ -13,6 +13,7 @@ import '../../core/reader/reader_settings.dart';
 import '../../core/reader/reader_settings_store.dart';
 import '../../core/panels/panel_detector.dart';
 import '../../core/stats/reading_stats_store.dart';
+import '../shared/error_state.dart';
 import 'widgets/double_page_view.dart';
 import 'widgets/panel_zoom_view.dart';
 import 'widgets/reader_overlay.dart';
@@ -34,8 +35,13 @@ class ReaderScreen extends ConsumerWidget {
         backgroundColor: Colors.black,
         body: Center(child: CircularProgressIndicator()),
       ),
-      error: (e, st) =>
-          Scaffold(backgroundColor: Colors.black, body: Center(child: Text('$e'))),
+      error: (e, st) => Scaffold(
+        backgroundColor: Colors.black,
+        body: AppErrorState(
+          error: e,
+          onRetry: () => ref.invalidate(activeBackendProvider),
+        ),
+      ),
       data: (backend) {
         if (backend == null) {
           return const Scaffold(
@@ -82,7 +88,10 @@ class _ReaderLoaderState extends ConsumerState<_ReaderLoader> {
           if (snapshot.hasError) {
             return Scaffold(
               backgroundColor: Colors.black,
-              body: Center(child: Text('${snapshot.error}')),
+              body: AppErrorState(
+                error: snapshot.error!,
+                onRetry: () => setState(() => _future = _load()),
+              ),
             );
           }
           return const Scaffold(
