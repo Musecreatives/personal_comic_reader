@@ -158,6 +158,30 @@ class _StatusBodyState extends State<_StatusBody> {
                 ),
                 child: _StatsGrid(stats: stats),
               ),
+              const SizedBox(height: 14),
+              InkWell(
+                onTap: () => context.push('/settings/kapowarr/volumes'),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.grid_view_rounded, size: 17, color: AppColors.text60),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Text('Browse all volumes',
+                            style: AppText.body(size: 14, weight: FontWeight.w500)),
+                      ),
+                      Icon(Icons.chevron_right, size: 18, color: AppColors.text30),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 22),
               Text('ACQUIRING NOW', style: AppText.sectionLabel()),
               const SizedBox(height: 10),
