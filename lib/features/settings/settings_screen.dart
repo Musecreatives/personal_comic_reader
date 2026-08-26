@@ -87,10 +87,28 @@ class SettingsScreen extends StatelessWidget {
             _SectionLabel('YOU'),
             _SettingsGroup(children: [
               _SettingsRow(
+                icon: Icons.palette_outlined,
+                title: 'Appearance',
+                subtitle: 'Theme and accent color',
+                onTap: () => context.push('/settings/appearance'),
+              ),
+              _SettingsRow(
                 icon: Icons.bar_chart_outlined,
                 title: 'Reading stats',
                 subtitle: 'Streak, pages per day - local only',
                 onTap: () => context.push('/stats'),
+              ),
+              _SettingsRow(
+                icon: Icons.history,
+                title: 'History',
+                subtitle: 'Recently read, local only',
+                onTap: () => context.push('/history'),
+              ),
+              _SettingsRow(
+                icon: Icons.collections_bookmark_outlined,
+                title: 'Collections',
+                subtitle: 'Local shelves that cross servers',
+                onTap: () => context.push('/collections'),
                 isLast: true,
               ),
             ]),

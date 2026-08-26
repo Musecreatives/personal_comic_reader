@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shaddai_reader/app/providers.dart';
 import 'package:shaddai_reader/app/router.dart';
 import 'package:shaddai_reader/app/theme.dart';
+import 'package:shaddai_reader/core/appearance/appearance_settings.dart';
 import 'package:shaddai_reader/core/backend/reader_backend.dart';
 
 void main() {
@@ -28,7 +29,7 @@ void main() {
               .overrideWith((ref) async => null as ReaderBackend?),
         ],
         child: MaterialApp.router(
-          theme: buildAppTheme(),
+          theme: buildAppTheme(const AppearanceSettings()),
           routerConfig: buildRouter(),
         ),
       ),

@@ -4,7 +4,11 @@ import '../backends/kavita/kavita_backend.dart';
 import '../backends/komga/komga_backend.dart';
 import '../backends/opds/opds_backend.dart';
 import '../backends/suwayomi/suwayomi_backend.dart';
+import '../core/appearance/appearance_settings.dart';
+import '../core/appearance/appearance_store.dart';
 import '../core/backend/reader_backend.dart';
+import '../core/collections/collections_store.dart';
+import '../core/history/history_store.dart';
 import '../core/downloads/download_manager.dart';
 import '../core/downloads/download_models.dart';
 import '../core/downloads/download_store.dart';
@@ -121,3 +125,29 @@ final readingStatsStoreProvider = Provider<ReadingStatsStore>((ref) {
   throw UnimplementedError(
       'readingStatsStoreProvider must be overridden in main()');
 });
+
+/// Set once in main() after AppearanceStore.init() completes.
+final appearanceStoreProvider = Provider<AppearanceStore>((ref) {
+  throw UnimplementedError('appearanceStoreProvider must be overridden in main()');
+});
+
+/// Live appearance state - seeded from the store at startup in main(), then
+/// updated in place (and persisted) by the Appearance screen. MaterialApp
+/// watches this to rebuild the theme immediately on change.
+final appearanceProvider = StateProvider<AppearanceSettings>((ref) {
+  throw UnimplementedError('appearanceProvider must be overridden in main()');
+});
+
+/// Set once in main() after HistoryStore.init() completes.
+final historyStoreProvider = Provider<HistoryStore>((ref) {
+  throw UnimplementedError('historyStoreProvider must be overridden in main()');
+});
+
+/// Set once in main() after CollectionsStore.init() completes.
+final collectionsStoreProvider = Provider<CollectionsStore>((ref) {
+  throw UnimplementedError('collectionsStoreProvider must be overridden in main()');
+});
+
+/// Bump after any collection create/delete/add-series/remove-series so
+/// screens watching this refetch.
+final collectionsRevisionProvider = StateProvider<int>((ref) => 0);
