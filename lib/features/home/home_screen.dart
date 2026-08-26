@@ -6,6 +6,7 @@ import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 import 'reading_now_dock.dart';
 
@@ -24,7 +25,10 @@ class HomeScreen extends ConsumerWidget {
       extendBody: true,
       body: backendAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => _ErrorState(message: '$e'),
+        error: (e, st) => AppErrorState(
+          error: e,
+          onRetry: () => ref.invalidate(activeBackendProvider),
+        ),
         data: (backend) {
           if (backend == null) return const _NoServerState();
           return _ReadingNowContent(backend: backend);
@@ -64,25 +68,6 @@ class _NoServerState extends StatelessWidget {
               child: const Text('Add a server'),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  const _ErrorState({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          'Something went wrong:\n$message',
-          textAlign: TextAlign.center,
-          style: AppText.body(color: AppColors.text60),
         ),
       ),
     );
