@@ -7,6 +7,7 @@ import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/downloads/download_models.dart';
+import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 
 class SeriesScreen extends ConsumerWidget {
@@ -19,12 +20,24 @@ class SeriesScreen extends ConsumerWidget {
     final backendAsync = ref.watch(activeBackendProvider);
 
     return backendAsync.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, st) => Scaffold(body: Center(child: Text('$e'))),
+      loading: () => Scaffold(
+          backgroundColor: AppColors.page,
+          body: const Center(child: CircularProgressIndicator())),
+      error: (e, st) => Scaffold(
+        backgroundColor: AppColors.page,
+        body: AppErrorState(
+          error: e,
+          onRetry: () => ref.invalidate(activeBackendProvider),
+        ),
+      ),
       data: (backend) {
         if (backend == null) {
-          return const Scaffold(body: Center(child: Text('No server')));
+          return Scaffold(
+            backgroundColor: AppColors.page,
+            body: Center(
+                child: Text('No server',
+                    style: AppText.body(color: AppColors.text60))),
+          );
         }
         return _SeriesDetail(backend: backend, seriesId: seriesId);
       },
@@ -50,9 +63,21 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  void _load() {
     _seriesFuture = widget.backend.getSeries(widget.seriesId);
     _booksFuture = widget.backend.listBooks(widget.seriesId);
   }
+
+  void _reloadSeries() => setState(() {
+        _seriesFuture = widget.backend.getSeries(widget.seriesId);
+      });
+
+  void _reloadBooks() => setState(() {
+        _booksFuture = widget.backend.listBooks(widget.seriesId);
+      });
 
   Future<void> _downloadSeries(Series series) async {
     final books = await _booksFuture;
@@ -73,9 +98,8 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
         future: _seriesFuture,
         builder: (context, seriesSnapshot) {
           if (seriesSnapshot.hasError) {
-            return Center(
-                child: Text('${seriesSnapshot.error}',
-                    style: AppText.body(color: AppColors.text60)));
+            return AppErrorState(
+                error: seriesSnapshot.error!, onRetry: _reloadSeries);
           }
           if (!seriesSnapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -99,9 +123,8 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
               if (snapshot.hasError) {
                 return Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Center(
-                      child: Text('${snapshot.error}',
-                          style: AppText.body(color: AppColors.text60))),
+                  child: AppErrorState(
+                      error: snapshot.error!, onRetry: _reloadBooks),
                 );
               }
               if (!snapshot.hasData) {
