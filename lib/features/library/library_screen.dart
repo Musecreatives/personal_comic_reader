@@ -363,6 +363,11 @@ class _LibraryHeader extends StatelessWidget {
               Row(
                 children: [
                   _HeaderIconButton(
+                    icon: Icons.search,
+                    onTap: () => context.push('/search'),
+                  ),
+                  const SizedBox(width: 8),
+                  _HeaderIconButton(
                     icon: viewMode == _ViewMode.grid
                         ? Icons.view_list_outlined
                         : Icons.grid_view_rounded,
