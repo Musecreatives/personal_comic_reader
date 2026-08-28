@@ -3,9 +3,9 @@
     "short_name": "Shaddai Reader",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#121212",
-    "theme_color": "#121212",
-    "description": "Comic and manga reader for Komga and Kavita.",
+    "background_color": "#0A1420",
+    "theme_color": "#0A1420",
+    "description": "Comic and manga reader for Komga, Kavita, Suwayomi, and OPDS.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
