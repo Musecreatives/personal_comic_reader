@@ -27,11 +27,24 @@ class _KapowarrSettingsScreenState
   bool? _testOk;
   bool _saving = false;
 
+  /// Same-origin proxy path, avoiding the mixed-content block a plain
+  /// http:// request hits from this HTTPS-served app (see
+  /// deploy/Caddyfile.snippet's /kapowarr route).
+  String? get _sameOriginDefaultUrl {
+    if (Uri.base.host != 'reader.shaddai.home') return null;
+    return '${Uri.base.origin}/kapowarr';
+  }
+
   @override
   void initState() {
     super.initState();
     ref.read(kapowarrConfigStoreProvider).getWithApiKey().then((config) {
-      if (config == null || !mounted) return;
+      if (!mounted) return;
+      if (config == null) {
+        final defaultUrl = _sameOriginDefaultUrl;
+        if (defaultUrl != null) _urlController.text = defaultUrl;
+        return;
+      }
       _urlController.text = config.baseUrl;
       _apiKeyController.text = config.apiKey;
     });
