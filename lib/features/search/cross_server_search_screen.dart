@@ -8,6 +8,7 @@ import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import '../shared/back_button.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 
@@ -53,7 +54,13 @@ class _CrossServerSearchScreenState extends ConsumerState<CrossServerSearchScree
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-              child: Text('Search', style: AppText.largeTitle()),
+              child: Row(
+                children: [
+                  const AppBackButton(),
+                  const SizedBox(width: 12),
+                  Text('Search', style: AppText.largeTitle()),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),

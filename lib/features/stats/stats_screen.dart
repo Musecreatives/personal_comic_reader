@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
+import '../shared/back_button.dart';
 
 class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
@@ -35,9 +36,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Stats', style: AppText.largeTitle()),
+                  const AppBackButton(),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('Stats', style: AppText.largeTitle())),
                   Row(
                     children: [
                       Text('TRACK', style: AppText.mono(size: 9, color: AppColors.text45)),
