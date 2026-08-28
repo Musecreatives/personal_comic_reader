@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/kapowarr/kapowarr_client.dart';
+import '../shared/back_button.dart';
 import '../shared/error_state.dart';
 
 /// Browse every volume Kapowarr tracks (5d, list side). Tapping one opens
@@ -50,7 +51,13 @@ class _KapowarrVolumesScreenState extends ConsumerState<KapowarrVolumesScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-              child: Text('Volumes', style: AppText.largeTitle(size: 26)),
+              child: Row(
+                children: [
+                  const AppBackButton(),
+                  const SizedBox(width: 12),
+                  Text('Volumes', style: AppText.largeTitle(size: 26)),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),

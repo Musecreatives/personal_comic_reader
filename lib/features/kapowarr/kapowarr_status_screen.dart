@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/kapowarr/kapowarr_client.dart';
+import '../shared/back_button.dart';
 
 class KapowarrStatusScreen extends ConsumerWidget {
   const KapowarrStatusScreen({super.key});
@@ -23,9 +24,10 @@ class KapowarrStatusScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Kapowarr', style: AppText.largeTitle()),
+                  const AppBackButton(),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('Kapowarr', style: AppText.largeTitle())),
                   Material(
                     color: AppColors.fillSubtle,
                     shape: const CircleBorder(),

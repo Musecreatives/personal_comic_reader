@@ -6,6 +6,7 @@ import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/kapowarr/kapowarr_client.dart';
 import '../../core/kapowarr/kapowarr_config.dart';
+import '../shared/back_button.dart';
 
 class KapowarrSettingsScreen extends ConsumerStatefulWidget {
   const KapowarrSettingsScreen({super.key});
@@ -127,7 +128,13 @@ class _KapowarrSettingsScreenState
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
             children: [
-              Text('Kapowarr', style: AppText.largeTitle(size: 26)),
+              Row(
+                children: [
+                  const AppBackButton(),
+                  const SizedBox(width: 12),
+                  Text('Kapowarr', style: AppText.largeTitle(size: 26)),
+                ],
+              ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: _urlController,
