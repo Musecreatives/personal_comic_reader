@@ -65,6 +65,30 @@ class ServersScreen extends ConsumerWidget {
                             onTap: () =>
                                 context.push('/settings/servers/${server.id}/edit'),
                           ),
+                        const SizedBox(height: 4),
+                        InkWell(
+                          onTap: () => context.push('/settings/import-backup'),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.borderStrong),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Import from Paperback',
+                                    style: AppText.body(size: 13.5, weight: FontWeight.w600)),
+                                const SizedBox(height: 6),
+                                Text(
+                                  "Drop a .pas5 backup to map its library and read history onto Suwayomi.",
+                                  style: AppText.body(size: 11.5, color: AppColors.text.withValues(alpha: 0.5)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
             ),

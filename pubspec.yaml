@@ -50,6 +50,7 @@ dependencies:
   xml: ^6.5.0
   fl_chart: ^0.70.2
   google_fonts: ^6.2.1
+  file_picker: ^12.1.2
 
 dev_dependencies:
   flutter_test:
