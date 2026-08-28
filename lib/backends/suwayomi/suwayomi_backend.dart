@@ -262,4 +262,104 @@ class SuwayomiBackend implements ReaderBackend {
 
   @override
   Map<String, String> get imageHeaders => const {};
+
+  // ---------------------------------------------------------------------
+  // Suwayomi-specific extensions used by the backup import flow (6f). Not
+  // part of the generic ReaderBackend contract - only meaningful when the
+  // active backend actually is a SuwayomiBackend, since "search an external
+  // source and add it to the library" has no equivalent on Komga/Kavita.
+  // ---------------------------------------------------------------------
+
+  /// Every source Suwayomi has installed, for mapping a Paperback source to
+  /// its Suwayomi equivalent.
+  Future<List<({String id, String name, String lang})>> listInstalledSources() async {
+    final data = await _gql('{ sources { nodes { id name lang } } }');
+    final nodes = data['sources']['nodes'] as List;
+    return nodes
+        .map((e) => (
+              id: '${e['id']}',
+              name: e['name'] as String? ?? '',
+              lang: e['lang'] as String? ?? '',
+            ))
+        .toList();
+  }
+
+  /// Searches one source's catalog directly (not the local library) - this
+  /// is what lets backup import find a title's Suwayomi equivalent before
+  /// it's ever been added.
+  Future<List<({int id, String title})>> searchSourceCatalog(
+      String sourceId, String query) async {
+    final data = await _gql(
+      'mutation(\$source: LongString!, \$query: String!) { '
+      'fetchSourceManga(input: {source: \$source, type: SEARCH, query: \$query, page: 1, filters: []}) { '
+      'mangas { id title } } }',
+      {'source': sourceId, 'query': query},
+    );
+    final mangas = data['fetchSourceManga']['mangas'] as List;
+    return mangas
+        .map((e) => (id: e['id'] as int, title: e['title'] as String? ?? ''))
+        .toList();
+  }
+
+  /// Returns the id of an existing category named [name], or creates one.
+  Future<int> ensureCategory(String name) async {
+    final data = await _gql('{ categories { nodes { id name } } }');
+    final nodes = data['categories']['nodes'] as List;
+    for (final n in nodes) {
+      if (n['name'] == name) return n['id'] as int;
+    }
+    final created = await _gql(
+      'mutation(\$name: String!) { createCategory(input: {name: \$name}) { category { id } } }',
+      {'name': name},
+    );
+    return created['createCategory']['category']['id'] as int;
+  }
+
+  /// Adds a manga (by its Suwayomi id, from [searchSourceCatalog]) to the
+  /// library and assigns it to [categoryIds].
+  Future<void> addToLibraryWithCategories(int mangaId, List<int> categoryIds) async {
+    await _gql(
+      'mutation(\$id: Int!) { updateManga(input: {id: \$id, patch: {inLibrary: true}}) { manga { id } } }',
+      {'id': mangaId},
+    );
+    if (categoryIds.isEmpty) return;
+    await _gql(
+      'mutation(\$id: Int!, \$cats: [Int!]!) { '
+      'updateMangaCategories(input: {id: \$id, patch: {addToCategories: \$cats}}) { manga { id } } }',
+      {'id': mangaId, 'cats': categoryIds},
+    );
+  }
+
+  /// Fetches the real chapter list for [mangaId] from its source (not the
+  /// local cache) and returns id-by-chapter-number, so a caller can map
+  /// Paperback's own chapter numbers onto Suwayomi's chapter ids.
+  Future<Map<double, int>> fetchChapterIdsByNumber(int mangaId) async {
+    await _gql(
+      'mutation(\$id: Int!) { fetchMangaAndChapters(input: {id: \$id, fetchManga: false, fetchChapters: true}) { manga { id } } }',
+      {'id': mangaId},
+    );
+    final data = await _gql(
+      'query(\$id: Int!) { manga(id: \$id) { chapters { nodes { id chapterNumber } } } }',
+      {'id': mangaId},
+    );
+    final nodes = data['manga']['chapters']['nodes'] as List;
+    final byNumber = <double, int>{};
+    for (final n in nodes) {
+      final chapNum = (n['chapterNumber'] as num).toDouble();
+      byNumber[chapNum] = n['id'] as int;
+    }
+    return byNumber;
+  }
+
+  /// Marks a batch of chapters read, chunked to keep individual mutations
+  /// small.
+  Future<void> markChaptersRead(List<int> chapterIds) async {
+    for (var i = 0; i < chapterIds.length; i += 200) {
+      final batch = chapterIds.skip(i).take(200).toList();
+      await _gql(
+        'mutation(\$ids: [Int!]!) { updateChapters(input: {ids: \$ids, patch: {isRead: true}}) { chapters { id } } }',
+        {'ids': batch},
+      );
+    }
+  }
 }
