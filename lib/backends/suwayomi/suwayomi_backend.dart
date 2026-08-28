@@ -172,7 +172,20 @@ class SuwayomiBackend implements ReaderBackend {
       'query(\$id: Int!) { chapter(id: \$id) { id name chapterNumber pageCount lastPageRead isRead mangaId } }',
       {'id': int.parse(id)},
     );
-    return _bookFromJson(data['chapter'] as Map<String, dynamic>);
+    final chapter = data['chapter'] as Map<String, dynamic>;
+    // Suwayomi reports pageCount -1 until it has actually fetched this
+    // chapter's page list from the source (a separate step from fetching
+    // the chapter *list* itself, which is all a library-add/sync does).
+    // Without this, the reader would build a 0-page view and show nothing.
+    if ((chapter['pageCount'] as int? ?? -1) < 0) {
+      await _ensureFetched(id);
+      final refreshed = await _gql(
+        'query(\$id: Int!) { chapter(id: \$id) { id name chapterNumber pageCount lastPageRead isRead mangaId } }',
+        {'id': int.parse(id)},
+      );
+      return _bookFromJson(refreshed['chapter'] as Map<String, dynamic>);
+    }
+    return _bookFromJson(chapter);
   }
 
   Future<String> _mangaIdFor(String bookId) async {

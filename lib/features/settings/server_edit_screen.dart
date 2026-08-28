@@ -10,6 +10,7 @@ import '../../backends/komga/komga_backend.dart';
 import '../../backends/opds/opds_backend.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/backend/reader_backend.dart';
+import '../shared/back_button.dart';
 
 class ServerEditScreen extends ConsumerStatefulWidget {
   final String? serverId;
@@ -218,7 +219,13 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
             children: [
-              Text(_isEditing ? 'Edit server' : 'Add server', style: AppText.largeTitle(size: 26)),
+              Row(
+                children: [
+                  const AppBackButton(),
+                  const SizedBox(width: 12),
+                  Text(_isEditing ? 'Edit server' : 'Add server', style: AppText.largeTitle(size: 26)),
+                ],
+              ),
               const SizedBox(height: 20),
               GridView.count(
                 crossAxisCount: 2,

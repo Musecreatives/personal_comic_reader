@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/reader_backend.dart';
+import '../shared/back_button.dart';
 
 class ServersScreen extends ConsumerWidget {
   const ServersScreen({super.key});
@@ -20,28 +21,24 @@ class ServersScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 18),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Sources', style: AppText.largeTitle()),
-                  Material(
-                    color: AppColors.accent,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: () => context.push('/settings/servers/new'),
-                      child: const SizedBox(
-                        width: 34,
-                        height: 34,
-                        child: Icon(Icons.add, size: 18, color: Colors.white),
-                      ),
-                    ),
+            AppScreenHeader(
+              title: 'Sources',
+              titleSize: 30,
+              trailing: Material(
+                color: AppColors.accent,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => context.push('/settings/servers/new'),
+                  child: const SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: Icon(Icons.add, size: 18, color: Colors.white),
                   ),
-                ],
+                ),
               ),
             ),
+            const SizedBox(height: 4),
             Expanded(
               child: servers.isEmpty
                   ? const _EmptyState()

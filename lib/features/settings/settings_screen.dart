@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
+import '../shared/back_button.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -14,10 +15,8 @@ class SettingsScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(0, 6, 0, 24),
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 18),
-              child: Text('Settings', style: AppText.largeTitle()),
-            ),
+            const AppScreenHeader(title: 'Settings', titleSize: 30),
+            const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(

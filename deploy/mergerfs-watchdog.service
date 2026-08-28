@@ -1,0 +1,8 @@
+[Unit]
+Description=Check that the mergerfs media pool is mounted, remount if not
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/server/docker/comics-manga/mergerfs-watchdog.sh
+User=root
