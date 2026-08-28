@@ -25,6 +25,9 @@ reader.shaddai.home {
     handle_path /suwayomi/* {
         reverse_proxy 100.108.109.63:4567
     }
+    handle_path /kapowarr/* {
+        reverse_proxy 100.108.109.63:5656
+    }
 
     handle {
         try_files {path} /index.html
