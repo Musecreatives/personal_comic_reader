@@ -23,6 +23,15 @@ class SuwayomiBackend implements ReaderBackend {
 
   final Set<String> _fetchedChapters = {};
   final Map<String, String> _chapterMangaId = {};
+  // Suwayomi's REST page-serving route (/api/v1/manga/{id}/chapter/{N}/page/{i})
+  // takes each chapter's *sourceOrder* - its 1-based position within the
+  // manga's chapter list - not its GraphQL database id. The two only
+  // coincide by chance for a manga's very first chapter; anything with
+  // split/special chapters (22.1, 22.2, ...) diverges immediately.
+  // Verified live: chapter id 326 (chapterNumber 22.1) serves at
+  // .../chapter/23/... where 23 is its sourceOrder, and 404s at any other
+  // path segment.
+  final Map<String, int> _chapterSourceOrder = {};
 
   SuwayomiBackend({required this.config, required String password, Dio? dio})
       : _dio = dio ??
@@ -138,7 +147,7 @@ class SuwayomiBackend implements ReaderBackend {
   @override
   Future<List<Book>> listBooks(String seriesId) async {
     final data = await _gql(
-      'query(\$id: Int!) { manga(id: \$id) { chapters { nodes { id name chapterNumber pageCount lastPageRead isRead mangaId } } } }',
+      'query(\$id: Int!) { manga(id: \$id) { chapters { nodes { id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder } } } }',
       {'id': int.parse(seriesId)},
     );
     final nodes = data['manga']['chapters']['nodes'] as List;
@@ -152,6 +161,8 @@ class SuwayomiBackend implements ReaderBackend {
     final id = '${e['id']}';
     final mangaId = '${e['mangaId']}';
     _chapterMangaId[id] = mangaId;
+    final sourceOrder = e['sourceOrder'] as int?;
+    if (sourceOrder != null) _chapterSourceOrder[id] = sourceOrder;
     final pages = e['pageCount'] as int? ?? -1;
     final lastPageRead = e['lastPageRead'] as int? ?? 0;
     return Book(
@@ -169,7 +180,7 @@ class SuwayomiBackend implements ReaderBackend {
   @override
   Future<Book> getBook(String id) async {
     final data = await _gql(
-      'query(\$id: Int!) { chapter(id: \$id) { id name chapterNumber pageCount lastPageRead isRead mangaId } }',
+      'query(\$id: Int!) { chapter(id: \$id) { id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder } }',
       {'id': int.parse(id)},
     );
     final chapter = data['chapter'] as Map<String, dynamic>;
@@ -180,7 +191,7 @@ class SuwayomiBackend implements ReaderBackend {
     if ((chapter['pageCount'] as int? ?? -1) < 0) {
       await _ensureFetched(id);
       final refreshed = await _gql(
-        'query(\$id: Int!) { chapter(id: \$id) { id name chapterNumber pageCount lastPageRead isRead mangaId } }',
+        'query(\$id: Int!) { chapter(id: \$id) { id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder } }',
         {'id': int.parse(id)},
       );
       return _bookFromJson(refreshed['chapter'] as Map<String, dynamic>);
@@ -195,6 +206,15 @@ class SuwayomiBackend implements ReaderBackend {
     return book.seriesId;
   }
 
+  Future<int> _sourceOrderFor(String bookId) async {
+    final cached = _chapterSourceOrder[bookId];
+    if (cached != null) return cached;
+    await getBook(bookId); // populates _chapterSourceOrder as a side effect
+    final refreshed = _chapterSourceOrder[bookId];
+    if (refreshed != null) return refreshed;
+    throw StateError('Suwayomi chapter $bookId has no sourceOrder');
+  }
+
   Future<void> _ensureFetched(String bookId) async {
     if (_fetchedChapters.contains(bookId)) return;
     await _gql(
@@ -207,17 +227,19 @@ class SuwayomiBackend implements ReaderBackend {
   @override
   Future<Uri> pageUri(String bookId, int pageIndex) async {
     final mangaId = await _mangaIdFor(bookId);
+    final sourceOrder = await _sourceOrderFor(bookId);
     await _ensureFetched(bookId);
     return Uri.parse(
-        '${config.baseUrl}/api/v1/manga/$mangaId/chapter/$bookId/page/$pageIndex');
+        '${config.baseUrl}/api/v1/manga/$mangaId/chapter/$sourceOrder/page/$pageIndex');
   }
 
   @override
   Future<Uint8List> fetchPage(String bookId, int pageIndex) async {
     final mangaId = await _mangaIdFor(bookId);
+    final sourceOrder = await _sourceOrderFor(bookId);
     await _ensureFetched(bookId);
     final res = await _dio.get<List<int>>(
-      '/api/v1/manga/$mangaId/chapter/$bookId/page/$pageIndex',
+      '/api/v1/manga/$mangaId/chapter/$sourceOrder/page/$pageIndex',
       options: Options(responseType: ResponseType.bytes),
     );
     return Uint8List.fromList(res.data!);
@@ -253,7 +275,7 @@ class SuwayomiBackend implements ReaderBackend {
   Future<List<Book>> recentlyAdded() async {
     final data = await _gql(
       '{ chapters(order: [{by: FETCHED_AT, byType: DESC}], first: 20) { '
-      'nodes { id name chapterNumber pageCount lastPageRead isRead mangaId } } }',
+      'nodes { id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder } } }',
     );
     final nodes = data['chapters']['nodes'] as List;
     return nodes.map((e) => _bookFromJson(e)).toList();
