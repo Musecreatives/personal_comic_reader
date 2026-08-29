@@ -114,7 +114,11 @@ class _ReadingNowContentState extends State<_ReadingNowContent> {
       } catch (_) {
         // Fall back to the book's own title below.
       }
-      return _RecentRow(book: b, seriesTitle: series?.title ?? b.title);
+      return _RecentRow(
+        book: b,
+        seriesTitle: series?.title ?? b.title,
+        thumbnailUrl: series?.thumbnailUrl ?? b.thumbnailUrl,
+      );
     }));
     return rows;
   }
@@ -170,7 +174,11 @@ class _ReadingNowContentState extends State<_ReadingNowContent> {
                       series: shelf,
                       headers: widget.backend.imageHeaders,
                     ),
-                  _TonightList(future: _recentFuture),
+                  _TonightList(
+                    future: _recentFuture,
+                    backendType: widget.backend.config.type,
+                    headers: widget.backend.imageHeaders,
+                  ),
                   const SizedBox(height: 100),
                 ],
               );
@@ -467,12 +475,30 @@ class _AlsoInProgressShelf extends StatelessWidget {
 class _RecentRow {
   final Book book;
   final String seriesTitle;
-  const _RecentRow({required this.book, required this.seriesTitle});
+  final String? thumbnailUrl;
+  const _RecentRow({required this.book, required this.seriesTitle, this.thumbnailUrl});
+}
+
+/// Komga/Kavita/Kapowarr are Western-comic-shaped backends (issues, not
+/// chapters); Suwayomi/OPDS read as manga. Only affects the label word -
+/// the data itself is backend-agnostic.
+bool _isComicBackend(ServerType type) =>
+    type == ServerType.komga || type == ServerType.kavita;
+
+/// Komga/Kavita numbers are raw strings from the source library and are
+/// often zero-padded for file sorting ("002") - clean that up for display
+/// without losing a real fractional part ("3.5").
+String _formatNumber(String raw) {
+  final n = double.tryParse(raw);
+  if (n == null) return raw;
+  return n == n.roundToDouble() ? '${n.round()}' : '$n';
 }
 
 class _TonightList extends StatelessWidget {
   final Future<List<_RecentRow>> future;
-  const _TonightList({required this.future});
+  final ServerType backendType;
+  final Map<String, String> headers;
+  const _TonightList({required this.future, required this.backendType, required this.headers});
 
   @override
   Widget build(BuildContext context) {
@@ -496,7 +522,7 @@ class _TonightList extends StatelessWidget {
                   style: AppText.sectionLabel()),
               const SizedBox(height: 4),
               for (final row in rows)
-                _TonightRow(row: row),
+                _TonightRow(row: row, backendType: backendType, headers: headers),
             ],
           ),
         );
@@ -507,35 +533,53 @@ class _TonightList extends StatelessWidget {
 
 class _TonightRow extends StatelessWidget {
   final _RecentRow row;
-  const _TonightRow({required this.row});
+  final ServerType backendType;
+  final Map<String, String> headers;
+  const _TonightRow({required this.row, required this.backendType, required this.headers});
 
   @override
   Widget build(BuildContext context) {
+    final isComic = _isComicBackend(backendType);
+    final label = isComic
+        ? 'ISSUE #${_formatNumber(row.book.number)}'
+        : 'CH ${_formatNumber(row.book.number)}';
     return InkWell(
       onTap: () =>
           context.push('/series/${Uri.encodeComponent(row.book.seriesId)}'),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(
           border: Border(top: BorderSide(color: AppColors.border)),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
           children: [
             SizedBox(
-              width: 58,
-              child: Text(
-                'CH ${row.book.number}',
-                style: AppText.mono(size: 10, color: AppColors.accentLink),
+              width: 38,
+              height: 54,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(7),
+                child: SeriesCover(imageUrl: row.thumbnailUrl, headers: headers),
               ),
             ),
+            const SizedBox(width: 13),
             Expanded(
-              child: Text(
-                row.seriesTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppText.body(size: 15.5),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    row.seriesTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body(size: 14.5, weight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.mono(size: 10),
+                  ),
+                ],
               ),
             ),
           ],
