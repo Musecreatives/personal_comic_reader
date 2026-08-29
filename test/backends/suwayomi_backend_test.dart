@@ -107,6 +107,35 @@ void main() {
     expect(book.completed, false);
   });
 
+  test(
+      'pageUri() uses the chapter\'s sourceOrder in the REST path, not its '
+      'database id - Suwayomi\'s page-serving route is indexed by position '
+      'within the manga, and diverges from id for any split/special chapter',
+      () async {
+    adapter.onPost(
+      '/api/graphql',
+      (server) => server.reply(200, {
+        'data': {
+          'chapter': {
+            'id': 326,
+            'name': 'Chapter 22.1',
+            'chapterNumber': 22.1,
+            'pageCount': 40,
+            'lastPageRead': 0,
+            'isRead': false,
+            'mangaId': 137,
+            'sourceOrder': 23,
+          },
+        },
+      }),
+      data: Matchers.any,
+    );
+
+    final uri = await backend.pageUri('326', 0);
+
+    expect(uri.toString(), 'http://test.local/api/v1/manga/137/chapter/23/page/0');
+  });
+
   test('updateProgress() sends lastPageRead and isRead in one mutation',
       () async {
     adapter.onPost(
