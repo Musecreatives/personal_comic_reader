@@ -38,12 +38,12 @@ class SettingsScreen extends StatelessWidget {
                     Container(
                       width: 38,
                       height: 38,
-                      alignment: Alignment.center,
+                      clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
                         color: AppColors.accent.withValues(alpha: 0.28),
                         borderRadius: BorderRadius.circular(11),
                       ),
-                      child: Text('SR', style: AppText.mono(size: 13, weight: FontWeight.w700, color: AppColors.accentSoft)),
+                      child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
                     ),
                     const SizedBox(width: 13),
                     Expanded(
@@ -67,6 +67,12 @@ class SettingsScreen extends StatelessWidget {
                 title: 'Kapowarr',
                 subtitle: 'Acquisition status - not a reading source',
                 onTap: () => context.push('/settings/kapowarr'),
+              ),
+              _SettingsRow(
+                icon: Icons.health_and_safety_outlined,
+                title: 'Suwayomi maintenance',
+                subtitle: 'Extension health, backup & restore',
+                onTap: () => context.push('/settings/suwayomi'),
               ),
               _SettingsRow(
                 icon: Icons.downloading_outlined,

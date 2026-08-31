@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,6 +22,9 @@ import 'core/reader/reader_settings_store.dart';
 import 'core/stats/reading_stats_store.dart';
 import 'core/storage/last_route_store.dart';
 import 'core/storage/server_store.dart';
+import 'core/sync/auth_store.dart';
+import 'core/sync/sync_client.dart';
+import 'core/sync/sync_queue.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,12 +63,35 @@ Future<void> main() async {
   final collectionsStore = CollectionsStore();
   await collectionsStore.init();
 
+  final authStore = AuthStore();
+  final syncToken = await authStore.getToken();
+  final syncUsername = await authStore.getUsername();
+
+  final syncQueue = SyncQueue();
+  await syncQueue.init();
+
+  final syncClient =
+      SyncClient(baseUrl: SyncClient.defaultBaseUrl(), token: syncToken);
+
+  if (syncToken != null) {
+    historyStore.attachSync(syncClient, syncQueue);
+    // Best-effort - don't block startup on a network round trip. Failures
+    // just mean this device stays on what it already has locally until
+    // the next successful reconcile (e.g. next app resume).
+    unawaited(historyStore.reconcile());
+  }
+
   final lastRouteStore = LastRouteStore();
-  final lastRoute = await lastRouteStore.getLastRoute();
+  var lastRoute = await lastRouteStore.getLastRoute();
+  // A saved route from a previous signed-in session (or /login itself)
+  // shouldn't override the auth gate below in either direction.
+  if (lastRoute == '/login') lastRoute = null;
   final defaultLocation =
       serverStore.listServers().isEmpty ? '/onboarding' : '/home';
+  final initialLocation =
+      syncToken == null ? '/login' : (lastRoute ?? defaultLocation);
   final router = buildRouter(
-    initialLocation: lastRoute ?? defaultLocation,
+    initialLocation: initialLocation,
     onRouteChange: lastRouteStore.setLastRoute,
   );
 
@@ -82,6 +110,10 @@ Future<void> main() async {
         appearanceProvider.overrideWith((ref) => initialAppearance),
         historyStoreProvider.overrideWithValue(historyStore),
         collectionsStoreProvider.overrideWithValue(collectionsStore),
+        authStoreProvider.overrideWithValue(authStore),
+        syncQueueProvider.overrideWithValue(syncQueue),
+        syncClientProvider.overrideWithValue(syncClient),
+        currentUsernameProvider.overrideWith((ref) => syncUsername),
       ],
       child: ShaddaiReaderApp(router: router),
     ),

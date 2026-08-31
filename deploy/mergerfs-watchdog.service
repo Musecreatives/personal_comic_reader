@@ -6,3 +6,7 @@ After=network.target
 Type=oneshot
 ExecStart=/home/server/docker/comics-manga/mergerfs-watchdog.sh
 User=root
+# Belt-and-suspenders on top of the script's own internal `timeout` calls -
+# a run should never take anywhere near this long once those work, but this
+# caps it so the timer can never again silently stack multi-minute runs.
+TimeoutStartSec=30

@@ -1,0 +1,30 @@
+# Add this service to the server's docker-compose stack (there's no
+# tracked compose file in this repo - every other service here, Komga,
+# Kavita, Kapowarr, CLU, Caddy, etc., is composed only on the server
+# itself, and this follows the same convention).
+#
+# Build: from this directory (deploy/sync-service/) on the server:
+#   docker build -t shaddai-sync .
+#   docker compose up -d shaddai-sync
+#
+# IMPORTANT: ./data below MUST resolve to a path on the root disk (e.g.
+# /home/server/docker/sync-service/data), NOT anywhere under
+# /mnt/media-pool. That mergerfs mount corrupted Kavita's and Kapowarr's
+# databases in two separate incidents within five days (see ROADMAP.md) -
+# this service's whole reason for existing is to hold data other apps
+# don't have a copy of, so it especially can't share that fragility.
+#
+# SYNC_INVITE_CODE gates account creation - pick something only you and
+# whoever you invite know, generate one with e.g. `openssl rand -hex 16`.
+
+services:
+  shaddai-sync:
+    build: /home/server/docker/comics-manga/sync-service # wherever this directory ends up on the server
+    container_name: shaddai-sync
+    restart: unless-stopped
+    environment:
+      - SYNC_INVITE_CODE=changeme-pick-a-real-one
+    volumes:
+      - /home/server/docker/sync-service/data:/data
+    ports:
+      - "8600:8600"

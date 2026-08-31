@@ -79,6 +79,121 @@ physical USB connection that dropped under load once already. Worth
 checking the cable/enclosure, or planning to replace/retire it from the
 mergerfs pool, before any future write-heavy operation like this one.
 
+## Infrastructure incident: 2026-08-29 mergerfs branch wedge + Kapowarr DB corruption
+
+A *different* failure mode than the 08-25 drop: this time `hdd1tb`
+(`/dev/sdb1`) went into ext4's `emergency_ro` (kernel-detected on-disk
+inconsistency), but the mergerfs union itself stayed listed as mounted -
+it just hung on every real I/O call for tens of minutes at a time. CLU
+was found completely wedged (accepting TCP, never answering, `docker
+kill -9` couldn't even land - classic D-state). The mergerfs-watchdog
+timer installed after the 08-25 incident didn't catch this: it only
+checks `mountpoint -q`, which doesn't distinguish "unmounted" from
+"mounted but wedged" - it just blocks until the wedge clears, so the
+watchdog's own runs silently stretched from instant to 21 -> 42 -> 51
+minutes without ever alerting. Fixed (deployed 2026-08-29): every check
+in `deploy/mergerfs-watchdog.sh` is now wrapped in `timeout`, so a
+wedged branch is treated as its own distinct, immediately-alerting
+failure instead of making the watchdog hang too.
+
+**Real damage**: Kapowarr's live `Kapowarr.db` was corrupted
+(`sqlite3.DatabaseError: database disk image is malformed`) - every
+volume/issue/download-history row unreadable, even on a plain read.
+Root cause: a write landed while `hdd1tb` was mid-wedge.
+
+**Recovery** (done, verified, no data lost): found three other copies of
+`Kapowarr.db` scattered across mergerfs branches and the leftover
+`/mnt/media-pool-shadow-backup-20260828` directory (fallout from 08-25's
+forking risk) - two were empty stubs, but the copy on the `external`
+branch was fully intact (`PRAGMA integrity_check` = ok) with all 24
+volumes, 180 issues, and 23 download-history rows matching the real
+library. Restored it as the live database (corrupted original kept
+alongside as `Kapowarr.db.corrupted-20260829`, nothing deleted).
+Verified via API afterward: full volume list back with correct issue
+counts and file sizes.
+
+**Also done same session**: added qBittorrent to Kapowarr as a torrent
+download client (`external_download_clients` table - Kapowarr's own
+pluggable client system, confirmed via source read at
+`/app/backend/base/definitions.py` / `/app/frontend/api.py`), connection
+test passed. **Confirmed Kapowarr has no Usenet/NZB support at all** -
+found the exact comment in `definitions.py`: "Future proofing... in the
+future there'll be sources like 'torrent' and 'usenet'" - it's an
+unbuilt feature, not a config gap. The user's NZBGeek subscription can't
+be plugged into Kapowarr as it stands; its real acquisition sources
+today are GetComics-scraped links only (Mega, MediaFire, WeTransfer,
+Pixeldrain, GetComics direct/torrent).
+
+**Correction, discovered 2026-08-30**: Suwayomi was *also* hit by this
+incident, not just Kapowarr - missed at the time because I only checked
+Kapowarr. Its own automated H2 backups (`backups/*.tachibk` under
+`/mnt/media-pool/comics-manga/suwayomi/data/`) show the library was
+healthy (796KB, 257 manga) at the 2026-08-29 00:00 auto-backup, then
+collapsed to a near-empty 354-byte backup by 16:59 that same day -
+squarely inside the incident window. Surfaced 2026-08-30 when the user
+reported Suwayomi (their active source) showing 0 series despite
+connecting fine. **Recovery** (done, verified, no data lost): used
+Suwayomi's own `restoreBackup` GraphQL mutation (multipart file upload,
+polled via `restoreStatus`) against the last healthy pre-incident backup
+- much cleaner than a raw file swap since Suwayomi has real built-in
+backup/restore tooling, unlike Kapowarr. Full library and all custom
+categories (Reading 58, S Tier 40, A Tier 53, B Tier 47, C Tier 22,
+Unread 49, Comics 10, Manga 7, plus custom lists) confirmed back via its
+GraphQL API. **Lesson for next time**: when this pool wedges again,
+check *every* app that stores a database on it, not just the one that
+happens to throw an obvious error first - a service can look "connected
+fine" while quietly serving an empty/reset database.
+
+**Correction #2, same day**: the first `restoreBackup` above looked
+successful (categories/manga counts came back correctly via the GraphQL
+API) but was actually incomplete - it worked only because Suwayomi's
+JVM had been running continuously since before the incident and had
+parts of the corrupted `database.mv.db` cached in memory, papering over
+the underlying file corruption. A user report ("Suwayomi is active but
+not feeding manga/comics", `StubSource$SourceNotInstalledException` on
+`/fetchChapterPages`) plus a routine restart to pick up an unrelated fix
+exposed the real state: the H2 file itself was physically corrupted
+(`EOFException` reading past its own end-of-file on cold boot) and the
+container crash-looped on startup. Also separately broken: extensions
+(Mangabat, Mangakakalot, MangaKatana, Kissmanga.in, Flame Comics,
+Read Comics Online, Toonily.me, MangaBuddy/ManhwaBuddy, plus a few
+others) showed `isInstalled: false` in a fresh database even though
+their `.jar` files were still physically present in
+`suwayomi/data/extensions/` - Suwayomi tracks "installed" purely via its
+own DB records, not by scanning disk, so a fresh/restored DB with no
+matching install record treats a present jar as not-installed.
+
+**Full recovery** (done, verified with a real end-to-end page fetch):
+1. Stopped the crash-looping container.
+2. Moved the corrupted `database.mv.db`/`database.trace.db` aside to
+   `suwayomi/data/corrupted-20260830/` (kept, not deleted) so Suwayomi
+   would create a fresh database on next boot.
+3. Started clean - confirmed a healthy boot with no errors.
+4. Reinstalled all 14 previously-used extensions via the
+   `updateExtension(patch: {install: true})` mutation. 4 succeeded
+   immediately; the other 10 hit `FileAlreadyExistsException` (their old
+   jars were still sitting in the extensions folder from before, and
+   install doesn't overwrite) - deleted those specific stale jars
+   (freely re-downloadable, not user data) and retried; all 14 then
+   installed cleanly.
+5. Re-ran `restoreBackup` against the same 2026-08-29 00:00 pre-incident
+   backup, now against a database that has its extensions properly
+   registered. Verified for real this time: fetched a real chapter via
+   `fetchChapterPages` (Mangabat, 131 pages) and downloaded a real page
+   image (200 OK, 122KB) through the REST endpoint - not just an API
+   response that looked right.
+
+Also noted, not a bug: the library shows two "Default" categories (one
+with 1 manga, one empty) - confirmed present identically across both
+restore attempts, so it's baked into the actual backup/pre-incident
+data itself, not something introduced by any of this recovery work.
+
+**Still not addressed**: same as 08-25 - the physical drive behind
+`hdd1tb` needs a real hardware check (cable/enclosure/replacement),
+independent of whatever fixed today's `emergency_ro` state. Two
+distinct incidents on two different physical drives in the same pool in
+five days is a pattern, not a fluke.
+
 ## Parked decisions
 
 - **CLU** (`allaboutduncan/comic-utils-web`, running at
@@ -93,14 +208,98 @@ mergerfs pool, before any future write-heavy operation like this one.
   built-in reader — real overlap with Shaddai Reader's territory. Still
   undocumented/unofficial (no auth scheme confirmed, stability unknown),
   but "no API" is no longer the blocker it was thought to be.
-  **Decision (confirmed 2026-08-25): parked until after the UI/UX design
-  pass lands.** Add to the active task list once that design work is
-  adopted into the app. Options still on the table when we get there:
-  give it a `clu.shaddai.home` Caddy entry and leave it standalone,
-  embed it as a link/webview, wrap its API as a lightweight companion
-  feature, or a full native rebuild in Shaddai Reader's own UI.
-- **Komga vs. Kavita**: both stay configured, no consolidation planned
-  right now.
+  **Decision (final, 2026-08-30): kept standalone, no in-app
+  integration.** Endpoints were mapped live (confirmed working, zero
+  auth on any of them: `/api/browse`, `/api/continue-reading`,
+  `/api/favorites/*`, `/api/reading-lists/*`, `/api/mark-comic-read`,
+  `/api/reading-position`, plus destructive file ops like
+  `combine-cbz`/`delete-multiple`/`scan-directory`), but CLU's built-in
+  reader doesn't beat what Shaddai Reader already has, and its real
+  value - crop/combine/rescan/missing-file-check - is file-maintenance
+  tooling Shaddai Reader was never meant to do. Wiring it in would've
+  been real engineering effort (new backend client, 2-3 screens, action
+  confirmations for an unauthenticated destructive API) for close to
+  zero reading-experience payoff. User opens it directly at
+  `100.108.109.63:5577` when needed; nothing to build here.
+- **Komga vs. Kavita**: **decided 2026-08-30** — user is satisfied with
+  Komga + Suwayomi covering the whole library and isn't actually reading
+  through Kavita day to day. Kavita is being retired as a configured
+  server (removed via Settings → Servers in-app, since server configs
+  are per-device local storage - no code change needed). Not a CLU swap:
+  CLU has no OPDS support and wasn't built to be a reading backend the
+  way Komga/Kavita/Suwayomi are, so it can't take Kavita's role in the
+  app even if the user prefers it for library maintenance.
+
+## Shipped 2026-08-31: Suwayomi Maintenance panel
+
+Direct follow-up to the 08-30 incident, which needed 20+ manual SSH/GraphQL
+calls to diagnose and fix. New Settings → "Suwayomi maintenance" screen
+(`lib/features/suwayomi/suwayomi_maintenance_screen.dart`, client at
+`lib/backends/suwayomi/suwayomi_maintenance_client.dart`, route
+`/settings/suwayomi`) surfaces exactly what that incident needed by hand:
+- Health summary (total manga, category count, extensions installed X/Y).
+- Per-extension install state + one-tap reinstall for the 14 extensions
+  this library actually uses (`knownExtensionPackages`) - surfaces a
+  `FileAlreadyExistsException` from a stale server-side jar as a clear
+  message rather than a raw stack trace (deleting server files isn't
+  something this does automatically, same read-only-by-design posture as
+  Kapowarr).
+- "Create backup now" (Suwayomi's `createBackup` mutation).
+- "Restore from file" (`.tachibk` upload via `file_picker`, single confirm
+  dialog, polls `restoreStatus` until `SUCCESS`/`FAILURE`) - the same
+  multipart flow run by hand during the incident, now in-app.
+
+**Known gap, not built**: Suwayomi has no GraphQL query for *existing*
+backup files already sitting in its own `backups/` folder (confirmed -
+only `createBackup`/`restoreBackup` mutations exist) - so the panel can
+create a new backup or restore an uploaded one, but can't show/pick from
+backups already on the server. Would need either a Suwayomi-side change or
+a REST-level workaround to close.
+
+**Scoped, not built this pass** (full writeup in the approved plan):
+extension *discovery/browsing* (Suwayomi's own web UI already covers
+this well), per-title source management, chapter bulk actions, a download
+queue view, advanced search filters - all reference ideas from Paperback
+screenshots that substantially duplicate what Suwayomi's own `/suwayomi`
+web UI already provides one tap away. Scan/manga update metadata display
+and Komga/Kavita/Suwayomi metadata-refresh actions are flagged as
+worthwhile small follow-ups, not bundled into this pass.
+
+## Active thread: cross-device sync & multi-user accounts
+
+Kicked off 2026-08-30 by two related asks: real persistence "that stays
+live" across desktop/iOS PWA/Android/tablet, and sharing the app with a
+friend (confirmed: needs real separate accounts, not shared credentials).
+
+**Phase 1 shipped 2026-08-30**: a new self-hosted `shaddai-sync` service
+(`deploy/sync-service/` - FastAPI + SQLite, opaque bearer-token sessions,
+one generic `sync_records` table so future features need zero schema
+changes) plus a login/create-account gate in the app and one fully synced
+store (History - reads across devices once you're signed in). Deployed:
+container running on the server (`docker run ... shaddai-sync`, port
+8600), Caddy `/sync/*` route added and Caddy force-recreated, app rebuilt
+and redeployed. Its SQLite file deliberately lives on the root disk
+(`/home/server/docker/sync-service/data`), **not** `/mnt/media-pool`,
+given that mount's two-corruption-incidents-in-five-days track record
+this same week. A nightly backup script (`sync-db-backup.sh`) is deployed
+and tested working; the `.service`/`.timer` pair to actually schedule it
+still needs a one-time `sudo systemctl enable --now sync-db-backup.timer`
+on the server (no sudo access in this environment - same gap as the
+mergerfs-watchdog timer's `TimeoutStartSec` addition).
+
+Server credentials (Komga/Kavita/Suwayomi logins) deliberately stay
+local-per-device, not synced - decided explicitly to keep the new service
+from becoming a second place storing third-party passwords.
+
+**Not yet built** (explicitly out of scope for this pass, same mechanical
+pattern as History once needed): Collections, Appearance, and Reader
+Settings sync. **Stats sync needs different logic**, not just repetition -
+it has to sum pages/seconds per day across devices rather than
+last-write-wins, since two devices reading the same day would otherwise
+have one clobber the other. Also not built: any account management UI
+beyond login/create (no password reset, no removing a user), and
+real-time/websocket push (sync happens on login + app resume only, not
+continuously).
 
 ## Active thread: Paperback → Suwayomi migration
 

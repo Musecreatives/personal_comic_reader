@@ -6,7 +6,6 @@ import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/history/history_entry.dart';
-import '../shared/back_button.dart';
 import '../shared/error_state.dart';
 
 /// Local-only reading history (6e), grouped by day. Series titles are
@@ -23,6 +22,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final backendAsync = ref.watch(activeBackendProvider);
+    ref.watch(historyRevisionProvider);
     final entries = ref.watch(historyStoreProvider).list();
 
     return Scaffold(
@@ -35,8 +35,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
               child: Row(
                 children: [
-                  const AppBackButton(),
-                  const SizedBox(width: 12),
                   Expanded(child: Text('History', style: AppText.largeTitle())),
                   if (entries.isNotEmpty)
                     TextButton(
