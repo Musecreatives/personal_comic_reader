@@ -8,7 +8,6 @@ import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
-import '../shared/back_button.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 
@@ -54,13 +53,7 @@ class _CrossServerSearchScreenState extends ConsumerState<CrossServerSearchScree
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-              child: Row(
-                children: [
-                  const AppBackButton(),
-                  const SizedBox(width: 12),
-                  Text('Search', style: AppText.largeTitle()),
-                ],
-              ),
+              child: Text('Search', style: AppText.largeTitle()),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -120,13 +113,13 @@ class _CrossServerSearchScreenState extends ConsumerState<CrossServerSearchScree
   }
 }
 
-class _ResultsList extends StatelessWidget {
+class _ResultsList extends ConsumerWidget {
   final List<ReaderBackend> backends;
   final String query;
   const _ResultsList({required this.backends, required this.query});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return FutureBuilder<List<(ReaderBackend, List<Series>)>>(
       future: Future.wait(backends.map((b) async {
         try {
@@ -176,7 +169,16 @@ class _ResultsList extends StatelessWidget {
                 _ResultRow(
                   series: s,
                   headers: backend.imageHeaders,
-                  onTap: () => context.push('/series/${Uri.encodeComponent(s.id)}'),
+                  onTap: () async {
+                    // Series/reader routes always operate on whichever
+                    // server is "active" - a result from a different
+                    // server must switch context to it first, or the
+                    // series screen would fetch the tapped id from the
+                    // wrong backend.
+                    await ref.read(serverStoreProvider).setActiveServerId(backend.config.id);
+                    ref.read(activeServerIdProvider.notifier).state = backend.config.id;
+                    if (context.mounted) context.push('/series/${Uri.encodeComponent(s.id)}');
+                  },
                 ),
             ],
           ],

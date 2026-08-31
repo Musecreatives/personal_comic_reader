@@ -26,12 +26,26 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Shaddai Reader">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>Shaddai Reader</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Paints the real app background immediately, before Flutter's canvas
+       is ready - otherwise the browser default white shows through for a
+       moment (or, on iOS home-screen launches, behind the status bar) as
+       a jarring white flash/strip against the app's dark theme. */
+    html, body {
+      background: #0A1420;
+      margin: 0;
+    }
+  </style>
 </head>
 <body>
   <!--

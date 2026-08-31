@@ -195,6 +195,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
         completed: completed,
         timestamp: DateTime.now(),
       ));
+      ref.read(historyRevisionProvider.notifier).state++;
     }
     super.dispose();
   }

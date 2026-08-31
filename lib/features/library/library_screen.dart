@@ -12,9 +12,14 @@ import '../shared/series_cover.dart';
 enum _ViewMode { grid, list }
 
 class LibraryScreen extends ConsumerStatefulWidget {
-  final String libraryId;
+  /// Null when opened as the "Library" nav tab root (`/library`) rather
+  /// than a specific deep link (`/library/:id`) - in that case the first
+  /// library of whichever server is active is resolved automatically, and
+  /// a server switcher is shown if more than one server is configured
+  /// (e.g. one manga server, one comics server).
+  final String? libraryId;
 
-  const LibraryScreen({super.key, required this.libraryId});
+  const LibraryScreen({super.key, this.libraryId});
 
   @override
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
@@ -29,7 +34,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final _searchController = TextEditingController();
   String _search = '';
 
-  late String _libraryId = widget.libraryId;
+  String? _libraryId;
   Future<List<Library>>? _librariesFuture;
 
   final List<Series> _items = [];
@@ -39,9 +44,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   ReaderBackend? _backend;
 
   @override
+  void initState() {
+    super.initState();
+    _libraryId = widget.libraryId;
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Fetches the active backend's own library list and picks the first one
+  /// - used when this screen is opened as the tab root (no id in the
+  /// route) or after switching servers, where whatever [_libraryId] was
+  /// set to (if anything) belongs to a different backend.
+  Future<void> _resolveDefaultLibrary(ReaderBackend backend) async {
+    final libs = await backend.listLibraries();
+    if (!mounted || _backend != backend) return;
+    if (libs.isEmpty) {
+      setState(() => _libraryId = null);
+      return;
+    }
+    setState(() => _libraryId = libs.first.id);
+    _loadPage(backend, reset: true);
   }
 
   void _selectLibrary(String libraryId) {
@@ -105,10 +131,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           );
         }
         if (_backend != backend) {
+          final previousBackend = _backend;
           _backend = backend;
           _librariesFuture = null;
-          WidgetsBinding.instance.addPostFrameCallback(
-              (_) => _loadPage(backend, reset: true));
+          if (_libraryId == null || previousBackend != null) {
+            // Tab root (no deep-linked id) or an actual server switch -
+            // whatever _libraryId held (if anything) belongs to a
+            // different backend, so resolve a fresh default.
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => _resolveDefaultLibrary(backend));
+          } else {
+            // First-ever build with an explicit deep-linked id - use it.
+            WidgetsBinding.instance.addPostFrameCallback(
+                (_) => _loadPage(backend, reset: true));
+          }
         }
 
         final wide = MediaQuery.of(context).size.width >= _wideBreakpoint;
@@ -127,6 +163,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               },
               child: CustomScrollView(
                 slivers: [
+                  if (widget.libraryId == null)
+                    SliverToBoxAdapter(child: _ServerSwitcher()),
                   SliverToBoxAdapter(
                     child: _LibraryHeader(
                       viewMode: _viewMode,
@@ -316,6 +354,92 @@ class _SeriesList extends StatelessWidget {
           );
         },
         childCount: items.length,
+      ),
+    );
+  }
+}
+
+/// One tap to flip between configured servers when opened as the Library
+/// nav tab - e.g. a manga server and a comics server. Hidden entirely when
+/// only one server is configured (nothing to switch between).
+class _ServerSwitcher extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final servers = ref.watch(serverListProvider);
+    final activeId = ref.watch(activeServerIdProvider);
+    if (servers.length < 2) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      child: Row(
+        children: [
+          for (final server in servers) ...[
+            Expanded(
+              child: _ServerSwitchTile(
+                server: server,
+                selected: server.id == activeId,
+                onTap: () async {
+                  if (server.id == activeId) return;
+                  await ref.read(serverStoreProvider).setActiveServerId(server.id);
+                  ref.read(activeServerIdProvider.notifier).state = server.id;
+                },
+              ),
+            ),
+            if (server != servers.last) const SizedBox(width: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ServerSwitchTile extends StatelessWidget {
+  final ServerConfig server;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ServerSwitchTile({required this.server, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppColors.sourceColor(server.type.name);
+    return Material(
+      color: selected ? color.withValues(alpha: 0.16) : AppColors.fillSubtle,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: selected ? color.withValues(alpha: 0.5) : AppColors.border),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  server.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.body(
+                    size: 12.5,
+                    weight: FontWeight.w600,
+                    color: selected ? AppColors.text : AppColors.text60,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                // The two servers can share the same display name (e.g.
+                // both named after their owner rather than their purpose),
+                // so the type is what actually tells the tiles apart.
+                Text(
+                  server.type.name.toUpperCase(),
+                  style: AppText.mono(size: 8.5, color: selected ? color : AppColors.text30),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -519,7 +643,7 @@ class _FilterChip extends StatelessWidget {
 /// need a full navigation round trip back through Home.
 class _LibrarySidebar extends StatelessWidget {
   final Future<List<Library>> librariesFuture;
-  final String selectedId;
+  final String? selectedId;
   final ValueChanged<String> onSelect;
 
   const _LibrarySidebar({

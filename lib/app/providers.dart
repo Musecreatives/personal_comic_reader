@@ -19,6 +19,9 @@ import '../core/reader/progress_sync.dart';
 import '../core/reader/reader_settings_store.dart';
 import '../core/stats/reading_stats_store.dart';
 import '../core/storage/server_store.dart';
+import '../core/sync/auth_store.dart';
+import '../core/sync/sync_client.dart';
+import '../core/sync/sync_queue.dart';
 
 /// Set once in main() after ServerStore.init() completes.
 final serverStoreProvider = Provider<ServerStore>((ref) {
@@ -160,6 +163,10 @@ final historyStoreProvider = Provider<HistoryStore>((ref) {
   throw UnimplementedError('historyStoreProvider must be overridden in main()');
 });
 
+/// Bump after any history record/clear so screens watching this refetch -
+/// the store itself doesn't notify, mirroring [collectionsRevisionProvider].
+final historyRevisionProvider = StateProvider<int>((ref) => 0);
+
 /// Set once in main() after CollectionsStore.init() completes.
 final collectionsStoreProvider = Provider<CollectionsStore>((ref) {
   throw UnimplementedError('collectionsStoreProvider must be overridden in main()');
@@ -168,3 +175,30 @@ final collectionsStoreProvider = Provider<CollectionsStore>((ref) {
 /// Bump after any collection create/delete/add-series/remove-series so
 /// screens watching this refetch.
 final collectionsRevisionProvider = StateProvider<int>((ref) => 0);
+
+/// Set once in main() - wraps secure-storage access to the signed-in
+/// shaddai-sync session (bearer token + username).
+final authStoreProvider = Provider<AuthStore>((ref) {
+  throw UnimplementedError('authStoreProvider must be overridden in main()');
+});
+
+/// Set once in main() after SyncQueue.init() completes.
+final syncQueueProvider = Provider<SyncQueue>((ref) {
+  throw UnimplementedError('syncQueueProvider must be overridden in main()');
+});
+
+/// Set once in main() - a single long-lived [SyncClient], constructed with
+/// whatever session token was found in secure storage at startup (or none).
+/// The login screen calls `.updateToken(...)` on it directly after a
+/// successful login/logout rather than rebuilding a new client, since it
+/// has no other per-request state worth discarding.
+final syncClientProvider = Provider<SyncClient>((ref) {
+  throw UnimplementedError('syncClientProvider must be overridden in main()');
+});
+
+/// The signed-in username, or null if no session exists - seeded from
+/// [AuthStore] at startup in main(), same pattern as [appearanceProvider].
+/// The router's auth gate watches this: null routes to /login.
+final currentUsernameProvider = StateProvider<String?>((ref) {
+  throw UnimplementedError('currentUsernameProvider must be overridden in main()');
+});

@@ -8,11 +8,11 @@ import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
-import 'reading_now_dock.dart';
 
 /// "Reading Now" - the app's home screen, per the 3a design: an editorial
 /// hero for the most recent in-progress title, an "also in progress" shelf,
-/// a "tonight on your servers" list, and the persistent bottom dock.
+/// and a "tonight on your servers" list. The persistent bottom nav bar
+/// (glass theme, 5 root tabs) lives one level up in GlassNavScaffold.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -32,16 +32,6 @@ class HomeScreen extends ConsumerWidget {
         data: (backend) {
           if (backend == null) return const _NoServerState();
           return _ReadingNowContent(backend: backend);
-        },
-      ),
-      bottomNavigationBar: ReadingNowDock(
-        active: DockTab.reading,
-        onLibraryTap: () async {
-          final backend = backendAsync.valueOrNull;
-          if (backend == null) return;
-          final libraries = await backend.listLibraries();
-          if (libraries.isEmpty || !context.mounted) return;
-          context.push('/library/${Uri.encodeComponent(libraries.first.id)}');
         },
       ),
     );
