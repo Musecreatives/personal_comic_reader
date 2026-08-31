@@ -25,13 +25,12 @@ class OnboardingScreen extends StatelessWidget {
               Container(
                 width: 52,
                 height: 52,
-                alignment: Alignment.center,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: AppColors.accent.withValues(alpha: 0.24),
                   borderRadius: BorderRadius.circular(15),
                 ),
-                child: Text('SR',
-                    style: AppText.mono(size: 17, weight: FontWeight.w700, color: AppColors.accentSoft)),
+                child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
               ),
               const SizedBox(height: 24),
               Text('Shaddai Reader', style: AppText.largeTitle(size: 32)),

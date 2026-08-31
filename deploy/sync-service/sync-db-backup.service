@@ -1,0 +1,8 @@
+[Unit]
+Description=Nightly backup of the shaddai-sync SQLite database
+
+[Service]
+Type=oneshot
+ExecStart=/home/server/docker/sync-service/sync-db-backup.sh
+User=server
+TimeoutStartSec=60

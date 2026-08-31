@@ -1,8 +1,11 @@
 import 'package:go_router/go_router.dart';
 
 import '../core/backend/reader_backend.dart';
+import '../features/auth/login_screen.dart';
 import '../features/collections/collections_screen.dart';
 import '../features/downloads/downloads_screen.dart';
+import '../features/shared/glass_bottom_nav.dart';
+import '../features/suwayomi/suwayomi_maintenance_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/settings/appearance_screen.dart';
 import '../features/settings/backup_import_screen.dart';
@@ -33,6 +36,7 @@ GoRouter buildRouter({
     return null;
   },
   routes: [
+    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
         path: '/onboarding', builder: (context, state) => const OnboardingScreen()),
     GoRoute(
@@ -42,10 +46,38 @@ GoRouter buildRouter({
         isOnboarding: true,
       ),
     ),
-    GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
-    GoRoute(
-      path: '/search',
-      builder: (context, state) => const CrossServerSearchScreen(),
+    // The 5 root tabs live inside a StatefulShellRoute so the glass bottom
+    // nav bar (GlassNavScaffold) persists across them and each keeps its
+    // own navigation stack. Every drill-down page (a series, the reader, a
+    // settings detail screen, /library/:id for a specific library) stays a
+    // sibling GoRoute outside the shell below, so it renders full-screen
+    // without the bar - only these 5 exact roots show it.
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          GlassNavScaffold(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(
+            path: '/search',
+            builder: (context, state) => const CrossServerSearchScreen(),
+          ),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(
+            path: '/library',
+            builder: (context, state) => const LibraryScreen(),
+          ),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/history', builder: (context, state) => const HistoryScreen()),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
+        ]),
+      ],
     ),
     GoRoute(
       path: '/library/:id',
@@ -68,18 +100,12 @@ GoRouter buildRouter({
       },
     ),
     GoRoute(
-        path: '/settings', builder: (context, state) => const SettingsScreen()),
-    GoRoute(
       path: '/settings/appearance',
       builder: (context, state) => const AppearanceScreen(),
     ),
     GoRoute(
       path: '/settings/import-backup',
       builder: (context, state) => const BackupImportScreen(),
-    ),
-    GoRoute(
-      path: '/history',
-      builder: (context, state) => const HistoryScreen(),
     ),
     GoRoute(
       path: '/collections',
@@ -101,6 +127,10 @@ GoRouter buildRouter({
     GoRoute(
       path: '/settings/kapowarr',
       builder: (context, state) => const KapowarrStatusScreen(),
+    ),
+    GoRoute(
+      path: '/settings/suwayomi',
+      builder: (context, state) => const SuwayomiMaintenanceScreen(),
     ),
     GoRoute(
       path: '/settings/kapowarr/edit',

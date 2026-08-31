@@ -28,6 +28,9 @@ reader.shaddai.home {
     handle_path /kapowarr/* {
         reverse_proxy 100.108.109.63:5656
     }
+    handle_path /sync/* {
+        reverse_proxy 100.108.109.63:8600
+    }
 
     handle {
         try_files {path} /index.html

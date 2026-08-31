@@ -64,9 +64,25 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   http_mock_adapter: ^0.6.1
   hive_test: ^1.0.1
+  flutter_launcher_icons: ^0.14.3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
+
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: true
+  ios: true
+  windows:
+    generate: true
+  web:
+    generate: false # web icons/manifest are hand-maintained under web/
+  min_sdk_android: 21
+  # Android 13+ adaptive icon: the source art already has generous padding
+  # (see the icon generator notes in ROADMAP.md/CHANGELOG), so the same
+  # image works as the adaptive foreground on a plain background color.
+  adaptive_icon_background: "#6E56CF"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
 
 # The following section is specific to Flutter packages.
 flutter:
@@ -75,6 +91,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/icon/app_icon.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
