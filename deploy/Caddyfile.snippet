@@ -26,7 +26,10 @@ reader.shaddai.home {
         reverse_proxy 100.108.109.63:4567
     }
     handle_path /kapowarr/* {
-        reverse_proxy 100.108.109.63:5656
+        # Container name, not Tailscale IP - see the note below on the
+        # 2026-08-31 hairpin-NAT incident. Caddy is already on the same
+        # compose network as Kapowarr (`arr_default`).
+        reverse_proxy kapowarr:5656
     }
     handle_path /sync/* {
         reverse_proxy 100.108.109.63:8600
@@ -51,7 +54,20 @@ reader.shaddai.home {
 #   without extra setup. If Caddy instead joins the comics-manga compose
 #   network, you can swap in the container/service names (e.g.
 #   `reverse_proxy komga:25600`) for one less network hop - not required,
-#   just an option.
+#   just an option. **Kapowarr is the exception - see below.**
+# - 2026-08-31 incident: Kapowarr's Tailscale-IP route started returning
+#   502 (`dial tcp ...: i/o timeout`) from inside the Caddy container,
+#   while Komga/Suwayomi on the same IP kept working fine and Kapowarr
+#   itself answered instantly on localhost - a host-level Docker hairpin-
+#   NAT/iptables issue specific to that one container's published port,
+#   likely from a stuck DNAT rule after a lot of container churn that
+#   session. Neither `docker restart` nor a full `--force-recreate` of
+#   Kapowarr fixed it (those don't touch the host's NAT rules). Fixed by
+#   routing via the container name instead (`kapowarr:5656`) - Caddy was
+#   already on `arr_default`, the same compose network as Kapowarr, so
+#   this sidesteps the broken host-IP hairpin path entirely rather than
+#   chasing the underlying NAT bug (which would need sudo-level iptables
+#   access or a full Docker daemon restart, both out of reach here).
 # - GOTCHA: if your Caddy compose file bind-mounts the *Caddyfile itself*
 #   as a single file (`- ./Caddyfile:/etc/caddy/Caddyfile`, not a
 #   directory), editing it with a tool that replaces-via-rename (scp,
