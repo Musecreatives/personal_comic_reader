@@ -336,6 +336,29 @@ class SuwayomiBackend implements ReaderBackend {
         .toList();
   }
 
+  /// Browses one source's catalog for discovery (5g) - popular titles when
+  /// [query] is empty, a search within the source otherwise. Covers reuse
+  /// the same deterministic REST thumbnail path as library series
+  /// ([thumbnailUrlForSeries]), so no extra GraphQL fields are needed.
+  Future<({List<({int id, String title, String thumbnailUrl})> mangas, bool hasNext})>
+      browseSource(String sourceId, {String query = '', int page = 1}) async {
+    final data = await _gql(
+      'mutation(\$source: LongString!, \$query: String!, \$page: Int!) { '
+      'fetchSourceManga(input: {source: \$source, type: ${query.isEmpty ? 'POPULAR' : 'SEARCH'}, '
+      'query: \$query, page: \$page, filters: []}) { mangas { id title } hasNextPage } }',
+      {'source': sourceId, 'query': query, 'page': page},
+    );
+    final result = data['fetchSourceManga'] as Map<String, dynamic>;
+    final mangas = (result['mangas'] as List)
+        .map((e) => (
+              id: e['id'] as int,
+              title: e['title'] as String? ?? '',
+              thumbnailUrl: thumbnailUrlForSeries('${e['id']}'),
+            ))
+        .toList();
+    return (mangas: mangas, hasNext: result['hasNextPage'] as bool? ?? false);
+  }
+
   /// Returns the id of an existing category named [name], or creates one.
   Future<int> ensureCategory(String name) async {
     final data = await _gql('{ categories { nodes { id name } } }');
