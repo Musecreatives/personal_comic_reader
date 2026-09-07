@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Infra/ops docs and deploy configs - server topology, incident details,
+# and deployment scripts kept out of the repo going forward (untracked
+# 2026-09-01; still on disk locally, still readable by Claude, just not
+# pushed to GitHub anymore).
+/ROADMAP.md
+/deploy/
