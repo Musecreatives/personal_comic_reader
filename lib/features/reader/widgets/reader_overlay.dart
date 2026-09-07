@@ -21,6 +21,7 @@ class ReaderOverlay extends StatelessWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onToggleDirection;
   final VoidCallback onCycleMode;
+  final VoidCallback onOpenChapters;
   final VoidCallback? onTogglePanelMode;
 
   const ReaderOverlay({
@@ -36,6 +37,7 @@ class ReaderOverlay extends StatelessWidget {
     required this.onOpenSettings,
     required this.onToggleDirection,
     required this.onCycleMode,
+    required this.onOpenChapters,
     this.onTogglePanelMode,
   });
 
@@ -93,6 +95,7 @@ class ReaderOverlay extends StatelessWidget {
                 onCycleMode: onCycleMode,
                 onOpenSettings: onOpenSettings,
                 onToggleDirection: onToggleDirection,
+                onOpenChapters: onOpenChapters,
                 onTogglePanelMode: onTogglePanelMode,
                 modeIcon: _modeIcon,
               ),
@@ -165,6 +168,7 @@ class _BottomCard extends StatelessWidget {
   final VoidCallback onCycleMode;
   final VoidCallback onOpenSettings;
   final VoidCallback onToggleDirection;
+  final VoidCallback onOpenChapters;
   final VoidCallback? onTogglePanelMode;
   final IconData Function(ReaderMode) modeIcon;
 
@@ -176,6 +180,7 @@ class _BottomCard extends StatelessWidget {
     required this.onCycleMode,
     required this.onOpenSettings,
     required this.onToggleDirection,
+    required this.onOpenChapters,
     required this.onTogglePanelMode,
     required this.modeIcon,
   });
@@ -283,7 +288,7 @@ class _BottomCard extends StatelessWidget {
                   _QuickAction(
                     icon: Icons.menu_book_outlined,
                     label: 'Chapters',
-                    onTap: () {},
+                    onTap: onOpenChapters,
                   ),
                   _QuickAction(
                     icon: Icons.tune,

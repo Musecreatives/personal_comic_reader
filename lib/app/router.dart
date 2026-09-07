@@ -5,6 +5,7 @@ import '../features/auth/login_screen.dart';
 import '../features/collections/collections_screen.dart';
 import '../features/downloads/downloads_screen.dart';
 import '../features/shared/glass_bottom_nav.dart';
+import '../features/suwayomi/source_browse_screen.dart';
 import '../features/suwayomi/suwayomi_maintenance_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/settings/appearance_screen.dart';
@@ -131,6 +132,10 @@ GoRouter buildRouter({
     GoRoute(
       path: '/settings/suwayomi',
       builder: (context, state) => const SuwayomiMaintenanceScreen(),
+    ),
+    GoRoute(
+      path: '/settings/suwayomi/browse',
+      builder: (context, state) => const SourceBrowseScreen(),
     ),
     GoRoute(
       path: '/settings/kapowarr/edit',

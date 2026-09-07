@@ -230,6 +230,89 @@ five days is a pattern, not a fluke.
   way Komga/Kavita/Suwayomi are, so it can't take Kavita's role in the
   app even if the user prefers it for library maintenance.
 
+## Infrastructure incident: 2026-08-31 Kapowarr Caddy hairpin-NAT
+
+Reported by user as "Kapowarr is not working" - the Kapowarr settings
+screen's connection test failed with a 502. Diagnosis: Kapowarr itself was
+healthy the whole time (`curl http://127.0.0.1:5656/` on the server always
+returned 200), but Caddy's proxy to it (`reverse_proxy
+100.108.109.63:5656`) failed with `dial tcp ...: i/o timeout` - while the
+identically-shaped Komga and Suwayomi routes on the *same* Tailscale IP
+kept working fine from the *same* Caddy container. Isolated to a host-level
+Docker networking issue specific to Kapowarr's published port (likely a
+stuck DNAT/hairpin-NAT rule after a lot of container churn this week) -
+neither `docker restart kapowarr` nor a full `docker compose up -d
+--force-recreate kapowarr` fixed it, since neither touches the host's
+iptables state.
+
+**Fixed** by routing around the problem instead of chasing it: Caddy was
+already joined to `arr_default`, the same compose network as Kapowarr (for
+unrelated reasons), so switching the Caddyfile from the Tailscale-IP route
+to the container name (`reverse_proxy kapowarr:5656`) sidesteps the host-IP
+hairpin path entirely. Verified container-to-container reachability first,
+then applied to the live Caddyfile and `deploy/Caddyfile.snippet`, with
+the full incident writeup left in the snippet's comments for next time.
+Confirmed Komga/Kavita/Suwayomi/sync routes all still healthy after the
+Caddy recreate.
+
+**Also fixed same incident**: Kapowarr's own logs showed a background
+thread had crashed with `sqlite3.OperationalError: disk I/O error` earlier
+that day - the mergerfs mount itself checked out healthy at diagnosis time
+(fast `mountpoint` response), so this looks like a transient blip rather
+than a repeat of the 08-29/08-30 incidents, but it's the same failure
+class and worth watching for a pattern.
+
+## Shipped 2026-08-31: reader session-lifecycle checkpoint
+
+User reported History and Stats "not being updated" despite real reading
+activity. Root cause: `HistoryStore.record()` and
+`ReadingStatsStore.recordSeconds()` only ran inside the reader's
+`dispose()` - which assumes a clean Flutter widget unmount. A backgrounded
+mobile PWA is routinely suspended or killed by the OS without ever tearing
+the widget tree down, silently losing the whole session's history entry
+and reading-time (page counts were safe - `recordPages()` already fires
+immediately per page turn, not just at session end).
+
+**Fixed**: `_ReaderBodyState` now mixes in `WidgetsBindingObserver` and
+checkpoints progress/stats/history on `paused`/`inactive`/`detached` app
+lifecycle transitions, not just on `dispose()` - extracted the existing
+dispose() logic into a shared `_checkpointSession()`, called from both
+places. The session clock resets after each checkpoint so multiple
+background/resume cycles in one reading session don't double-count
+reading time.
+
+## Shipped 2026-08-31: reader chapter navigation + source browsing
+
+Three rounds of direct feedback on the reader, fixed same-day:
+
+- **The "Chapters" button was a literal dead stub** (`onTap: () {}` in
+  `reader_overlay.dart` - never wired to anything). Now opens a real
+  chapter list (`_openChapterPicker` in `reader_screen.dart`), reusing
+  `seriesBooks` the reader already loads - no new backend calls needed.
+- **Seamless chapter-to-chapter reading**: finishing a chapter used to
+  always stop on an end-of-book card. `_onEndOfBook` now auto-continues
+  into the next chapter when one exists; the card only shows at the
+  actual end of the series. Same going backward at keyboard/arrow-key
+  boundaries (`_stepBackward`) - touch-gesture backward-seamless would
+  need touching all three page-view widgets individually, not done yet.
+- **Read-state highlighting** in the chapter list (dim + checkmark for
+  `book.completed`, distinct from the current-chapter play icon) and a
+  **title header** on the sheet itself.
+- **Multi-select bulk actions** in the chapter list: mark read, download,
+  delete - all built entirely on primitives that already existed
+  (`ReaderBackend.updateProgress`, `DownloadManager.enqueueBooks`,
+  `DownloadManager.cancel`), no new backend surface needed.
+- **Source browsing/discovery** (`lib/features/suwayomi/source_browse_screen.dart`,
+  route `/settings/suwayomi/browse`, linked from Suwayomi Maintenance):
+  browse a source's popular titles or search within it, add straight to
+  the library. New `SuwayomiBackend.browseSource()` generalizes the
+  existing `searchSourceCatalog` (built for backup import) to support
+  Suwayomi's `POPULAR` fetch type, not just `SEARCH` - verified end-to-end
+  against the live server (real titles, real thumbnails) before deploy.
+  **Revisits the 08-30 "skip, redundant with Suwayomi's own web UI" call**
+  - user confirmed they want it in-app despite the overlap; noting the
+    original recommendation was made without checking first.
+
 ## Shipped 2026-08-31: Suwayomi Maintenance panel
 
 Direct follow-up to the 08-30 incident, which needed 20+ manual SSH/GraphQL

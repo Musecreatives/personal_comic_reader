@@ -128,7 +128,7 @@ class _ReaderBody extends ConsumerStatefulWidget {
   ConsumerState<_ReaderBody> createState() => _ReaderBodyState();
 }
 
-class _ReaderBodyState extends ConsumerState<_ReaderBody> {
+class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObserver {
   final _singleKey = GlobalKey<SinglePageViewState>();
   final _doubleKey = GlobalKey<DoublePageViewState>();
   final _verticalKey = GlobalKey<VerticalPageViewState>();
@@ -146,7 +146,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
   List<PanelRect>? _panelRects;
 
   final Set<int> _seenPages = {};
-  late final DateTime _sessionStart;
+  late DateTime _sessionStart;
 
   ReaderSettingsStore get _settingsStore => ref.read(readerSettingsStoreProvider);
   ProgressSync get _progressSync => ref.read(progressSyncProvider);
@@ -157,6 +157,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _settings = _settingsStore.effective(widget.book.seriesId);
     _remember = _settingsStore.hasOverride(widget.book.seriesId);
     _currentPage = widget.initialPage ?? widget.book.readProgressPage ?? 0;
@@ -172,7 +173,33 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
+    _checkpointSession();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Progress/stats/history used to only get written in dispose(), which
+    // assumes a clean Flutter widget unmount - but a backgrounded mobile
+    // PWA is routinely suspended or killed by the OS without ever tearing
+    // the widget tree down, silently losing the whole session. Checkpoint
+    // on every pause/inactive/detach too, not just a real close, so
+    // nothing depends on the app being allowed to exit gracefully.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _checkpointSession();
+    }
+  }
+
+  /// Writes progress/stats/history for however much of the session has
+  /// happened since the last checkpoint, then resets the session clock so
+  /// a later checkpoint (dispose, or another backgrounding) only counts
+  /// the time since *this* checkpoint - otherwise calling this more than
+  /// once per session would double-count reading time.
+  void _checkpointSession() {
     final completed = _currentPage >= widget.book.pageCount - 1;
     _progressSync.sendNow(
       widget.backend,
@@ -181,7 +208,10 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
       completed: completed,
     );
     final elapsed = DateTime.now().difference(_sessionStart).inSeconds;
-    _statsStore.recordSeconds(elapsed);
+    if (elapsed > 0) {
+      _statsStore.recordSeconds(elapsed);
+      _sessionStart = DateTime.now();
+    }
     // Only log a session that actually turned a page - opening a book and
     // immediately backing out shouldn't clutter history.
     if (_seenPages.length > 1 || completed) {
@@ -197,7 +227,6 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
       ));
       ref.read(historyRevisionProvider.notifier).state++;
     }
-    super.dispose();
   }
 
   void _applyWakelock() {
@@ -312,10 +341,205 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
     return widget.seriesBooks[i + 1];
   }
 
+  Book? get _previousBook {
+    final i = widget.seriesBooks.indexWhere((b) => b.id == widget.book.id);
+    if (i <= 0) return null;
+    return widget.seriesBooks[i - 1];
+  }
+
+  void _goToBook(String bookId) {
+    context.pushReplacement('/read/${Uri.encodeComponent(bookId)}');
+  }
+
+  Future<void> _markBooksRead(Iterable<Book> books) async {
+    for (final b in books) {
+      await widget.backend.updateProgress(b.id, page: b.pageCount - 1, completed: true);
+    }
+  }
+
+  Future<void> _downloadBooks(Iterable<Book> books) async {
+    final manager = ref.read(downloadManagerProvider);
+    await manager.enqueueBooks(
+      widget.backend,
+      books.toList(),
+      widget.book.seriesId,
+      widget.book.title,
+    );
+  }
+
+  Future<void> _deleteBooks(Iterable<Book> books) async {
+    final manager = ref.read(downloadManagerProvider);
+    for (final b in books) {
+      await manager.cancel(b.id);
+    }
+  }
+
+  void _openChapterPicker() {
+    var selectMode = false;
+    final selected = <String>{};
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.black,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          Future<void> runBulk(Future<void> Function(Iterable<Book>) action, String doneMessage) async {
+            final books = widget.seriesBooks.where((b) => selected.contains(b.id));
+            Navigator.pop(sheetContext);
+            await action(books);
+            if (mounted) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text(doneMessage)));
+            }
+          }
+
+          return SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * 0.75),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            selectMode ? '${selected.length} selected' : widget.book.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => setSheetState(() {
+                            selectMode = !selectMode;
+                            selected.clear();
+                          }),
+                          child: Text(
+                            selectMode ? 'Cancel' : 'Select',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: widget.seriesBooks.length,
+                      itemBuilder: (context, i) {
+                        final b = widget.seriesBooks[i];
+                        final current = b.id == widget.book.id;
+                        final read = b.completed && !current;
+                        final isSelected = selected.contains(b.id);
+                        return ListTile(
+                          selected: current || isSelected,
+                          selectedTileColor: Colors.white.withValues(alpha: 0.06),
+                          leading: selectMode
+                              ? Checkbox(
+                                  value: isSelected,
+                                  onChanged: (_) => setSheetState(() {
+                                    if (isSelected) {
+                                      selected.remove(b.id);
+                                    } else {
+                                      selected.add(b.id);
+                                    }
+                                  }),
+                                )
+                              : current
+                                  ? const Icon(Icons.play_arrow, color: Colors.white)
+                                  : read
+                                      ? const Icon(Icons.check_circle, color: Colors.white38, size: 20)
+                                      : const Icon(Icons.circle_outlined, color: Colors.white24, size: 18),
+                          title: Text(
+                            b.title,
+                            style: TextStyle(
+                              color: current
+                                  ? Colors.white
+                                  : read
+                                      ? Colors.white38
+                                      : Colors.white70,
+                            ),
+                          ),
+                          subtitle:
+                              Text('Ch. ${b.number}', style: const TextStyle(color: Colors.white38)),
+                          onTap: () {
+                            if (selectMode) {
+                              setSheetState(() {
+                                if (isSelected) {
+                                  selected.remove(b.id);
+                                } else {
+                                  selected.add(b.id);
+                                }
+                              });
+                              return;
+                            }
+                            Navigator.pop(sheetContext);
+                            if (!current) _goToBook(b.id);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  if (selectMode)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: selected.isEmpty
+                                  ? null
+                                  : () => runBulk(_markBooksRead, 'Marked as read'),
+                              icon: const Icon(Icons.check, color: Colors.white70, size: 18),
+                              label: const Text('Mark read', style: TextStyle(color: Colors.white70)),
+                            ),
+                          ),
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: selected.isEmpty
+                                  ? null
+                                  : () => runBulk(_downloadBooks, 'Queued for download'),
+                              icon: const Icon(Icons.download_outlined, color: Colors.white70, size: 18),
+                              label: const Text('Download', style: TextStyle(color: Colors.white70)),
+                            ),
+                          ),
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: selected.isEmpty
+                                  ? null
+                                  : () => runBulk(_deleteBooks, 'Deleted downloads'),
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                              label: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _onEndOfBook() {
     if (_showEndCard) return;
     _progressSync.sendNow(widget.backend, widget.book.id,
         page: widget.book.pageCount - 1, completed: true);
+    final next = _nextBook;
+    if (next != null) {
+      // Seamless chapter-to-chapter continuation - go straight into the
+      // next chapter rather than stopping on an end card, since there's
+      // somewhere real to go.
+      _goToBook(next.id);
+      return;
+    }
     setState(() => _showEndCard = true);
   }
 
@@ -323,14 +547,29 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
     if (event is! KeyDownEvent) return;
     final isRtl = _settings.direction == ReadingDirection.rtl;
     if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      isRtl ? _seek((_currentPage - 1).clamp(0, widget.book.pageCount - 1))
-          : _seek((_currentPage + 1).clamp(0, widget.book.pageCount - 1));
+      isRtl ? _stepBackward() : _stepForward();
     } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      isRtl ? _seek((_currentPage + 1).clamp(0, widget.book.pageCount - 1))
-          : _seek((_currentPage - 1).clamp(0, widget.book.pageCount - 1));
+      isRtl ? _stepForward() : _stepBackward();
     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
       context.pop();
     }
+  }
+
+  void _stepForward() {
+    if (_currentPage >= widget.book.pageCount - 1) {
+      _onEndOfBook();
+      return;
+    }
+    _seek(_currentPage + 1);
+  }
+
+  void _stepBackward() {
+    if (_currentPage <= 0) {
+      final previous = _previousBook;
+      if (previous != null) _goToBook(previous.id);
+      return;
+    }
+    _seek(_currentPage - 1);
   }
 
   Widget _buildPager() {
@@ -400,6 +639,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> {
               onOpenSettings: _openSettingsSheet,
               onToggleDirection: _toggleDirection,
               onCycleMode: _cycleMode,
+              onOpenChapters: _openChapterPicker,
               onTogglePanelMode:
                   _settings.mode == ReaderMode.single ? _togglePanelMode : null,
             ),
