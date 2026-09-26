@@ -168,20 +168,37 @@ final historyStoreProvider = Provider<HistoryStore>((ref) {
 /// the store itself doesn't notify, mirroring [collectionsRevisionProvider].
 final historyRevisionProvider = StateProvider<int>((ref) => 0);
 
-/// What's been read on the active server, newest first. Entries recorded
-/// before servers were tracked (`serverId == null`) count as active, the
-/// same rule the History screen uses. This is what drives Home's hero and
-/// the persistent now-reading bar: the server only knows which chapters are
-/// unread, not which one was read *last*.
+/// What's been read across *every* server, newest first - Home merges all
+/// sources, so "continue" means the last thing read anywhere. Entries
+/// recorded before servers were tracked (`serverId == null`) belong to
+/// whichever server is active. This drives Home's hero and the persistent
+/// now-reading bar: a server only knows which chapters are unread, not which
+/// one was read *last*.
 final recentReadingProvider = Provider<List<HistoryEntry>>((ref) {
   ref.watch(historyRevisionProvider);
-  final activeId = ref.watch(activeServerIdProvider);
-  return ref
-      .watch(historyStoreProvider)
-      .list()
-      .where((e) => e.serverId == null || e.serverId == activeId)
-      .toList();
+  return ref.watch(historyStoreProvider).list();
 });
+
+/// The backend for [serverId] (or the active one when null, i.e. a legacy
+/// history entry from before servers were tracked). Null if that server has
+/// since been removed.
+final backendForServerProvider =
+    FutureProvider.family<ReaderBackend?, String?>((ref, serverId) async {
+  if (serverId == null) return ref.watch(activeBackendProvider.future);
+  final all = await ref.watch(allBackendsProvider.future);
+  return all.where((b) => b.config.id == serverId).firstOrNull;
+});
+
+/// Makes [serverId] the active server (if it still exists) so screens that
+/// read [activeBackendProvider] - series, reader - talk to the right one
+/// after tapping something that lives on another server.
+Future<void> activateServer(WidgetRef ref, String? serverId) async {
+  if (serverId == null || serverId == ref.read(activeServerIdProvider)) return;
+  final store = ref.read(serverStoreProvider);
+  if (store.getServer(serverId) == null) return;
+  await store.setActiveServerId(serverId);
+  ref.read(activeServerIdProvider.notifier).state = serverId;
+}
 
 /// Timestamp of the history entry whose now-reading bar was dismissed.
 /// Reading again writes a newer timestamp, which brings the bar back.

@@ -44,4 +44,44 @@ void main() {
     expect(find.text('No server configured'), findsOneWidget);
     expect(find.text('Add a server'), findsOneWidget);
   });
+
+  // The nav shell has two layouts (floating bar on phones, side rail on wide
+  // screens) - both must build, show all five tabs, and switch tabs cleanly.
+  for (final size in const [Size(390, 844), Size(1600, 900)]) {
+    testWidgets('nav shell builds and switches tabs at ${size.width.toInt()}px',
+        (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            activeServerIdProvider.overrideWith((ref) => null),
+            recentReadingProvider.overrideWithValue(const []),
+            activeBackendProvider
+                .overrideWith((ref) async => null as ReaderBackend?),
+          ],
+          child: MaterialApp.router(
+            theme: buildAppTheme(const AppearanceSettings()),
+            routerConfig: buildRouter(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 5),
+      );
+
+      for (final label in ['Home', 'Search', 'Library', 'History', 'Settings']) {
+        expect(find.text(label), findsWidgets, reason: '$label tab missing');
+      }
+
+      await tester.tap(find.text('Search').last);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Search across every server'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

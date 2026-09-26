@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
+import '../shared/back_button.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/downloads/download_manager.dart';
 import '../../core/downloads/download_models.dart';
@@ -36,7 +37,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
-              child: Text('Downloads', style: AppText.largeTitle()),
+              child: Row(
+                children: [
+                  const AppBackButton(),
+                  const SizedBox(width: 12),
+                  Text('Downloads', style: AppText.largeTitle()),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
