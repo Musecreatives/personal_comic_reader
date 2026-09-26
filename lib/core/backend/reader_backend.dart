@@ -24,6 +24,11 @@ class ServerConfig {
     required this.username,
   });
 
+  /// Identity that survives across devices. [id] is random per install, so
+  /// two devices that added the same server disagree on it; synced history
+  /// carries this too and each device maps it back to its own [id].
+  String get portableKey => '${type.name}|${baseUrl.toLowerCase()}';
+
   ServerConfig copyWith({
     String? name,
     ServerType? type,

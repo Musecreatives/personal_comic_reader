@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
+import '../../app/motion.dart';
+import '../../app/providers.dart';
 import '../shared/back_button.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -54,6 +57,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
+            _SectionLabel('SYNC'),
+            _SettingsGroup(children: [const _SyncRow()]),
             _SectionLabel('LIBRARY'),
             _SettingsGroup(children: [
               _SettingsRow(
@@ -100,13 +105,13 @@ class SettingsScreen extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.bar_chart_outlined,
                 title: 'Reading stats',
-                subtitle: 'Streak, pages per day - local only',
+                subtitle: 'Streak and pages per day, across your devices',
                 onTap: () => context.push('/stats'),
               ),
               _SettingsRow(
                 icon: Icons.history,
                 title: 'History',
-                subtitle: 'Recently read, local only',
+                subtitle: 'Recently read, across your devices',
                 onTap: () => context.push('/history'),
               ),
               _SettingsRow(
@@ -117,6 +122,100 @@ class SettingsScreen extends StatelessWidget {
                 isLast: true,
               ),
             ]),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sync state at a glance: who is signed in, whether a sync is running or
+/// failed, and when the last good one finished. Tapping syncs now. The icon
+/// spins only while a sync is actually in flight.
+class _SyncRow extends ConsumerStatefulWidget {
+  const _SyncRow();
+
+  @override
+  ConsumerState<_SyncRow> createState() => _SyncRowState();
+}
+
+class _SyncRowState extends ConsumerState<_SyncRow>
+    with SingleTickerProviderStateMixin {
+  late final _spin = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  String _ago(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inSeconds < 60) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+    if (d.inHours < 24) return '${d.inHours} h ago';
+    return '${d.inDays} d ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = ref.watch(syncStatusProvider);
+    final user = ref.watch(currentUsernameProvider);
+    final syncing = status.phase == SyncPhase.syncing;
+    if (syncing && !_spin.isAnimating && !Motion.reduced(context)) {
+      _spin.repeat();
+    } else if (!syncing && _spin.isAnimating) {
+      _spin.stop();
+    }
+
+    final last = status.lastOk;
+    final subtitle = switch (status.phase) {
+      SyncPhase.syncing => 'Syncing…',
+      SyncPhase.offline =>
+        "Can't reach the sync server. Your changes are kept and sent later.",
+      SyncPhase.idle => last == null
+          ? 'Tap to sync history, collections and settings'
+          : 'Up to date · synced ${_ago(last)}',
+    };
+
+    return InkWell(
+      onTap: user == null || syncing
+          ? null
+          : () => startSync(ProviderScope.containerOf(context)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        child: Row(
+          children: [
+            RotationTransition(
+              turns: _spin,
+              child: Icon(
+                status.phase == SyncPhase.offline
+                    ? Icons.sync_problem_outlined
+                    : Icons.sync,
+                size: 20,
+                color: status.phase == SyncPhase.offline
+                    ? Colors.orangeAccent
+                    : AppColors.text60,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user == null ? 'Not signed in' : 'Signed in as $user',
+                    style: AppText.body(size: 14, weight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(subtitle,
+                      style: AppText.body(size: 11, color: AppColors.text45)),
+                ],
+              ),
+            ),
           ],
         ),
       ),

@@ -256,26 +256,52 @@ final syncClientProvider = Provider<SyncClient>((ref) {
 /// settings) to the current session and pulls remote changes, refreshing the
 /// UI providers for whatever changed. Called at startup and after login;
 /// each store is best-effort so one failure never blocks the rest.
-Future<void> startSync(ProviderContainer c) async {
+Future<void> startSync(ProviderContainer c, {bool force = true}) async {
+  final status = c.read(syncStatusProvider.notifier);
+  final current = status.state;
+  if (current.phase == SyncPhase.syncing) return;
+  // Callers that fire often (app resume, the periodic timer) pass
+  // force: false so a recent successful sync is not repeated.
+  final last = current.lastOk;
+  if (!force &&
+      last != null &&
+      DateTime.now().difference(last) < const Duration(seconds: 45)) {
+    return;
+  }
+  status.state = SyncStatus(phase: SyncPhase.syncing, lastOk: last);
+
   final client = c.read(syncClientProvider);
   final queue = c.read(syncQueueProvider);
+  final servers = c.read(serverStoreProvider);
   final history = c.read(historyStoreProvider)..attachSync(client, queue);
   final collections = c.read(collectionsStoreProvider)
     ..sync.attach(client, queue);
   final appearance = c.read(appearanceStoreProvider)..sync.attach(client, queue);
   final reader = c.read(readerSettingsStoreProvider)..sync.attach(client, queue);
+  final stats = c.read(readingStatsStoreProvider)..sync.attach(client, queue);
 
+  // A history entry names the server by the id it had on the device that
+  // read it; map that to this device's id for the same server.
+  String? resolveServer(String? id, String? key) {
+    final all = servers.listServers();
+    if (id != null && all.any((s) => s.id == id)) return id;
+    if (key == null) return null;
+    return all.where((s) => s.portableKey == key).firstOrNull?.id;
+  }
+
+  var failed = false;
   Future<void> run(Future<bool> Function() reconcile, void Function() onChanged) async {
     try {
       if (await reconcile()) onChanged();
     } catch (_) {
       // Offline or server down: stay on local data until the next attempt.
+      failed = true;
     }
   }
 
   await Future.wait([
     run(() async {
-      await history.reconcile();
+      await history.reconcile(resolveServer: resolveServer);
       return true;
     }, () => c.read(historyRevisionProvider.notifier).state++),
     run(collections.reconcile,
@@ -283,8 +309,27 @@ Future<void> startSync(ProviderContainer c) async {
     run(appearance.reconcile,
         () => c.read(appearanceProvider.notifier).state = appearance.get()),
     run(reader.reconcile, () {}),
+    run(stats.reconcile, () => c.read(statsRevisionProvider.notifier).state++),
   ]);
+  status.state = failed
+      ? SyncStatus(phase: SyncPhase.offline, lastOk: last)
+      : SyncStatus(phase: SyncPhase.idle, lastOk: DateTime.now());
 }
+
+enum SyncPhase { idle, syncing, offline }
+
+/// What the settings screen shows: whether a sync is running, failed, and
+/// when the last good one finished.
+class SyncStatus {
+  final SyncPhase phase;
+  final DateTime? lastOk;
+  const SyncStatus({this.phase = SyncPhase.idle, this.lastOk});
+}
+
+final syncStatusProvider = StateProvider<SyncStatus>((ref) => const SyncStatus());
+
+/// Bumped when synced stats change so the Stats screen refetches.
+final statsRevisionProvider = StateProvider<int>((ref) => 0);
 
 /// The signed-in username, or null if no session exists - seeded from
 /// [AuthStore] at startup in main(), same pattern as [appearanceProvider].

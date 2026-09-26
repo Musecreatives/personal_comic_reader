@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:hive_test/hive_test.dart';
 import 'package:shaddai_reader/core/stats/reading_stats_store.dart';
 
@@ -96,5 +99,39 @@ void main() {
     await store.recordPages(1, date: today.subtract(const Duration(days: 1)));
 
     expect(store.currentStreak, 2);
+  });
+
+  test('a record from another device for the same day adds to this one', () async {
+    final store = ReadingStatsStore();
+    await store.init();
+    await store.recordPages(4);
+
+    // What sync would deliver from the phone.
+    final now = DateTime.now();
+    final day =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    await Hive.box<String>('reading_stats').put(
+      '$day|phone',
+      jsonEncode({'pages': 10, 'seconds': 300, '_at': now.toUtc().toIso8601String()}),
+    );
+
+    expect(store.lastDays(1).single.pages, 14);
+    expect(store.totalPages, 14);
+    expect(store.totalSeconds, 300);
+    // Writing again only touches this device's own record.
+    await store.recordPages(1);
+    expect(store.totalPages, 15);
+  });
+
+  test('days recorded before stats synced move under this device', () async {
+    final box = await Hive.openBox<String>('reading_stats');
+    await box.put('2026-03-05', jsonEncode({'pages': 7, 'seconds': 70}));
+
+    final store = ReadingStatsStore();
+    await store.init();
+
+    expect(store.totalPages, 7);
+    expect(box.keys.where((k) => k == '2026-03-05'), isEmpty);
+    expect(box.keys.any((k) => (k as String).startsWith('2026-03-05|')), isTrue);
   });
 }

@@ -9,6 +9,7 @@ import 'app/connectivity_banner.dart';
 import 'app/design_tokens.dart';
 import 'app/providers.dart';
 import 'app/router.dart';
+import 'app/sync_scheduler.dart';
 import 'app/theme.dart';
 import 'core/appearance/appearance_store.dart';
 import 'core/collections/collections_store.dart';
@@ -143,8 +144,9 @@ class ShaddaiReaderApp extends ConsumerWidget {
       theme: buildAppTheme(appearance),
       routerConfig: router,
       debugShowCheckedModeBanner: false,
-      builder: (context, child) =>
-          ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => SyncScheduler(
+        child: ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+      ),
     );
   }
 }
