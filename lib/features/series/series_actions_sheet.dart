@@ -38,11 +38,15 @@ class SeriesActionsSheet {
               content: Text(body),
               actions: [
                 TextButton(
-                    onPressed: () => Navigator.pop(d, false),
-                    child: const Text('Cancel')),
+                  onPressed: () => Navigator.pop(d, false),
+                  child: const Text('Cancel'),
+                ),
                 TextButton(
                   onPressed: () => Navigator.pop(d, true),
-                  child: Text(action, style: TextStyle(color: AppColors.dangerText)),
+                  child: Text(
+                    action,
+                    style: TextStyle(color: AppColors.dangerText),
+                  ),
                 ),
               ],
             ),
@@ -71,10 +75,12 @@ class SeriesActionsSheet {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Text(title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.heading(size: 18)),
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.heading(size: 18),
+                ),
               ),
               _Action(
                 icon: Icons.visibility_off_outlined,
@@ -159,12 +165,19 @@ class _Action extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title,
-                          style: AppText.body(
-                              size: 15, weight: FontWeight.w600, color: color)),
+                      Text(
+                        title,
+                        style: AppText.body(
+                          size: 15,
+                          weight: FontWeight.w600,
+                          color: color,
+                        ),
+                      ),
                       const SizedBox(height: 3),
-                      Text(hint,
-                          style: AppText.body(size: 12, color: AppColors.text45)),
+                      Text(
+                        hint,
+                        style: AppText.body(size: 12, color: AppColors.text45),
+                      ),
                     ],
                   ),
                 ),

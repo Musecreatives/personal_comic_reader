@@ -38,7 +38,10 @@ class DownloadSheet extends StatefulWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       builder: (_) => DownloadSheet(
-          books: books, alreadyIds: alreadyIds, onConfirm: onConfirm),
+        books: books,
+        alreadyIds: alreadyIds,
+        onConfirm: onConfirm,
+      ),
     );
   }
 
@@ -53,10 +56,12 @@ class _DownloadSheetState extends State<DownloadSheet> {
   String _label(Book b) {
     final n = b.number.replaceFirst(RegExp(r'^0+(?=\d)'), '');
     final t = b.title.trim();
-    final same = t.isEmpty ||
-        RegExp('^(ch(apter)?\\.?\\s*)?0*${RegExp.escape(n)}(\\.0+)?\$',
-                caseSensitive: false)
-            .hasMatch(t);
+    final same =
+        t.isEmpty ||
+        RegExp(
+          '^(ch(apter)?\\.?\\s*)?0*${RegExp.escape(n)}(\\.0+)?\$',
+          caseSensitive: false,
+        ).hasMatch(t);
     return same ? 'Ch. $n' : 'Ch. $n  $t';
   }
 
@@ -71,12 +76,15 @@ class _DownloadSheetState extends State<DownloadSheet> {
     final todo = books.where((b) => !widget.alreadyIds.contains(b.id)).toList();
     final unread = todo.where((b) => !b.completed).toList();
     // Everything after the furthest chapter you have touched.
-    final lastTouched =
-        books.lastIndexWhere((b) => b.completed || (b.readProgressPage ?? 0) > 0);
+    final lastTouched = books.lastIndexWhere(
+      (b) => b.completed || (b.readProgressPage ?? 0) > 0,
+    );
     final ahead = unread.where((b) => books.indexOf(b) > lastTouched).toList();
     // "Next" starts at the chapter you are on, else at the first unread.
     final upNext = [
-      ...unread.where((b) => books.indexOf(b) >= (lastTouched < 0 ? 0 : lastTouched)),
+      ...unread.where(
+        (b) => books.indexOf(b) >= (lastTouched < 0 ? 0 : lastTouched),
+      ),
     ];
     final next = upNext.isNotEmpty ? upNext : unread;
 
@@ -105,8 +113,10 @@ class _DownloadSheetState extends State<DownloadSheet> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-                child: Text('Download to this device',
-                    style: AppText.heading(size: 19)),
+                child: Text(
+                  'Download to this device',
+                  style: AppText.heading(size: 19),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -167,9 +177,11 @@ class _DownloadSheetState extends State<DownloadSheet> {
                       ),
                       const Spacer(),
                       TextButton(
-                        onPressed: () => setState(() => _picked
-                          ..clear()
-                          ..addAll(todo.map((b) => b.id))),
+                        onPressed: () => setState(
+                          () => _picked
+                            ..clear()
+                            ..addAll(todo.map((b) => b.id)),
+                        ),
                         child: const Text('Select all'),
                       ),
                       TextButton(
@@ -192,11 +204,19 @@ class _DownloadSheetState extends State<DownloadSheet> {
                         value: on,
                         activeColor: AppColors.accent,
                         controlAffinity: ListTileControlAffinity.leading,
-                        title: Text(_label(b),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        title: Text(
+                          _label(b),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         subtitle: b.completed
-                            ? Text('Read',
-                                style: AppText.mono(size: 10, color: AppColors.text45))
+                            ? Text(
+                                'Read',
+                                style: AppText.mono(
+                                  size: 10,
+                                  color: AppColors.text45,
+                                ),
+                              )
                             : null,
                         onChanged: (v) => setState(() {
                           v == true ? _picked.add(b.id) : _picked.remove(b.id);
@@ -213,10 +233,15 @@ class _DownloadSheetState extends State<DownloadSheet> {
                       onPressed: _picked.isEmpty
                           ? null
                           : () => _confirm(
-                              todo.where((b) => _picked.contains(b.id)).toList()),
-                      child: Text(_picked.isEmpty
-                          ? 'Select chapters'
-                          : 'Download ${_picked.length}'),
+                              todo
+                                  .where((b) => _picked.contains(b.id))
+                                  .toList(),
+                            ),
+                      child: Text(
+                        _picked.isEmpty
+                            ? 'Select chapters'
+                            : 'Download ${_picked.length}',
+                      ),
                     ),
                   ),
                 ),
@@ -260,18 +285,29 @@ class _Option extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title,
-                          style: AppText.body(size: 15, weight: FontWeight.w600)),
+                      Text(
+                        title,
+                        style: AppText.body(size: 15, weight: FontWeight.w600),
+                      ),
                       const SizedBox(height: 3),
-                      Text(hint,
-                          style: AppText.body(size: 12, color: AppColors.text45)),
+                      Text(
+                        hint,
+                        style: AppText.body(size: 12, color: AppColors.text45),
+                      ),
                     ],
                   ),
                 ),
-                Text(chevron ? '' : '${chapters.length}',
-                    style: AppText.mono(size: 12, color: AppColors.accentLink)),
-                Icon(chevron ? Icons.chevron_right_rounded : Icons.download_outlined,
-                    size: 20, color: AppColors.text45),
+                Text(
+                  chevron ? '' : '${chapters.length}',
+                  style: AppText.mono(size: 12, color: AppColors.accentLink),
+                ),
+                Icon(
+                  chevron
+                      ? Icons.chevron_right_rounded
+                      : Icons.download_outlined,
+                  size: 20,
+                  color: AppColors.text45,
+                ),
               ],
             ),
           ),
