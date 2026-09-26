@@ -80,7 +80,7 @@ void main() {
 
       await tester.tap(find.text('Search').last);
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('Search across every server'), findsOneWidget);
+      expect(find.text('Search your libraries'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
