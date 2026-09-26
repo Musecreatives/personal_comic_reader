@@ -4,6 +4,7 @@ import '../core/backend/reader_backend.dart';
 import '../features/auth/login_screen.dart';
 import '../features/collections/collections_screen.dart';
 import '../features/downloads/downloads_screen.dart';
+import '../features/discovery/recommendations_screen.dart';
 import '../features/home/in_progress_screen.dart';
 import '../features/shared/glass_bottom_nav.dart';
 import '../features/suwayomi/source_browse_screen.dart';
@@ -80,6 +81,10 @@ GoRouter buildRouter({
           GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
         ]),
       ],
+    ),
+    GoRoute(
+      path: '/discover/recommendations',
+      builder: (context, state) => const RecommendationsScreen(),
     ),
     GoRoute(
       path: '/home/in-progress',
