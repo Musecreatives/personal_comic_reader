@@ -12,6 +12,31 @@ import '../../core/network/retry_interceptor.dart';
 /// Auth is HTTP Basic on every request (Komga has no token endpoint for
 /// this use case), attached via a dio interceptor so callers never touch
 /// headers directly.
+/// Komga makes every folder a series, so a library laid out as
+/// `<Series>/Volume 01 (2025)/` produces series called "Volume 01 (2025)".
+/// When the title is only a volume folder name, build a real one from the
+/// parent folder in [url]: "Absolute Batman (2025)", or with the volume
+/// number when it isn't the first ("X-Men Vol. 6 (2019)"). Any other title
+/// (including a proper one from embedded metadata) is left alone.
+String friendlySeriesTitle(String title, String? url) {
+  final volume = RegExp(r'^volume\s*0*(\d+)\s*(?:\((\d{4})\))?\s*$',
+          caseSensitive: false)
+      .firstMatch(title.trim());
+  if (volume == null || url == null) return title;
+
+  final folders = Uri.decodeComponent(url)
+      .split('/')
+      .where((p) => p.isNotEmpty && !p.startsWith('file:'))
+      .toList();
+  if (folders.length < 2) return title;
+  final parent = folders[folders.length - 2].trim();
+  if (parent.isEmpty) return title;
+
+  final number = int.parse(volume.group(1)!);
+  final year = volume.group(2);
+  return '$parent${number == 1 ? '' : ' Vol. $number'}${year == null ? '' : ' ($year)'}';
+}
+
 class KomgaBackend implements ReaderBackend {
   @override
   final ServerConfig config;
@@ -140,7 +165,10 @@ class KomgaBackend implements ReaderBackend {
     return Series(
       id: e['id'] as String,
       libraryId: e['libraryId'] as String,
-      title: (metadata?['title'] as String?) ?? e['name'] as String,
+      title: friendlySeriesTitle(
+        (metadata?['title'] as String?) ?? e['name'] as String,
+        e['url'] as String?,
+      ),
       summary: booksMetadata?['summary'] as String?,
       booksCount: e['booksCount'] as int,
       booksReadCount: e['booksReadCount'] as int,

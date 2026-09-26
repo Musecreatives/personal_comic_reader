@@ -273,8 +273,12 @@ class SuwayomiBackend implements ReaderBackend {
 
   @override
   Future<List<Book>> recentlyAdded() async {
+    // Newest *released* unread chapters across the library. Ordering by when
+    // Suwayomi fetched them (FETCHED_AT) put a whole back-catalogue at the top
+    // the moment a series was added, so one series filled the list.
     final data = await _gql(
-      '{ chapters(order: [{by: FETCHED_AT, byType: DESC}], first: 20) { '
+      '{ chapters(filter: {inLibrary: {equalTo: true}, isRead: {equalTo: false}}, '
+      'order: [{by: UPLOAD_DATE, byType: DESC}], first: 40) { '
       'nodes { id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder } } }',
     );
     final nodes = data['chapters']['nodes'] as List;
