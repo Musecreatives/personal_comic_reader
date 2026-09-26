@@ -11,14 +11,23 @@ name: iOS build (unsigned IPA for sideloading)
 on:
   workflow_dispatch:
 
+# The job only reads the repo and uploads an artifact; give the token nothing more.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      # Third-party actions are pinned to full commit SHAs (the tag each one
+      # was resolved from is in the comment) so a moved or hijacked tag cannot
+      # change what runs here.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           cache: true
@@ -34,7 +43,7 @@ jobs:
           cp -R build/ios/iphoneos/Runner.app Payload/
           zip -qr ShaddaiReader-unsigned.ipa Payload
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ShaddaiReader-unsigned-ipa
           path: ShaddaiReader-unsigned.ipa
