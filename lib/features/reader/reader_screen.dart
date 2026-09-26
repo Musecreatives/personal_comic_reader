@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
@@ -383,6 +384,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
 
     showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: Motion.sheetStyle,
       backgroundColor: Colors.black,
       isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
@@ -640,7 +642,8 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
             ReaderOverlay(
               visible: _overlayVisible,
               title: widget.book.title,
-              subtitle: 'Vol/Ch ${widget.book.number}',
+              subtitle:
+                  'Ch. ${widget.book.number.replaceFirst(RegExp(r'^0+(?=\d)'), '')}',
               currentPage: _currentPage,
               pageCount: widget.book.pageCount,
               settings: _settings,

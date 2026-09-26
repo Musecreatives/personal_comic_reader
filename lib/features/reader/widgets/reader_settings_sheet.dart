@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/design_tokens.dart';
+import '../../../app/motion.dart';
 import '../../../core/reader/color_filters.dart';
 import '../../../core/reader/reader_settings.dart';
 
@@ -65,6 +66,7 @@ class _ReaderSettingsSheetState extends State<ReaderSettingsSheet> {
   Future<T?> _showPicker<T>(BuildContext context, String title, List<(T, String)> options) {
     return showModalBottomSheet<T>(
       context: context,
+      sheetAnimationStyle: Motion.sheetStyle,
       backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

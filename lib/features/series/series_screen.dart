@@ -608,13 +608,19 @@ class _ChapterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isInProgress = !book.completed && (book.readProgressPage ?? 0) > 0;
+    // Some sources (Suwayomi) don't know a chapter's page count until it has
+    // been opened, so a 0 means "unknown", not "zero pages".
+    final known = book.pageCount > 0;
+    String withPages(String state) => known ? '${book.pageCount} PAGES · $state' : state;
     final meta = book.completed
-        ? '${book.pageCount} PAGES · READ'
+        ? withPages('READ')
         : isInProgress
-            ? 'PAGE ${book.readProgressPage} OF ${book.pageCount}'
+            ? (known
+                ? 'PAGE ${book.readProgressPage} OF ${book.pageCount}'
+                : 'PAGE ${book.readProgressPage}')
             : task?.state == DownloadState.done
-                ? '${book.pageCount} PAGES · DOWNLOADED'
-                : '${book.pageCount} PAGES · ON SERVER';
+                ? withPages('DOWNLOADED')
+                : withPages('ON SERVER');
 
     return InkWell(
       onTap: () => context.push('/read/${Uri.encodeComponent(book.id)}'),
