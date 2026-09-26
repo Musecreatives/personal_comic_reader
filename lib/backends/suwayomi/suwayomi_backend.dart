@@ -401,6 +401,39 @@ class SuwayomiBackend implements ReaderBackend {
         .cast<String>();
   }
 
+  /// Details for the search preview sheet: description, genres, status and
+  /// author, fetched from the source (a source listing carries only a title
+  /// and cover).
+  Future<({String description, List<String> genres, String status, String author})>
+      mangaPreview(int id) async {
+    final data = await _gql(
+      'mutation(\$id: Int!) { fetchManga(input: {id: \$id}) { manga { description genre status author } } }',
+      {'id': id},
+    );
+    final m = data['fetchManga']['manga'] as Map<String, dynamic>;
+    return (
+      description: (m['description'] as String? ?? '').trim(),
+      genres: ((m['genre'] as List?) ?? const []).cast<String>(),
+      status: m['status'] as String? ?? '',
+      author: m['author'] as String? ?? '',
+    );
+  }
+
+  /// How many chapters a source has for [id], and the newest one's name -
+  /// separate from [mangaPreview] because it asks the source for the whole
+  /// chapter list, which is slower.
+  Future<({int count, String? latest})> chapterSummary(int id) async {
+    final data = await _gql(
+      'mutation(\$id: Int!) { fetchChapters(input: {mangaId: \$id}) { chapters { name chapterNumber } } }',
+      {'id': id},
+    );
+    final chapters = (data['fetchChapters']['chapters'] as List).cast<Map<String, dynamic>>();
+    if (chapters.isEmpty) return (count: 0, latest: null);
+    chapters.sort((a, b) => ((a['chapterNumber'] as num?) ?? 0)
+        .compareTo((b['chapterNumber'] as num?) ?? 0));
+    return (count: chapters.length, latest: chapters.last['name'] as String?);
+  }
+
   /// Popular titles from each of [sourceIds], with genres filled in (a source
   /// listing carries none, so each title costs one detail lookup, done a few
   /// at a time). A source that fails is skipped rather than failing the lot.

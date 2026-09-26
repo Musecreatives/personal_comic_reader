@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
+import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import 'acquire_search.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 
@@ -19,13 +21,16 @@ class CrossServerSearchScreen extends ConsumerStatefulWidget {
   const CrossServerSearchScreen({super.key});
 
   @override
-  ConsumerState<CrossServerSearchScreen> createState() => _CrossServerSearchScreenState();
+  ConsumerState<CrossServerSearchScreen> createState() =>
+      _CrossServerSearchScreenState();
 }
 
-class _CrossServerSearchScreenState extends ConsumerState<CrossServerSearchScreen> {
+class _CrossServerSearchScreenState
+    extends ConsumerState<CrossServerSearchScreen> {
   final _controller = TextEditingController();
   String _query = '';
   Timer? _debounce;
+  _Mode _mode = _Mode.library;
 
   @override
   void dispose() {
@@ -76,8 +81,15 @@ class _CrossServerSearchScreenState extends ConsumerState<CrossServerSearchScree
                         autofocus: true,
                         style: AppText.body(size: 15),
                         decoration: InputDecoration(
-                          hintText: 'Search across every server',
-                          hintStyle: AppText.body(size: 15, color: AppColors.text45),
+                          hintText: switch (_mode) {
+                            _Mode.library => 'Search your libraries',
+                            _Mode.manga => 'Find manga on your sources',
+                            _Mode.comics => 'Find comics to acquire',
+                          },
+                          hintStyle: AppText.body(
+                            size: 15,
+                            color: AppColors.text45,
+                          ),
                           isDense: true,
                           border: InputBorder.none,
                         ),
@@ -87,20 +99,37 @@ class _CrossServerSearchScreenState extends ConsumerState<CrossServerSearchScree
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: _ModeSwitch(
+                mode: _mode,
+                onChanged: (m) => setState(() => _mode = m),
+              ),
+            ),
             Expanded(
-              child: _query.isEmpty
+              child: _mode == _Mode.manga
+                  ? MangaSourceSearch(query: _query)
+                  : _mode == _Mode.comics
+                  ? ComicSearch(query: _query)
+                  : _query.isEmpty
                   ? Center(
-                      child: Text('Type to search your libraries.',
-                          style: AppText.body(color: AppColors.text45)),
+                      child: Text(
+                        'Type to search your libraries.',
+                        style: AppText.body(color: AppColors.text45),
+                      ),
                     )
                   : backendsAsync.when(
-                      loading: () => const Center(child: CircularProgressIndicator()),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
                       error: (e, st) => AppErrorState(error: e),
                       data: (backends) {
                         if (backends.isEmpty) {
                           return Center(
-                              child: Text('No servers configured.',
-                                  style: AppText.body(color: AppColors.text45)));
+                            child: Text(
+                              'No servers configured.',
+                              style: AppText.body(color: AppColors.text45),
+                            ),
+                          );
                         }
                         return _ResultsList(backends: backends, query: _query);
                       },
@@ -108,6 +137,83 @@ class _CrossServerSearchScreenState extends ConsumerState<CrossServerSearchScree
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+enum _Mode { library, manga, comics }
+
+/// Library (what you have) / Manga (find on Suwayomi sources) / Comics (find
+/// through Kapowarr). A sliding pill marks the current one.
+class _ModeSwitch extends StatelessWidget {
+  final _Mode mode;
+  final ValueChanged<_Mode> onChanged;
+  const _ModeSwitch({required this.mode, required this.onChanged});
+
+  static const _labels = {
+    _Mode.library: 'Library',
+    _Mode.manga: 'Manga',
+    _Mode.comics: 'Comics',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppColors.fillSubtle,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final w = c.maxWidth / _Mode.values.length;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: Motion.scaled(context, Motion.base),
+                curve: Motion.easeOut,
+                left: w * mode.index,
+                width: w,
+                top: 0,
+                bottom: 0,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  for (final m in _Mode.values)
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onChanged(m),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          child: Center(
+                            child: AnimatedDefaultTextStyle(
+                              duration: Motion.scaled(context, Motion.fast),
+                              style: AppText.body(
+                                size: 12.5,
+                                weight: FontWeight.w600,
+                                color: m == mode
+                                    ? Colors.white
+                                    : AppColors.text60,
+                              ),
+                              child: Text(_labels[m]!),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -121,14 +227,16 @@ class _ResultsList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return FutureBuilder<List<(ReaderBackend, List<Series>)>>(
-      future: Future.wait(backends.map((b) async {
-        try {
-          final result = await b.listSeries(search: query, size: 10);
-          return (b, result.items);
-        } catch (_) {
-          return (b, const <Series>[]);
-        }
-      })),
+      future: Future.wait(
+        backends.map((b) async {
+          try {
+            final result = await b.listSeries(search: query, size: 10);
+            return (b, result.items);
+          } catch (_) {
+            return (b, const <Series>[]);
+          }
+        }),
+      ),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -136,7 +244,11 @@ class _ResultsList extends ConsumerWidget {
         final groups = snapshot.data!.where((g) => g.$2.isNotEmpty).toList();
         if (groups.isEmpty) {
           return Center(
-              child: Text('No matches on any server.', style: AppText.body(color: AppColors.text45)));
+            child: Text(
+              'No matches on any server.',
+              style: AppText.body(color: AppColors.text45),
+            ),
+          );
         }
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
@@ -153,15 +265,26 @@ class _ResultsList extends ConsumerWidget {
                           width: 7,
                           height: 7,
                           decoration: BoxDecoration(
-                            color: AppColors.sourceColor(backend.config.type.name),
+                            color: AppColors.sourceColor(
+                              backend.config.type.name,
+                            ),
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text(backend.config.name, style: AppText.body(size: 14, weight: FontWeight.w600)),
+                        Text(
+                          backend.config.name,
+                          style: AppText.body(
+                            size: 14,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
-                    Text('${series.length} HITS', style: AppText.mono(size: 10)),
+                    Text(
+                      '${series.length} HITS',
+                      style: AppText.mono(size: 10),
+                    ),
                   ],
                 ),
               ),
@@ -175,9 +298,14 @@ class _ResultsList extends ConsumerWidget {
                     // server must switch context to it first, or the
                     // series screen would fetch the tapped id from the
                     // wrong backend.
-                    await ref.read(serverStoreProvider).setActiveServerId(backend.config.id);
-                    ref.read(activeServerIdProvider.notifier).state = backend.config.id;
-                    if (context.mounted) context.push('/series/${Uri.encodeComponent(s.id)}');
+                    await ref
+                        .read(serverStoreProvider)
+                        .setActiveServerId(backend.config.id);
+                    ref.read(activeServerIdProvider.notifier).state =
+                        backend.config.id;
+                    if (context.mounted) {
+                      context.push('/series/${Uri.encodeComponent(s.id)}');
+                    }
                   },
                 ),
             ],
@@ -192,7 +320,11 @@ class _ResultRow extends StatelessWidget {
   final Series series;
   final Map<String, String> headers;
   final VoidCallback onTap;
-  const _ResultRow({required this.series, required this.headers, required this.onTap});
+  const _ResultRow({
+    required this.series,
+    required this.headers,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +340,10 @@ class _ResultRow extends StatelessWidget {
               height: 60,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: SeriesCover(imageUrl: series.thumbnailUrl, headers: headers),
+                child: SeriesCover(
+                  imageUrl: series.thumbnailUrl,
+                  headers: headers,
+                ),
               ),
             ),
             const SizedBox(width: 13),
@@ -216,10 +351,17 @@ class _ResultRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(series.title,
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.body(size: 14.5, weight: FontWeight.w500)),
+                  Text(
+                    series.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body(size: 14.5, weight: FontWeight.w500),
+                  ),
                   const SizedBox(height: 4),
-                  Text('${series.booksCount} VOL', style: AppText.mono(size: 10.5)),
+                  Text(
+                    '${series.booksCount} VOL',
+                    style: AppText.mono(size: 10.5),
+                  ),
                 ],
               ),
             ),

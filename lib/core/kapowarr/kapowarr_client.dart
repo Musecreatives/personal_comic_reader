@@ -138,8 +138,61 @@ class KapowarrVolume {
       );
 }
 
-/// Thin client over Kapowarr's REST API, used only for the read-only
-/// status view - Shaddai Reader never triggers downloads or edits volumes.
+/// One ComicVine match from Kapowarr's search: a volume you could add.
+class KapowarrSearchResult {
+  final int comicvineId;
+  final String title;
+  final int year;
+  final int volumeNumber;
+  final String coverUrl;
+
+  /// Plain text (the API returns HTML).
+  final String description;
+  final String publisher;
+  final int issueCount;
+
+  /// Already tracked in Kapowarr, so adding it would be a duplicate.
+  final bool alreadyAdded;
+
+  const KapowarrSearchResult({
+    required this.comicvineId,
+    required this.title,
+    required this.year,
+    required this.volumeNumber,
+    required this.coverUrl,
+    required this.description,
+    required this.publisher,
+    required this.issueCount,
+    required this.alreadyAdded,
+  });
+
+  static int _int(dynamic v) => v is int ? v : int.tryParse('$v') ?? 0;
+
+  static String _plain(String html) => html
+      .replaceAll(RegExp(r'<[^>]*>'), ' ')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  factory KapowarrSearchResult.fromJson(Map<String, dynamic> j) => KapowarrSearchResult(
+        comicvineId: _int(j['comicvine_id']),
+        title: j['title'] as String? ?? 'Untitled',
+        year: _int(j['year']),
+        volumeNumber: _int(j['volume_number']),
+        coverUrl: j['cover_link'] as String? ?? '',
+        description: _plain(j['description'] as String? ?? ''),
+        publisher: j['publisher'] as String? ?? '',
+        issueCount: _int(j['issue_count']),
+        alreadyAdded: j['already_added'] == true || '${j['already_added']}' == '1',
+      );
+}
+
+/// Thin client over Kapowarr's REST API: the status view, plus searching
+/// ComicVine and adding a volume so Kapowarr starts acquiring it. Editing or
+/// deleting volumes is still left to Kapowarr's own UI.
 class KapowarrClient {
   final Dio _dio;
   final String _apiKey;
@@ -191,6 +244,43 @@ class KapowarrClient {
     return result
         .map((e) => KapowarrVolume.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Searches ComicVine through Kapowarr for volumes matching [query].
+  Future<List<KapowarrSearchResult>> searchVolumes(String query) async {
+    final res = await _dio.get('/api/volumes/search',
+        queryParameters: {'query': query},
+        options: Options(receiveTimeout: const Duration(seconds: 60)));
+    final result = (res.data as Map<String, dynamic>)['result'] as List;
+    return result
+        .map((e) => KapowarrSearchResult.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// The first root folder (where new volumes are saved).
+  Future<int> defaultRootFolderId() async {
+    final res = await _dio.get('/api/rootfolder');
+    final folders = (res.data as Map<String, dynamic>)['result'] as List;
+    if (folders.isEmpty) throw StateError('Kapowarr has no root folder set up');
+    return (folders.first as Map<String, dynamic>)['id'] as int;
+  }
+
+  /// Adds a ComicVine volume to Kapowarr, monitored, and starts a search for
+  /// its issues. Returns the new volume's id. `special_version: 'auto'` is
+  /// required by the API even though it looks optional.
+  Future<int> addVolume(int comicvineId, {int? rootFolderId}) async {
+    final root = rootFolderId ?? await defaultRootFolderId();
+    final res = await _dio.post('/api/volumes', data: {
+      'comicvine_id': comicvineId,
+      'root_folder_id': root,
+      'monitor': true,
+      'monitoring_scheme': 'all',
+      'monitor_new_issues': true,
+      'auto_search': true,
+      'special_version': 'auto',
+    });
+    return ((res.data as Map<String, dynamic>)['result'] as Map<String, dynamic>)['id']
+        as int;
   }
 
   Future<KapowarrVolume> getVolume(int id) async {
