@@ -17,6 +17,7 @@ import '../../core/panels/panel_detector.dart';
 import '../../core/stats/reading_stats_store.dart';
 import '../shared/error_state.dart';
 import 'widgets/double_page_view.dart';
+import 'widgets/edge_swipe.dart';
 import 'widgets/panel_zoom_view.dart';
 import 'widgets/reader_overlay.dart';
 import 'widgets/reader_settings_sheet.dart';
@@ -216,6 +217,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
     // immediately backing out shouldn't clutter history.
     if (_seenPages.length > 1 || completed) {
       _historyStore.record(HistoryEntry(
+        serverId: widget.backend.config.id,
         bookId: widget.book.id,
         seriesId: widget.book.seriesId,
         bookTitle: widget.book.title,
@@ -347,8 +349,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
     return widget.seriesBooks[i - 1];
   }
 
-  void _goToBook(String bookId) {
-    context.pushReplacement('/read/${Uri.encodeComponent(bookId)}');
+  void _goToBook(String bookId, {int? page}) {
+    context.pushReplacement(
+        '/read/${Uri.encodeComponent(bookId)}${page == null ? '' : '?page=$page'}');
   }
 
   Future<void> _markBooksRead(Iterable<Book> books) async {
@@ -566,7 +569,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
   void _stepBackward() {
     if (_currentPage <= 0) {
       final previous = _previousBook;
-      if (previous != null) _goToBook(previous.id);
+      // Land on the previous chapter's last page - going back should feel
+      // like turning a page, not restarting or resuming somewhere else.
+      if (previous != null) _goToBook(previous.id, page: previous.pageCount - 1);
       return;
     }
     _seek(_currentPage - 1);
@@ -626,7 +631,12 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
         backgroundColor: Color(_settings.backgroundColor),
         body: Stack(
           children: [
-            Positioned.fill(child: _buildPager()),
+            Positioned.fill(
+              child: EdgeSwipe(
+                onPastStart: _stepBackward,
+                child: _buildPager(),
+              ),
+            ),
             ReaderOverlay(
               visible: _overlayVisible,
               title: widget.book.title,

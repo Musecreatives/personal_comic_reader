@@ -50,3 +50,6 @@ app.*.map.json
 # pushed to GitHub anymore).
 /ROADMAP.md
 /deploy/
+
+# graphify knowledge-graph output (regenerable)
+/graphify-out/

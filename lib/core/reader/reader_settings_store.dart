@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../sync/resource_sync.dart';
 import 'reader_settings.dart';
 
 /// Persists the global default [ReaderSettings] and per-series overrides.
@@ -14,10 +15,13 @@ class ReaderSettingsStore {
   static const _globalKey = 'global';
 
   late final Box<String> _box;
+  final sync = ResourceSync('reader_settings');
 
   Future<void> init() async {
     _box = await Hive.openBox<String>(_boxName);
   }
+
+  Future<bool> reconcile() => sync.reconcile(_box);
 
   ReaderSettings getGlobal() {
     final raw = _box.get(_globalKey);
@@ -26,7 +30,7 @@ class ReaderSettingsStore {
   }
 
   Future<void> setGlobal(ReaderSettings settings) {
-    return _box.put(_globalKey, jsonEncode(settings.toJson()));
+    return sync.put(_box, _globalKey, settings.toJson());
   }
 
   ReaderSettings? getForSeries(String seriesId) {
@@ -36,11 +40,11 @@ class ReaderSettingsStore {
   }
 
   Future<void> setForSeries(String seriesId, ReaderSettings settings) {
-    return _box.put(_seriesKey(seriesId), jsonEncode(settings.toJson()));
+    return sync.put(_box, _seriesKey(seriesId), settings.toJson());
   }
 
   Future<void> clearForSeries(String seriesId) {
-    return _box.delete(_seriesKey(seriesId));
+    return sync.remove(_box, _seriesKey(seriesId));
   }
 
   bool hasOverride(String seriesId) => _box.containsKey(_seriesKey(seriesId));
