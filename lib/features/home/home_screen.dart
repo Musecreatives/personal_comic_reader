@@ -127,7 +127,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
   // entry or the top in-progress series actually changes - build() runs far
   // more often than that.
   Future<List<_HeroData>>? _heroFuture;
-  (DateTime?, int, String?)? _heroKey;
+  (DateTime?, int, String?, int)? _heroKey;
 
   static const _maxHeroes = 5;
 
@@ -148,9 +148,14 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
       }
     }
 
+    final stopped = ref.read(stoppedSeriesStoreProvider);
+    final lastRead = lastReadByKey(history, activeId);
     final queues = <String, List<FeedSeries>>{};
     for (final s in feed.inProgress) {
-      if (!seen.contains(s.key)) queues.putIfAbsent(s.serverId, () => []).add(s);
+      if (seen.contains(s.key)) continue;
+      // Series the user stopped reading stay out until read again.
+      if (stopped.isStopped(s.key, lastReadAt: lastRead[s.key]?.timestamp)) continue;
+      queues.putIfAbsent(s.serverId, () => []).add(s);
     }
     final turns = queues.values.toList();
     var t = 0;
@@ -214,6 +219,8 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
     final history = ref.watch(recentReadingProvider);
     final activeId = ref.watch(activeServerIdProvider);
     final servers = ref.watch(serverListProvider);
+    final stoppedRevision = ref.watch(stoppedRevisionProvider);
+    final stopped = ref.watch(stoppedSeriesStoreProvider);
 
     return RefreshIndicator(
       onRefresh: _refresh,
@@ -232,6 +239,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
               history.firstOrNull?.timestamp,
               feed.inProgress.length,
               feed.inProgress.firstOrNull?.key,
+              stoppedRevision,
             );
             if (_heroFuture == null || _heroKey != key) {
               _heroKey = key;
@@ -243,15 +251,17 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
               builder: (context, heroSnap) {
                 final heroes = heroSnap.data ?? const <_HeroData>[];
                 final heroKeys = heroes.map((h) => h.key).toSet();
+                final last = lastReadByKey(history, activeId);
                 final visible = feed.inProgress
                     .where((s) => _filter == null || s.serverId == _filter)
                     .where((s) => !heroKeys.contains(s.key))
+                    .where((s) => !stopped.isStopped(s.key,
+                        lastReadAt: last[s.key]?.timestamp))
                     .toList();
                 final shelf = orderByRecency(visible, history, activeId);
                 final recent = feed.recent
                     .where((r) => _filter == null || r.backend.config.id == _filter)
                     .toList();
-                final last = lastReadByKey(history, activeId);
                 final topPad = MediaQuery.paddingOf(context).top;
 
                 return ListView(

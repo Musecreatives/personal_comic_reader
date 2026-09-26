@@ -14,6 +14,7 @@ import 'core/appearance/appearance_store.dart';
 import 'core/collections/collections_store.dart';
 import 'core/downloads/download_manager.dart';
 import 'core/history/history_store.dart';
+import 'core/history/stopped_series_store.dart';
 import 'core/downloads/download_store.dart';
 import 'core/kapowarr/kapowarr_config_store.dart';
 import 'core/reader/page_cache.dart';
@@ -63,6 +64,9 @@ Future<void> main() async {
   final collectionsStore = CollectionsStore();
   await collectionsStore.init();
 
+  final stoppedSeriesStore = StoppedSeriesStore();
+  await stoppedSeriesStore.init();
+
   final authStore = AuthStore();
   final syncToken = await authStore.getToken();
   final syncUsername = await authStore.getUsername();
@@ -101,6 +105,7 @@ Future<void> main() async {
         appearanceProvider.overrideWith((ref) => initialAppearance),
         historyStoreProvider.overrideWithValue(historyStore),
         collectionsStoreProvider.overrideWithValue(collectionsStore),
+        stoppedSeriesStoreProvider.overrideWithValue(stoppedSeriesStore),
         authStoreProvider.overrideWithValue(authStore),
         syncQueueProvider.overrideWithValue(syncQueue),
         syncClientProvider.overrideWithValue(syncClient),
