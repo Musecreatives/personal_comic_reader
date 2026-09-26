@@ -11,8 +11,14 @@ import 'package:shaddai_reader/core/downloads/download_store.dart';
 class _FakeBackend implements ReaderBackend {
   final Map<String, int> fetchCalls = {};
   final Duration delay;
+  final String id;
 
-  _FakeBackend({this.delay = Duration.zero});
+  /// Page counts `getBook` reports - for sources that only learn a
+  /// chapter's length when it is opened.
+  final Map<String, int> bookPages;
+
+  _FakeBackend(
+      {this.delay = Duration.zero, this.id = 'srv', this.bookPages = const {}});
 
   @override
   Future<Uint8List> fetchPage(String bookId, int pageIndex) async {
@@ -23,7 +29,8 @@ class _FakeBackend implements ReaderBackend {
   }
 
   @override
-  ServerConfig get config => throw UnimplementedError();
+  ServerConfig get config => ServerConfig(
+      id: id, name: 't', type: ServerType.komga, baseUrl: 'http://x', username: 'u');
   @override
   Future<void> authenticate() => throw UnimplementedError();
   @override
@@ -44,7 +51,14 @@ class _FakeBackend implements ReaderBackend {
   @override
   Future<List<Book>> listBooks(String seriesId) => throw UnimplementedError();
   @override
-  Future<Book> getBook(String id) => throw UnimplementedError();
+  Future<Book> getBook(String id) async => Book(
+        id: id,
+        seriesId: 's',
+        title: id,
+        number: '1',
+        pageCount: bookPages[id] ?? 0,
+        completed: false,
+      );
   @override
   Future<Uri> pageUri(String bookId, int pageIndex) =>
       throw UnimplementedError();
@@ -192,5 +206,65 @@ void main() {
 
     expect(backend.fetchCalls['b4_0'], 1);
     expect(backend.fetchCalls['b4_1'], 1);
+  });
+
+  test('a chapter queued with 0 pages resolves its length before downloading',
+      () async {
+    final store = DownloadStore();
+    await store.init();
+    final manager = DownloadManager(store: store);
+    final backend = _FakeBackend(bookPages: {'sw1': 3});
+
+    await manager.enqueueBook(backend,
+        bookId: 'sw1',
+        seriesId: 's',
+        seriesTitle: 'Suwayomi series',
+        title: 'Ch 1',
+        totalPages: 0);
+    await _waitUntil(() => store.getTask('sw1')?.state == DownloadState.done);
+
+    expect(store.getTask('sw1')!.totalPages, 3);
+    expect(store.hasPage('sw1', 2), true);
+  });
+
+  test('each task is fetched from its own server', () async {
+    final store = DownloadStore();
+    await store.init();
+    final manager = DownloadManager(store: store);
+    final komga = _FakeBackend(id: 'komga');
+    final suwayomi = _FakeBackend(id: 'suwayomi');
+
+    await manager.enqueueBook(komga,
+        bookId: 'k1', seriesId: 's', seriesTitle: 'K', title: 'K1', totalPages: 2);
+    await manager.enqueueBook(suwayomi,
+        bookId: 'w1', seriesId: 's', seriesTitle: 'W', title: 'W1', totalPages: 2);
+    await _waitUntil(() =>
+        store.getTask('k1')?.state == DownloadState.done &&
+        store.getTask('w1')?.state == DownloadState.done);
+
+    expect(komga.fetchCalls.keys.every((k) => k.startsWith('k1')), true);
+    expect(suwayomi.fetchCalls.keys.every((k) => k.startsWith('w1')), true);
+    expect(store.getTask('w1')!.serverId, 'suwayomi');
+  });
+
+  test('reorder and moveToTop change the queue order', () async {
+    final store = DownloadStore();
+    await store.init();
+    final manager = DownloadManager(store: store);
+    final backend = _FakeBackend(delay: const Duration(seconds: 5));
+
+    // Three books in the queue; the two slow ones start running, so order
+    // is checked on the stored tasks, not on what happens to download first.
+    for (final id in ['a', 'b', 'c']) {
+      await manager.enqueueBook(backend,
+          bookId: id, seriesId: 's', seriesTitle: 'S', title: id, totalPages: 3);
+    }
+    expect(store.listTasks().map((t) => t.bookId), ['a', 'b', 'c']);
+
+    await manager.reorder(['c', 'a', 'b']);
+    expect(store.listTasks().map((t) => t.bookId), ['c', 'a', 'b']);
+
+    await manager.moveToTop('b');
+    expect(store.listTasks().first.bookId, 'b');
   });
 }
