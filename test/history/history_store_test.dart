@@ -144,7 +144,7 @@ void main() {
       }),
     );
 
-    await store.reconcile();
+    await store.reconcile(resolveServer: (id, key) => id);
 
     expect(store.list(), hasLength(1));
     expect(store.list().single.bookTitle, 'From another device');
@@ -189,8 +189,54 @@ void main() {
       }),
     );
 
-    await store.reconcile();
+    await store.reconcile(resolveServer: (id, key) => id);
 
     expect(store.list().single.bookTitle, 'Newer local read');
+  });
+
+  test('reconcile() maps a server id from another device to the local one by key',
+      () async {
+    final dio = Dio(BaseOptions(baseUrl: 'http://test.local'));
+    final adapter = DioAdapter(dio: dio);
+    dio.httpClientAdapter = adapter;
+    final client =
+        SyncClient(baseUrl: 'http://test.local', token: 'a-token', dio: dio);
+    final queue = SyncQueue();
+    await queue.init();
+    final store = HistoryStore();
+    await store.init();
+    store.attachSync(client, queue);
+
+    final remote = HistoryEntry(
+      serverId: 'phone-random-id',
+      serverKey: 'komga|http://komga.test',
+      bookId: 'book-9',
+      seriesId: 'series-1',
+      bookTitle: 'Read on the phone',
+      bookNumber: '9',
+      pageCount: 20,
+      lastPage: 5,
+      completed: false,
+      timestamp: DateTime.utc(2026, 9, 1),
+    );
+    adapter.onGet(
+      '/records/history',
+      (server) => server.reply(200, {
+        'records': [
+          {
+            'record_id': remote.bookId,
+            'data': remote.toJson(),
+            'updated_at': remote.timestamp.toIso8601String(),
+            'deleted': false,
+          },
+        ],
+      }),
+    );
+
+    String? resolve(String? id, String? key) =>
+        key == 'komga|http://komga.test' ? 'pc-local-id' : null;
+    await store.reconcile(resolveServer: resolve);
+
+    expect(store.list().single.serverId, 'pc-local-id');
   });
 }

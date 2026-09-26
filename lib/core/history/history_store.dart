@@ -70,17 +70,28 @@ class HistoryStore {
   /// timestamp is newer (natural last-write-wins, matching the model's
   /// existing per-book semantics). Safe to call repeatedly (e.g. on every
   /// app resume); a fresh install with no prior sync does a full pull.
-  Future<void> reconcile() async {
+  ///
+  /// Entries arrive carrying the *other* device's server id; [resolveServer]
+  /// maps (id, portable key) to this device's id for that server, or null if
+  /// it has none. Every entry is re-checked on each call, so history synced
+  /// before a server was added here starts resolving once it is.
+  Future<void> reconcile({
+    required String? Function(String? serverId, String? serverKey) resolveServer,
+  }) async {
     final client = _syncClient;
     if (client == null) return;
 
+    HistoryEntry mapped(HistoryEntry e) {
+      final id = resolveServer(e.serverId, e.serverKey);
+      return id == null || id == e.serverId ? e : e.withServerId(id);
+    }
+
     final since = _box.get(_lastSyncKey) ?? '';
     final remote = await client.pull('history', since: since);
-    if (remote.isEmpty) return;
 
     var latest = since;
     for (final record in remote) {
-      final entry = HistoryEntry.fromJson(record.data);
+      final entry = mapped(HistoryEntry.fromJson(record.data));
       final localRaw = _box.get(entry.bookId);
       if (localRaw != null) {
         final local = HistoryEntry.fromJson(jsonDecode(localRaw) as Map<String, dynamic>);
@@ -91,6 +102,11 @@ class HistoryStore {
     }
     if (latest != since) {
       await _box.put(_lastSyncKey, latest);
+    }
+
+    for (final e in list()) {
+      final m = mapped(e);
+      if (!identical(m, e)) await _box.put(e.bookId, jsonEncode(m.toJson()));
     }
   }
 }

@@ -22,6 +22,7 @@ void main() {
         overrides: [
           activeServerIdProvider.overrideWith((ref) => null),
           recentReadingProvider.overrideWithValue(const []),
+          currentUsernameProvider.overrideWith((ref) => null),
           activeBackendProvider
               .overrideWith((ref) async => null as ReaderBackend?),
         ],

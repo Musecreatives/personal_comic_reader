@@ -95,7 +95,9 @@ class ResourceSync {
     if (since.isEmpty) {
       final known = remote.map((r) => r.recordId).toSet();
       for (final key in box.keys.cast<String>()) {
-        if (key == lastSyncKey || known.contains(key)) continue;
+        // `_`-prefixed keys are local bookkeeping (last-sync marker, per-
+        // device flags), never records.
+        if (key.startsWith('_') || known.contains(key)) continue;
         final raw = box.get(key)!;
         await _push(key, jsonDecode(raw) as Map<String, dynamic>, _at(raw), false);
       }

@@ -18,6 +18,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(statsRevisionProvider); // refresh when another device's stats arrive
     final store = ref.watch(readingStatsStoreProvider);
     final enabled = store.enabled;
     final days = store.lastDays(7);
