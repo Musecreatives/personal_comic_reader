@@ -53,3 +53,6 @@ app.*.map.json
 
 # graphify knowledge-graph output (regenerable)
 /graphify-out/
+
+# Playwright MCP session logs
+/.playwright-mcp/
