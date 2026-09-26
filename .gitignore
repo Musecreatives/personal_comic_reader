@@ -56,3 +56,4 @@ app.*.map.json
 
 # Playwright MCP session logs
 /.playwright-mcp/
+/PRODUCT.md
