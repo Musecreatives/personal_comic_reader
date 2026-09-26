@@ -17,6 +17,12 @@ class DownloadManager {
 
   final DownloadStore store;
   int _activeCount = 0;
+
+  /// The backend each queued book must be fetched from. In memory only: after
+  /// an app restart a task stays put until the user resumes it (which
+  /// re-registers its backend), rather than guessing a server.
+  final Map<String, ReaderBackend> _backends = {};
+  final Set<String> _running = {};
   final StreamController<void> _changes = StreamController.broadcast();
 
   DownloadManager({required this.store});
@@ -39,6 +45,9 @@ class DownloadManager {
     final existing = store.getTask(bookId);
     if (existing != null && existing.state != DownloadState.failed) return;
 
+    final tasks = store.listTasks();
+    final nextOrder = tasks.isEmpty ? 0 : tasks.map((t) => t.order).reduce((a, b) => a > b ? a : b) + 1;
+    _backends[bookId] = backend;
     await store.saveTask(DownloadTask(
       bookId: bookId,
       seriesId: seriesId,
@@ -47,9 +56,11 @@ class DownloadManager {
       totalPages: totalPages,
       downloadedPages: existing?.downloadedPages ?? 0,
       state: DownloadState.queued,
+      serverId: backend.config.id,
+      order: nextOrder,
     ));
     _notify();
-    unawaited(_pump(backend));
+    unawaited(_pump());
   }
 
   Future<void> enqueueBooks(
@@ -81,18 +92,59 @@ class DownloadManager {
 
   Future<void> resume(String bookId, ReaderBackend backend) async {
     final task = store.getTask(bookId);
-    if (task == null || task.state != DownloadState.paused) return;
+    if (task == null ||
+        (task.state != DownloadState.paused && task.state != DownloadState.failed)) {
+      return;
+    }
+    _backends[bookId] = backend;
     await store.saveTask(task.copyWith(state: DownloadState.queued));
     _notify();
-    unawaited(_pump(backend));
+    unawaited(_pump());
   }
 
   Future<void> retry(String bookId, ReaderBackend backend) => resume(bookId, backend);
 
+  /// Removes a book from the queue and deletes whatever pages were saved.
   Future<void> cancel(String bookId) async {
+    _backends.remove(bookId);
     await store.deleteTask(bookId);
     await store.deletePagesForBook(bookId);
     _notify();
+  }
+
+  /// Deletes every downloaded (or queued) chapter of a series from the device.
+  Future<void> cancelSeries(String seriesId) async {
+    for (final t in store.listTasks().where((t) => t.seriesId == seriesId)) {
+      await cancel(t.bookId);
+    }
+  }
+
+  /// Moves a queued book to the front of the line.
+  Future<void> moveToTop(String bookId) async {
+    final task = store.getTask(bookId);
+    if (task == null) return;
+    final tasks = store.listTasks();
+    final lowest = tasks.isEmpty ? 0 : tasks.first.order; // listTasks is sorted
+    await store.saveTask(task.copyWith(order: lowest - 1));
+    _notify();
+  }
+
+  /// Applies a new queue order, given book ids from first to last.
+  Future<void> reorder(List<String> bookIdsInOrder) async {
+    for (var i = 0; i < bookIdsInOrder.length; i++) {
+      final task = store.getTask(bookIdsInOrder[i]);
+      if (task != null && task.order != i) {
+        await store.saveTask(task.copyWith(order: i));
+      }
+    }
+    _notify();
+  }
+
+  /// Drops failed tasks (and their partial pages) from the list.
+  Future<void> clearFailed() async {
+    for (final t in store.listTasks().where((t) => t.state == DownloadState.failed)) {
+      await cancel(t.bookId);
+    }
   }
 
   Future<bool> _wifiOnlyBlocked() async {
@@ -103,14 +155,22 @@ class DownloadManager {
         !results.contains(ConnectivityResult.ethernet);
   }
 
-  Future<void> _pump(ReaderBackend backend) async {
+  Future<void> _pump() async {
     while (_activeCount < concurrency) {
-      final next = store.listTasks().where((t) => t.state == DownloadState.queued);
+      // Queue order first; only tasks whose server we know how to reach.
+      final next = store.listTasks().where((t) =>
+          t.state == DownloadState.queued &&
+          !_running.contains(t.bookId) &&
+          _backends.containsKey(t.bookId));
       if (next.isEmpty) return;
+      final bookId = next.first.bookId;
+      final backend = _backends[bookId]!;
+      _running.add(bookId);
       _activeCount++;
-      unawaited(_runTask(backend, next.first.bookId).whenComplete(() {
+      unawaited(_runTask(backend, bookId).whenComplete(() {
+        _running.remove(bookId);
         _activeCount--;
-        _pump(backend);
+        _pump();
       }));
     }
   }
@@ -124,6 +184,16 @@ class DownloadManager {
     _notify();
 
     try {
+      // Suwayomi (and OPDS) don't know a chapter's page count until it is
+      // opened, so it was queued as 0. Ask for it now, or the loop below
+      // would "finish" instantly having saved nothing.
+      if (latest.totalPages == 0) {
+        final book = await backend.getBook(bookId);
+        if (book.pageCount == 0) throw StateError('This chapter has no pages');
+        latest = latest.copyWith(totalPages: book.pageCount);
+        await store.saveTask(latest);
+        _notify();
+      }
       for (var i = latest.downloadedPages; i < latest.totalPages; i++) {
         final current = store.getTask(bookId);
         if (current == null) return;

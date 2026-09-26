@@ -29,10 +29,17 @@ class DownloadStore {
     _settingsBox = await Hive.openBox<String>(_settingsBoxName);
   }
 
+  /// In queue order (see [DownloadTask.order]), ties broken by book id so the
+  /// result is stable.
   List<DownloadTask> listTasks() {
-    return _tasksBox.values
+    final tasks = _tasksBox.values
         .map((raw) => DownloadTask.fromJson(jsonDecode(raw) as Map<String, dynamic>))
         .toList();
+    tasks.sort((a, b) {
+      final byOrder = a.order.compareTo(b.order);
+      return byOrder != 0 ? byOrder : a.bookId.compareTo(b.bookId);
+    });
+    return tasks;
   }
 
   DownloadTask? getTask(String bookId) {

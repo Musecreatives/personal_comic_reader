@@ -26,6 +26,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   Widget build(BuildContext context) {
     final queueAsync = ref.watch(downloadQueueProvider);
     final backendAsync = ref.watch(activeBackendProvider);
+    final allBackends = ref.watch(allBackendsProvider).valueOrNull ?? const <ReaderBackend>[];
     final manager = ref.watch(downloadManagerProvider);
     final store = ref.watch(downloadStoreProvider);
 
@@ -81,6 +82,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     queueAsync: queueAsync,
                     manager: manager,
                     backend: backendAsync.valueOrNull,
+                    backends: allBackends,
                     wifiOnly: store.wifiOnly,
                     onWifiOnlyChanged: store.setWifiOnly,
                   ),
@@ -132,6 +134,10 @@ class _QueueTab extends StatelessWidget {
   final AsyncValue<List<DownloadTask>> queueAsync;
   final DownloadManager manager;
   final ReaderBackend? backend;
+
+  /// Every configured server: a queued book must resume against the server
+  /// it came from, not whichever one happens to be active.
+  final List<ReaderBackend> backends;
   final bool wifiOnly;
   final ValueChanged<bool> onWifiOnlyChanged;
 
@@ -139,9 +145,13 @@ class _QueueTab extends StatelessWidget {
     required this.queueAsync,
     required this.manager,
     required this.backend,
+    required this.backends,
     required this.wifiOnly,
     required this.onWifiOnlyChanged,
   });
+
+  ReaderBackend? _backendFor(DownloadTask t) =>
+      backends.where((b) => b.config.id == t.serverId).firstOrNull ?? backend;
 
   @override
   Widget build(BuildContext context) {
@@ -155,6 +165,13 @@ class _QueueTab extends StatelessWidget {
                 t.state == DownloadState.running || t.state == DownloadState.queued)
             .length;
         final failed = tasks.where((t) => t.state == DownloadState.failed).length;
+        final pending = tasks
+            .where((t) =>
+                t.state == DownloadState.running ||
+                t.state == DownloadState.queued ||
+                t.state == DownloadState.paused)
+            .toList();
+        final finished = tasks.where((t) => !pending.contains(t)).toList();
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           children: [
@@ -211,11 +228,57 @@ class _QueueTab extends StatelessWidget {
                         style: AppText.body(color: AppColors.text45))),
               )
             else
-              Text('IN THE QUEUE', style: AppText.sectionLabel()),
+              Row(
+                children: [
+                  Text('IN THE QUEUE', style: AppText.sectionLabel()),
+                  const Spacer(),
+                  if (failed > 0)
+                    TextButton(
+                      onPressed: manager.clearFailed,
+                      child: Text('Clear failed',
+                          style: AppText.body(size: 12, color: AppColors.dangerText)),
+                    ),
+                ],
+              ),
             const SizedBox(height: 10),
-            for (final task in tasks)
+            // Waiting and running books can be dragged into a new order.
+            ReorderableListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              itemCount: pending.length,
+              onReorderItem: (oldIndex, newIndex) {
+                final ids = pending.map((t) => t.bookId).toList();
+                ids.insert(newIndex, ids.removeAt(oldIndex));
+                manager.reorder(ids);
+              },
+              itemBuilder: (context, i) {
+                final task = pending[i];
+                final b = _backendFor(task);
+                return KeyedSubtree(
+                  key: ValueKey(task.bookId),
+                  child: _TaskCard(
+                    task: task,
+                    leading: ReorderableDragStartListener(
+                      index: i,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: Icon(Icons.drag_indicator_rounded,
+                            size: 20, color: AppColors.text45),
+                      ),
+                    ),
+                    onPause: () => manager.pause(task.bookId),
+                    onResume: b == null ? null : () => manager.resume(task.bookId, b),
+                    onRetry: b == null ? null : () => manager.retry(task.bookId, b),
+                    onCancel: () => manager.cancel(task.bookId),
+                    onMoveToTop: i == 0 ? null : () => manager.moveToTop(task.bookId),
+                  ),
+                );
+              },
+            ),
+            for (final task in finished)
               Builder(builder: (context) {
-                final b = backend;
+                final b = _backendFor(task);
                 return _TaskCard(
                   task: task,
                   onPause: () => manager.pause(task.bookId),
@@ -265,12 +328,18 @@ class _TaskCard extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback onCancel;
 
+  /// Drag handle, only for items that can be reordered.
+  final Widget? leading;
+  final VoidCallback? onMoveToTop;
+
   const _TaskCard({
     required this.task,
     required this.onPause,
     required this.onResume,
     required this.onRetry,
     required this.onCancel,
+    this.leading,
+    this.onMoveToTop,
   });
 
   @override
@@ -290,13 +359,26 @@ class _TaskCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              ?leading,
               Expanded(
-                child: Text(task.title,
+                child: Text(
+                    task.seriesTitle.isEmpty ? task.title : '${task.seriesTitle}  ${task.title}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppText.body(size: 14, weight: FontWeight.w500)),
               ),
               _actionButton(),
+              if (task.state != DownloadState.done)
+                PopupMenuButton<String>(
+                  tooltip: 'More',
+                  icon: Icon(Icons.more_horiz_rounded, size: 20, color: AppColors.text60),
+                  onSelected: (v) => v == 'top' ? onMoveToTop?.call() : onCancel(),
+                  itemBuilder: (context) => [
+                    if (onMoveToTop != null)
+                      const PopupMenuItem(value: 'top', child: Text('Move to top')),
+                    const PopupMenuItem(value: 'remove', child: Text('Remove')),
+                  ],
+                ),
             ],
           ),
           const SizedBox(height: 5),
