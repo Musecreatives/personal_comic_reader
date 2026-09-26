@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
+import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/downloads/download_models.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../home/home_feed.dart';
+import 'chapter_actions.dart';
 import 'download_sheet.dart';
 import 'series_actions_sheet.dart';
 import '../shared/error_state.dart';
@@ -25,8 +28,9 @@ class SeriesScreen extends ConsumerWidget {
 
     return backendAsync.when(
       loading: () => Scaffold(
-          backgroundColor: AppColors.page,
-          body: const Center(child: CircularProgressIndicator())),
+        backgroundColor: AppColors.page,
+        body: const Center(child: CircularProgressIndicator()),
+      ),
       error: (e, st) => Scaffold(
         backgroundColor: AppColors.page,
         body: AppErrorState(
@@ -39,8 +43,11 @@ class SeriesScreen extends ConsumerWidget {
           return Scaffold(
             backgroundColor: AppColors.page,
             body: Center(
-                child: Text('No server',
-                    style: AppText.body(color: AppColors.text60))),
+              child: Text(
+                'No server',
+                style: AppText.body(color: AppColors.text60),
+              ),
+            ),
           );
         }
         return _SeriesDetail(backend: backend, seriesId: seriesId);
@@ -64,10 +71,165 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
   late Future<List<Book>> _booksFuture;
   bool _newestFirst = false;
 
+  // Chapter selection: long-press / Ctrl+click toggles, Shift+click selects a
+  // range, right-click opens the menu, Ctrl+A selects all, Esc clears.
+  final _selected = <String>{};
+  final _focus = FocusNode();
+  String? _anchor;
+  List<Book> _ordered = const [];
+
+  bool get _selecting => _selected.isNotEmpty;
+  List<Book> get _selectedBooks =>
+      _ordered.where((b) => _selected.contains(b.id)).toList();
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _select(Book b, {bool range = false}) {
+    setState(() {
+      if (range && _anchor != null) {
+        final a = _ordered.indexWhere((x) => x.id == _anchor);
+        final z = _ordered.indexWhere((x) => x.id == b.id);
+        if (a >= 0 && z >= 0) {
+          for (var i = a < z ? a : z; i <= (a < z ? z : a); i++) {
+            _selected.add(_ordered[i].id);
+          }
+          return;
+        }
+      }
+      if (!_selected.remove(b.id)) _selected.add(b.id);
+      _anchor = b.id;
+    });
+    _focus.requestFocus();
+  }
+
+  void _onTapBook(Book b) {
+    final kb = HardwareKeyboard.instance;
+    final shift = kb.isShiftPressed;
+    if (shift || kb.isControlPressed || kb.isMetaPressed || _selecting) {
+      _select(b, range: shift);
+      return;
+    }
+    context.push('/read/${Uri.encodeComponent(b.id)}');
+  }
+
+  void _onLongPressBook(Book b) {
+    HapticFeedback.selectionClick();
+    _select(b);
+  }
+
+  bool _anyDownloaded(Iterable<Book> books, List<DownloadTask> tasks) =>
+      books.any(
+        (b) =>
+            tasks.any((t) => t.bookId == b.id && t.state == DownloadState.done),
+      );
+
+  Future<void> _onSecondaryTap(
+    Book b,
+    Offset at,
+    List<DownloadTask> tasks,
+  ) async {
+    // Right-clicking outside the selection acts on that row alone, like a
+    // file manager; right-clicking inside it acts on the whole selection.
+    final transient = !_selected.contains(b.id);
+    if (transient) {
+      setState(() {
+        _selected
+          ..clear()
+          ..add(b.id);
+        _anchor = b.id;
+      });
+    }
+    final chosen = _selectedBooks;
+    final action = await showChapterMenu(
+      context,
+      at,
+      count: chosen.length,
+      anyDownloaded: _anyDownloaded(chosen, tasks),
+    );
+    if (!mounted) return;
+    if (action == null) {
+      if (transient) setState(_selected.clear);
+      return;
+    }
+    await _runAction(action, chosen);
+  }
+
+  Future<void> _runAction(ChapterAction action, List<Book> chosen) async {
+    final backend = widget.backend;
+    final manager = ref.read(downloadManagerProvider);
+    try {
+      final series = await _seriesFuture;
+      switch (action) {
+        case ChapterAction.markRead:
+          for (final b in chosen) {
+            await backend.updateProgress(
+              b.id,
+              page: b.pageCount > 0 ? b.pageCount - 1 : 0,
+              completed: true,
+            );
+          }
+        case ChapterAction.markUnread:
+          for (final b in chosen) {
+            await backend.updateProgress(b.id, page: 0, completed: false);
+          }
+        case ChapterAction.download:
+          await manager.enqueueBooks(
+            backend,
+            chosen,
+            widget.seriesId,
+            series.title,
+          );
+        case ChapterAction.deleteDownload:
+          for (final b in chosen) {
+            await manager.cancel(b.id);
+          }
+      }
+    } catch (e) {
+      _snack("Couldn't do that: $e");
+      return;
+    }
+    if (!mounted) return;
+    setState(_selected.clear);
+    if (action == ChapterAction.markRead ||
+        action == ChapterAction.markUnread) {
+      _reloadBooks();
+      _reloadSeries();
+      ref.invalidate(homeFeedProvider);
+    }
+    final n = chosen.length;
+    _snack(switch (action) {
+      ChapterAction.markRead => 'Marked $n as read',
+      ChapterAction.markUnread => 'Marked $n as unread',
+      ChapterAction.download => 'Downloading $n chapter${n == 1 ? '' : 's'}',
+      ChapterAction.deleteDownload => 'Removed $n download${n == 1 ? '' : 's'}',
+    });
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.escape && _selecting) {
+      setState(_selected.clear);
+      return KeyEventResult.handled;
+    }
+    final kb = HardwareKeyboard.instance;
+    if (key == LogicalKeyboardKey.keyA &&
+        (kb.isControlPressed || kb.isMetaPressed) &&
+        _ordered.isNotEmpty) {
+      setState(() => _selected.addAll(_ordered.map((b) => b.id)));
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   void _load() {
@@ -76,22 +238,26 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
   }
 
   void _reloadSeries() => setState(() {
-        _seriesFuture = widget.backend.getSeries(widget.seriesId);
-      });
+    _seriesFuture = widget.backend.getSeries(widget.seriesId);
+  });
 
   void _reloadBooks() => setState(() {
-        _booksFuture = widget.backend.listBooks(widget.seriesId);
-      });
+    _booksFuture = widget.backend.listBooks(widget.seriesId);
+  });
 
   /// The download button opens a picker (next 5/10, new since you last read,
   /// all unread, everything, or a checklist) rather than queueing the lot.
   Future<void> _downloadSeries(Series series) async {
     final books = await _booksFuture;
     if (!mounted) return;
-    final tasks = ref.read(downloadQueueProvider).valueOrNull ?? const <DownloadTask>[];
+    final tasks =
+        ref.read(downloadQueueProvider).valueOrNull ?? const <DownloadTask>[];
     // Failed ones can be offered again; anything else is already handled.
     final already = tasks
-        .where((t) => t.seriesId == widget.seriesId && t.state != DownloadState.failed)
+        .where(
+          (t) =>
+              t.seriesId == widget.seriesId && t.state != DownloadState.failed,
+        )
         .map((t) => t.bookId)
         .toSet();
     await DownloadSheet.show(
@@ -99,14 +265,23 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
       books: books,
       alreadyIds: already,
       onConfirm: (chosen) async {
-        await ref.read(downloadManagerProvider).enqueueBooks(
-            widget.backend, chosen, widget.seriesId, series.title);
+        await ref
+            .read(downloadManagerProvider)
+            .enqueueBooks(
+              widget.backend,
+              chosen,
+              widget.seriesId,
+              series.title,
+            );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Downloading ${chosen.length} chapter${chosen.length == 1 ? '' : 's'}'),
-          duration: const Duration(seconds: 2),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Downloading ${chosen.length} chapter${chosen.length == 1 ? '' : 's'}',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       },
     );
   }
@@ -114,7 +289,8 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
   void _snack(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), duration: const Duration(seconds: 2)));
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
   }
 
   /// Stop reading / delete downloads / remove from library.
@@ -170,13 +346,21 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Add to collection', style: AppText.body(size: 16, weight: FontWeight.w600)),
+                    Text(
+                      'Add to collection',
+                      style: AppText.body(size: 16, weight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 12),
                     if (collections.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text('No collections yet - make one from Collections in Settings.',
-                            style: AppText.body(size: 12.5, color: AppColors.text45)),
+                        child: Text(
+                          'No collections yet - make one from Collections in Settings.',
+                          style: AppText.body(
+                            size: 12.5,
+                            color: AppColors.text45,
+                          ),
+                        ),
                       ),
                     for (final c in collections)
                       CheckboxListTile(
@@ -189,7 +373,9 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                           } else {
                             await store.removeSeries(c.id, seriesId);
                           }
-                          ref.read(collectionsRevisionProvider.notifier).state++;
+                          ref
+                              .read(collectionsRevisionProvider.notifier)
+                              .state++;
                           setSheetState(() {});
                         },
                       ),
@@ -212,104 +398,151 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
 
     return Scaffold(
       backgroundColor: AppColors.page,
-      body: FutureBuilder<Series>(
-        future: _seriesFuture,
-        builder: (context, seriesSnapshot) {
-          if (seriesSnapshot.hasError) {
-            return AppErrorState(
-                error: seriesSnapshot.error!, onRetry: _reloadSeries);
-          }
-          if (!seriesSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final series = seriesSnapshot.data!;
-          final seriesTasks =
-              tasks.where((t) => t.seriesId == widget.seriesId).toList();
-
-          final header = _SeriesHeader(
-            series: series,
-            headers: headers,
-            downloadedCount: seriesTasks
-                .where((t) => t.state == DownloadState.done)
-                .length,
-            onDownloadAll: () => _downloadSeries(series),
-            onRead: () async {
-              final books = await _booksFuture;
-              if (!mounted) return;
-              if (books.isEmpty) return;
-              final next = books.firstWhere((b) => !b.completed, orElse: () => books.first);
-              context.push('/read/${Uri.encodeComponent(next.id)}');
-            },
-            onSaveToCollection: () => _showCollectionPicker(context, series.id),
-            onMore: () => _showActions(
-              series,
-              seriesTasks.where((t) => t.state == DownloadState.done).length,
-            ),
-          );
-
-          final bookList = FutureBuilder<List<Book>>(
-            future: _booksFuture,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: AppErrorState(
-                      error: snapshot.error!, onRetry: _reloadBooks),
-                );
-              }
-              if (!snapshot.hasData) {
-                return const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              final books = List<Book>.from(snapshot.data!);
-              if (_newestFirst) books.reversed;
-              final ordered = _newestFirst ? books.reversed.toList() : books;
-              return _BookList(
-                books: ordered,
-                headers: headers,
-                tasks: tasks,
-                newestFirst: _newestFirst,
-                onToggleSort: () =>
-                    setState(() => _newestFirst = !_newestFirst),
-                onDownloadBook: (book) => ref.read(downloadManagerProvider).enqueueBook(
-                      widget.backend,
-                      bookId: book.id,
-                      seriesId: widget.seriesId,
-                      seriesTitle: series.title,
-                      title: book.title,
-                      totalPages: book.pageCount,
-                    ),
-              );
-            },
-          );
-
-          if (wide) {
-            return CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(width: 360, child: header),
-                      Expanded(child: bookList),
-                    ],
+      body: Focus(
+        focusNode: _focus,
+        autofocus: true,
+        onKeyEvent: _onKey,
+        child: Stack(
+          children: [
+            Positioned.fill(child: _content(headers, wide, tasks)),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Center(
+                child: ChapterSelectionBar(
+                  count: _selected.length,
+                  total: _ordered.length,
+                  anyDownloaded: _anyDownloaded(_selectedBooks, tasks),
+                  onAction: (a) => _runAction(a, _selectedBooks),
+                  onSelectAll: () => setState(
+                    () => _selected.addAll(_ordered.map((b) => b.id)),
                   ),
+                  onClear: () => setState(_selected.clear),
                 ),
-              ],
-            );
-          }
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
+  Widget _content(
+    Map<String, String> headers,
+    bool wide,
+    List<DownloadTask> tasks,
+  ) {
+    return FutureBuilder<Series>(
+      future: _seriesFuture,
+      builder: (context, seriesSnapshot) {
+        if (seriesSnapshot.hasError) {
+          return AppErrorState(
+            error: seriesSnapshot.error!,
+            onRetry: _reloadSeries,
+          );
+        }
+        if (!seriesSnapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final series = seriesSnapshot.data!;
+        final seriesTasks = tasks
+            .where((t) => t.seriesId == widget.seriesId)
+            .toList();
+
+        final header = _SeriesHeader(
+          series: series,
+          headers: headers,
+          downloadedCount: seriesTasks
+              .where((t) => t.state == DownloadState.done)
+              .length,
+          onDownloadAll: () => _downloadSeries(series),
+          onRead: () async {
+            final books = await _booksFuture;
+            if (!context.mounted || books.isEmpty) return;
+            final next = books.firstWhere(
+              (b) => !b.completed,
+              orElse: () => books.first,
+            );
+            context.push('/read/${Uri.encodeComponent(next.id)}');
+          },
+          onSaveToCollection: () => _showCollectionPicker(context, series.id),
+          onMore: () => _showActions(
+            series,
+            seriesTasks.where((t) => t.state == DownloadState.done).length,
+          ),
+        );
+
+        final bookList = FutureBuilder<List<Book>>(
+          future: _booksFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.all(24),
+                child: AppErrorState(
+                  error: snapshot.error!,
+                  onRetry: _reloadBooks,
+                ),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final books = List<Book>.from(snapshot.data!);
+            final ordered = _newestFirst ? books.reversed.toList() : books;
+            _ordered = ordered;
+            return _BookList(
+              books: ordered,
+              headers: headers,
+              tasks: tasks,
+              selected: _selected,
+              onTap: _onTapBook,
+              onLongPress: _onLongPressBook,
+              onSecondaryTap: (b, at) => _onSecondaryTap(b, at, tasks),
+              newestFirst: _newestFirst,
+              onToggleSort: () => setState(() => _newestFirst = !_newestFirst),
+              onDownloadBook: (book) => ref
+                  .read(downloadManagerProvider)
+                  .enqueueBook(
+                    widget.backend,
+                    bookId: book.id,
+                    seriesId: widget.seriesId,
+                    seriesTitle: series.title,
+                    title: book.title,
+                    totalPages: book.pageCount,
+                  ),
+            );
+          },
+        );
+
+        if (wide) {
           return CustomScrollView(
             slivers: [
-              SliverToBoxAdapter(child: header),
-              SliverToBoxAdapter(child: bookList),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SliverToBoxAdapter(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(width: 360, child: header),
+                    Expanded(child: bookList),
+                  ],
+                ),
+              ),
             ],
           );
-        },
-      ),
+        }
+
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(child: header),
+            SliverToBoxAdapter(child: bookList),
+            // Room for the selection bar to sit below the last row.
+            const SliverToBoxAdapter(child: SizedBox(height: 96)),
+          ],
+        );
+      },
     );
   }
 }
@@ -380,10 +613,13 @@ class _SeriesHeader extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(13),
                         child: DecoratedBox(
-                          decoration:
-                              BoxDecoration(border: Border.all(color: AppColors.borderStrong)),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.borderStrong),
+                          ),
                           child: SeriesCover(
-                              imageUrl: series.thumbnailUrl, headers: headers),
+                            imageUrl: series.thumbnailUrl,
+                            headers: headers,
+                          ),
                         ),
                       ),
                     ),
@@ -404,7 +640,9 @@ class _SeriesHeader extends StatelessWidget {
                             runSpacing: 6,
                             children: [
                               _Pill(
-                                label: series.isFullyRead ? 'COMPLETE' : 'READING',
+                                label: series.isFullyRead
+                                    ? 'COMPLETE'
+                                    : 'READING',
                                 color: series.isFullyRead
                                     ? AppColors.suwayomiText
                                     : AppColors.accentLink,
@@ -437,10 +675,14 @@ class _SeriesHeader extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               _ActionIconButton(
-                  icon: Icons.download_outlined, onTap: onDownloadAll),
+                icon: Icons.download_outlined,
+                onTap: onDownloadAll,
+              ),
               const SizedBox(width: 10),
               _ActionIconButton(
-                  icon: Icons.bookmark_border, onTap: onSaveToCollection),
+                icon: Icons.bookmark_border,
+                onTap: onSaveToCollection,
+              ),
               const SizedBox(width: 10),
               _ActionIconButton(icon: Icons.more_horiz_rounded, onTap: onMore),
             ],
@@ -467,7 +709,11 @@ class _SeriesHeader extends StatelessWidget {
               series.summary!,
               maxLines: 4,
               overflow: TextOverflow.ellipsis,
-              style: AppText.body(size: 13, color: AppColors.text60, weight: FontWeight.w400),
+              style: AppText.body(
+                size: 13,
+                color: AppColors.text60,
+                weight: FontWeight.w400,
+              ),
             ),
           ),
         const SizedBox(height: 8),
@@ -491,7 +737,11 @@ class _BackButton extends StatelessWidget {
         child: const SizedBox(
           width: 36,
           height: 36,
-          child: Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: Colors.white),
+          child: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 15,
+            color: Colors.white,
+          ),
         ),
       ),
     );
@@ -508,7 +758,10 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Text(label, style: AppText.mono(size: 9, color: color)),
     );
   }
@@ -519,8 +772,12 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final bool filled;
   final VoidCallback onTap;
-  const _ActionButton(
-      {required this.icon, required this.label, this.filled = false, required this.onTap});
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    this.filled = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -539,13 +796,20 @@ class _ActionButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 18, color: filled ? Colors.white : AppColors.text),
+              Icon(
+                icon,
+                size: 18,
+                color: filled ? Colors.white : AppColors.text,
+              ),
               const SizedBox(width: 8),
-              Text(label,
-                  style: AppText.body(
-                      size: 15,
-                      weight: FontWeight.w600,
-                      color: filled ? Colors.white : AppColors.text)),
+              Text(
+                label,
+                style: AppText.body(
+                  size: 15,
+                  weight: FontWeight.w600,
+                  color: filled ? Colors.white : AppColors.text,
+                ),
+              ),
             ],
           ),
         ),
@@ -603,6 +867,10 @@ class _BookList extends StatelessWidget {
   final List<Book> books;
   final Map<String, String> headers;
   final List<DownloadTask> tasks;
+  final Set<String> selected;
+  final ValueChanged<Book> onTap;
+  final ValueChanged<Book> onLongPress;
+  final void Function(Book, Offset) onSecondaryTap;
   final bool newestFirst;
   final VoidCallback onToggleSort;
   final ValueChanged<Book> onDownloadBook;
@@ -611,6 +879,10 @@ class _BookList extends StatelessWidget {
     required this.books,
     required this.headers,
     required this.tasks,
+    required this.selected,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onSecondaryTap,
     required this.newestFirst,
     required this.onToggleSort,
     required this.onDownloadBook,
@@ -634,10 +906,16 @@ class _BookList extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                   onTap: onToggleSort,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
                     child: Text(
                       newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST',
-                      style: AppText.mono(size: 10, color: AppColors.accentLink),
+                      style: AppText.mono(
+                        size: 10,
+                        color: AppColors.accentLink,
+                      ),
                     ),
                   ),
                 ),
@@ -657,6 +935,11 @@ class _BookList extends StatelessWidget {
               book: book,
               headers: headers,
               task: task,
+              selecting: selected.isNotEmpty,
+              selected: selected.contains(book.id),
+              onTap: () => onTap(book),
+              onLongPress: () => onLongPress(book),
+              onSecondaryTap: (at) => onSecondaryTap(book, at),
               onDownload: () => onDownloadBook(book),
             );
           },
@@ -670,12 +953,22 @@ class _ChapterRow extends StatelessWidget {
   final Book book;
   final Map<String, String> headers;
   final DownloadTask? task;
+  final bool selecting;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final ValueChanged<Offset> onSecondaryTap;
   final VoidCallback onDownload;
 
   const _ChapterRow({
     required this.book,
     required this.headers,
     required this.task,
+    required this.selecting,
+    required this.selected,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onSecondaryTap,
     required this.onDownload,
   });
 
@@ -685,39 +978,74 @@ class _ChapterRow extends StatelessWidget {
     // Some sources (Suwayomi) don't know a chapter's page count until it has
     // been opened, so a 0 means "unknown", not "zero pages".
     final known = book.pageCount > 0;
-    String withPages(String state) => known ? '${book.pageCount} PAGES · $state' : state;
+    String withPages(String state) =>
+        known ? '${book.pageCount} PAGES · $state' : state;
     final meta = book.completed
         ? withPages('READ')
         : isInProgress
-            ? (known
-                ? 'PAGE ${book.readProgressPage} OF ${book.pageCount}'
-                : 'PAGE ${book.readProgressPage}')
-            : task?.state == DownloadState.done
-                ? withPages('DOWNLOADED')
-                : withPages('ON SERVER');
+        ? (known
+              ? 'PAGE ${book.readProgressPage} OF ${book.pageCount}'
+              : 'PAGE ${book.readProgressPage}')
+        : task?.state == DownloadState.done
+        ? withPages('DOWNLOADED')
+        : withPages('ON SERVER');
 
     return InkWell(
-      onTap: () => context.push('/read/${Uri.encodeComponent(book.id)}'),
-      child: Container(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      onSecondaryTapDown: (d) => onSecondaryTap(d.globalPosition),
+      hoverColor: AppColors.fillHover,
+      child: AnimatedContainer(
+        duration: Motion.scaled(context, Motion.fast),
+        curve: Motion.easeOut,
         padding: const EdgeInsets.symmetric(vertical: 13),
         decoration: BoxDecoration(
+          color: selected
+              ? AppColors.accent.withValues(alpha: 0.12)
+              : Colors.transparent,
           border: Border(top: BorderSide(color: AppColors.border)),
         ),
         child: Row(
           children: [
+            // The tick slides the row's label over rather than popping in.
+            AnimatedContainer(
+              duration: Motion.scaled(context, Motion.fast),
+              curve: Motion.easeOut,
+              width: selecting ? 32 : 0,
+              child: ClipRect(
+                child: OverflowBox(
+                  alignment: Alignment.centerLeft,
+                  maxWidth: 32,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 2),
+                    child: Icon(
+                      selected
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined,
+                      size: 20,
+                      color: selected ? AppColors.accent : AppColors.text30,
+                    ),
+                  ),
+                ),
+              ),
+            ),
             SizedBox(
               width: 48,
-              child: Text('CH ${book.number}',
-                  style: AppText.mono(size: 10, color: AppColors.accentLink)),
+              child: Text(
+                'CH ${book.number}',
+                style: AppText.mono(size: 10, color: AppColors.accentLink),
+              ),
             ),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(book.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.body(size: 15)),
+                  Text(
+                    book.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body(size: 15),
+                  ),
                   const SizedBox(height: 4),
                   Text(meta, style: AppText.mono(size: 9.5)),
                 ],
@@ -739,7 +1067,11 @@ class _ChapterRow extends StatelessWidget {
             else
               InkWell(
                 onTap: onDownload,
-                child: Icon(Icons.chevron_right, size: 18, color: AppColors.text30),
+                child: Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: AppColors.text30,
+                ),
               ),
           ],
         ),
