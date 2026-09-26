@@ -267,4 +267,38 @@ void main() {
     await manager.moveToTop('b');
     expect(store.listTasks().first.bookId, 'b');
   });
+
+  test('resumePending restarts queued and interrupted tasks after a restart',
+      () async {
+    final store = DownloadStore();
+    await store.init();
+    // What a previous run left behind: one waiting, one cut off mid-download,
+    // one for a server this device no longer has.
+    for (final (id, state, server) in [
+      ('waiting', DownloadState.queued, 'srv'),
+      ('cut-off', DownloadState.running, 'srv'),
+      ('orphan', DownloadState.queued, 'gone'),
+    ]) {
+      await store.saveTask(DownloadTask(
+        bookId: id,
+        seriesId: 's1',
+        seriesTitle: 'S',
+        title: id,
+        totalPages: 2,
+        state: state,
+        serverId: server,
+      ));
+    }
+
+    final manager = DownloadManager(store: store);
+    final backend = _FakeBackend();
+    await manager.resumePending({'srv': backend});
+    await _waitUntil(() =>
+        store.getTask('waiting')!.state == DownloadState.done &&
+        store.getTask('cut-off')!.state == DownloadState.done);
+
+    // Nothing reaches a server it does not know.
+    expect(store.getTask('orphan')!.state, DownloadState.queued);
+    expect(backend.fetchCalls.keys.any((k) => k.startsWith('orphan')), isFalse);
+  });
 }

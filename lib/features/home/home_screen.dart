@@ -283,8 +283,19 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                         selected: _filter,
                         onSelect: (id) => setState(() => _filter = id),
                       ),
+                    if (feed.rejected.isNotEmpty)
+                      _UnreachableNote(
+                        message:
+                            '${feed.rejected.map((s) => s.name).join(', ')} rejected your login. '
+                            'Update the password in Sources & servers.',
+                        onRetry: _refresh,
+                      ),
                     if (feed.unreachable.isNotEmpty)
-                      _UnreachableNote(servers: feed.unreachable, onRetry: _refresh),
+                      _UnreachableNote(
+                        message:
+                            "Couldn't reach ${feed.unreachable.map((s) => _typeLabel(s.type)).join(', ')}",
+                        onRetry: _refresh,
+                      ),
                     AnimatedSwitcher(
                       duration: Motion.scaled(context, Motion.fast),
                       switchInCurve: Motion.easeOut,
@@ -783,9 +794,9 @@ class _Chip extends StatelessWidget {
 }
 
 class _UnreachableNote extends StatelessWidget {
-  final List<ServerConfig> servers;
+  final String message;
   final VoidCallback onRetry;
-  const _UnreachableNote({required this.servers, required this.onRetry});
+  const _UnreachableNote({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -797,7 +808,7 @@ class _UnreachableNote extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              "Couldn't reach ${servers.map((s) => _typeLabel(s.type)).join(', ')}",
+              message,
               style: AppText.body(size: 12, color: AppColors.dangerText),
             ),
           ),

@@ -118,6 +118,7 @@ Future<void> main() async {
   // just mean this device stays on what it already has locally until
   // the next successful sync (e.g. next app launch).
   if (syncToken != null) unawaited(startSync(container));
+  unawaited(resumeDownloads(container));
 
   runApp(UncontrolledProviderScope(
     container: container,

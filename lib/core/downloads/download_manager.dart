@@ -155,6 +155,27 @@ class DownloadManager {
         !results.contains(ConnectivityResult.ethernet);
   }
 
+  /// After an app restart the in-memory backends are gone, so queued tasks
+  /// (and any that were mid-download when the app closed) would sit waiting
+  /// for a tap. Re-attach each to its server's backend and carry on. Tasks
+  /// for a server that no longer exists, or predates server tracking, are
+  /// left for the user to resume.
+  Future<void> resumePending(Map<String, ReaderBackend> byServer) async {
+    for (final t in store.listTasks()) {
+      if (t.state != DownloadState.queued && t.state != DownloadState.running) {
+        continue;
+      }
+      final backend = byServer[t.serverId];
+      if (backend == null || _running.contains(t.bookId)) continue;
+      _backends[t.bookId] = backend;
+      if (t.state == DownloadState.running) {
+        await store.saveTask(t.copyWith(state: DownloadState.queued));
+      }
+    }
+    _notify();
+    await _pump();
+  }
+
   Future<void> _pump() async {
     while (_activeCount < concurrency) {
       // Queue order first; only tasks whose server we know how to reach.

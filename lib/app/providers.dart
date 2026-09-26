@@ -316,6 +316,18 @@ Future<void> startSync(ProviderContainer c, {bool force = true}) async {
       : SyncStatus(phase: SyncPhase.idle, lastOk: DateTime.now());
 }
 
+/// Restarts downloads that were queued or in flight when the app last closed.
+Future<void> resumeDownloads(ProviderContainer c) async {
+  try {
+    final backends = await c.read(allBackendsProvider.future);
+    await c
+        .read(downloadManagerProvider)
+        .resumePending({for (final b in backends) b.config.id: b});
+  } catch (_) {
+    // Best-effort; the Downloads screen can still resume a task by hand.
+  }
+}
+
 enum SyncPhase { idle, syncing, offline }
 
 /// What the settings screen shows: whether a sync is running, failed, and

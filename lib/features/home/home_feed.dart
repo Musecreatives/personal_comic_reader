@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -48,11 +49,27 @@ class HomeFeed {
   /// Servers that failed to answer - shown as a note, never as a blank page.
   final List<ServerConfig> unreachable;
 
+  /// Servers that answered but refused the saved login (wrong or changed
+  /// password) - a different fix from "can't reach", so a different note.
+  final List<ServerConfig> rejected;
+
   const HomeFeed({
     required this.inProgress,
     required this.recent,
     required this.unreachable,
+    this.rejected = const [],
   });
+}
+
+/// True when [e] means the server rejected our credentials rather than being
+/// unreachable.
+bool isLoginRejected(Object e) {
+  if (e is DioException) {
+    final code = e.response?.statusCode;
+    if (code == 401 || code == 403) return true;
+  }
+  final m = e.toString().toLowerCase();
+  return m.contains('401') || m.contains('unauthorized');
 }
 
 String seriesKey(String? serverId, String seriesId) => '${serverId ?? ''}|$seriesId';
@@ -62,6 +79,7 @@ String seriesKey(String? serverId, String seriesId) => '${serverId ?? ''}|$serie
 final homeFeedProvider = FutureProvider<HomeFeed>((ref) async {
   final backends = await ref.watch(allBackendsProvider.future);
   final unreachable = <ServerConfig>[];
+  final rejected = <ServerConfig>[];
   final inProgress = <FeedSeries>[];
   final newBooks = <(ReaderBackend, Book)>[];
 
@@ -70,8 +88,8 @@ final homeFeedProvider = FutureProvider<HomeFeed>((ref) async {
       final results = await Future.wait([b.continueReading(), b.recentlyAdded()]);
       inProgress.addAll((results[0] as List<Series>).map((s) => FeedSeries(s, b)));
       newBooks.addAll((results[1] as List<Book>).take(40).map((bk) => (b, bk)));
-    } catch (_) {
-      unreachable.add(b.config);
+    } catch (e) {
+      (isLoginRejected(e) ? rejected : unreachable).add(b.config);
     }
   }));
 
@@ -113,7 +131,12 @@ final homeFeedProvider = FutureProvider<HomeFeed>((ref) async {
     );
   }));
 
-  return HomeFeed(inProgress: inProgress, recent: recent, unreachable: unreachable);
+  return HomeFeed(
+    inProgress: inProgress,
+    recent: recent,
+    unreachable: unreachable,
+    rejected: rejected,
+  );
 });
 
 /// Most recently read first; series with no local history follow in the
