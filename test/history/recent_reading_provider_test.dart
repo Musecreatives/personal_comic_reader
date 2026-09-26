@@ -35,23 +35,23 @@ void main() {
     ]);
   }
 
-  test("lists only the active server's reads, newest first", () async {
+  test('lists reads from every server, newest first', () async {
     final c = await containerWith([
       entry('1', server: 'a', hour: 1),
       entry('2', server: 'b', hour: 5),
       entry('3', server: 'a', hour: 9),
     ], 'a');
 
-    expect(c.read(recentReadingProvider).map((e) => e.bookId), ['3', '1']);
+    expect(c.read(recentReadingProvider).map((e) => e.bookId), ['3', '2', '1']);
   });
 
-  test('entries from before servers were tracked count as the active server',
+  test('entries from before servers were tracked are included too',
       () async {
     final c = await containerWith([
       entry('old', server: null, hour: 1),
       entry('other', server: 'b', hour: 2),
     ], 'a');
 
-    expect(c.read(recentReadingProvider).map((e) => e.bookId), ['old']);
+    expect(c.read(recentReadingProvider).map((e) => e.bookId), ['other', 'old']);
   });
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
+import '../shared/back_button.dart';
 
 class StorageScreen extends ConsumerStatefulWidget {
   const StorageScreen({super.key});
@@ -30,7 +31,13 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
           children: [
-            Text('Storage', style: AppText.largeTitle(size: 24)),
+            Row(
+              children: [
+                const AppBackButton(),
+                const SizedBox(width: 12),
+                Text('Storage', style: AppText.largeTitle(size: 24)),
+              ],
+            ),
             const SizedBox(height: 18),
             if (kIsWeb)
               Container(
