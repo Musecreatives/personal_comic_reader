@@ -51,6 +51,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     final client = ref.read(syncClientProvider);
+    final container = ProviderScope.containerOf(context);
     try {
       final result = _creatingAccount
           ? await client.register(
@@ -66,9 +67,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .saveSession(token: result.token, username: result.username);
       ref.read(currentUsernameProvider.notifier).state = result.username;
 
-      final historyStore = ref.read(historyStoreProvider);
-      historyStore.attachSync(client, ref.read(syncQueueProvider));
-      unawaited(historyStore.reconcile());
+      unawaited(startSync(container));
 
       if (mounted) context.go('/home');
     } catch (e) {

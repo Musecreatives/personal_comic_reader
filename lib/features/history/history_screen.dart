@@ -113,10 +113,16 @@ class _HistoryListState extends State<_HistoryList> {
     _resolveFuture = _resolveTitles();
   }
 
+  // Series ids are only unique within one server, so only entries read on
+  // the active server (or old ones with no server recorded) can be looked
+  // up here without risking another server's series with the same id.
+  bool _onActiveServer(HistoryEntry e) =>
+      e.serverId == null || e.serverId == widget.backend?.config.id;
+
   Future<void> _resolveTitles() async {
     final backend = widget.backend;
     if (backend == null) return;
-    final ids = widget.entries.map((e) => e.seriesId).toSet();
+    final ids = widget.entries.where(_onActiveServer).map((e) => e.seriesId).toSet();
     await Future.wait(ids.map((id) async {
       try {
         final series = await backend.getSeries(id);
@@ -147,7 +153,11 @@ class _HistoryListState extends State<_HistoryList> {
                 padding: const EdgeInsets.fromLTRB(0, 14, 0, 8),
                 child: Text(key, style: AppText.body(size: 12, weight: FontWeight.w600, color: AppColors.text.withValues(alpha: 0.8))),
               ),
-              for (final entry in groups[key]!) _HistoryRow(entry: entry, seriesTitle: _titleCache[entry.seriesId]),
+              for (final entry in groups[key]!)
+                _HistoryRow(
+                  entry: entry,
+                  seriesTitle: _onActiveServer(entry) ? _titleCache[entry.seriesId] : null,
+                ),
             ],
           ],
         );
@@ -166,17 +176,36 @@ class _HistoryListState extends State<_HistoryList> {
   }
 }
 
-class _HistoryRow extends StatelessWidget {
+class _HistoryRow extends ConsumerWidget {
   final HistoryEntry entry;
   final String? seriesTitle;
   const _HistoryRow({required this.entry, required this.seriesTitle});
 
+  /// The series screen resolves its backend from the *active* server, so an
+  /// entry read on a different server has to switch to it first or the id
+  /// would be looked up on the wrong one. A synced entry can name a server
+  /// this device never configured - then there's nothing to switch to and
+  /// it opens on whatever is active, as before.
+  Future<void> _openSeries(BuildContext context, WidgetRef ref) async {
+    final id = entry.serverId;
+    if (id != null && id != ref.read(activeServerIdProvider)) {
+      final store = ref.read(serverStoreProvider);
+      if (store.getServer(id) != null) {
+        await store.setActiveServerId(id);
+        ref.read(activeServerIdProvider.notifier).state = id;
+      }
+    }
+    if (context.mounted) {
+      context.push('/series/${Uri.encodeComponent(entry.seriesId)}');
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final title = seriesTitle ?? entry.bookTitle;
     final time = TimeOfDay.fromDateTime(entry.timestamp).format(context);
     return InkWell(
-      onTap: () => context.push('/series/${Uri.encodeComponent(entry.seriesId)}'),
+      onTap: () => _openSeries(context, ref),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../sync/resource_sync.dart';
 import 'appearance_settings.dart';
 
 /// Persists the user's theme mode + accent color choice (6b Appearance).
@@ -10,10 +11,13 @@ class AppearanceStore {
   static const _key = 'settings';
 
   late final Box<String> _box;
+  final sync = ResourceSync('appearance');
 
   Future<void> init() async {
     _box = await Hive.openBox<String>(_boxName);
   }
+
+  Future<bool> reconcile() => sync.reconcile(_box);
 
   AppearanceSettings get() {
     final raw = _box.get(_key);
@@ -22,6 +26,6 @@ class AppearanceStore {
   }
 
   Future<void> set(AppearanceSettings settings) {
-    return _box.put(_key, jsonEncode(settings.toJson()));
+    return sync.put(_box, _key, settings.toJson());
   }
 }

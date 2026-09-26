@@ -27,6 +27,39 @@ void main() {
         timestamp: timestamp ?? DateTime.utc(2026, 8, 30),
       );
 
+  test('serverId survives a JSON round trip', () {
+    final e = HistoryEntry(
+      serverId: 'server-a',
+      bookId: 'book-1',
+      seriesId: 'series-1',
+      bookTitle: 'Issue 1',
+      bookNumber: '1',
+      pageCount: 20,
+      lastPage: 3,
+      completed: false,
+      timestamp: DateTime.utc(2026, 8, 30),
+    );
+
+    expect(HistoryEntry.fromJson(e.toJson()).serverId, 'server-a');
+  });
+
+  test('entries stored before serverId existed still load, with a null server',
+      () {
+    // Exactly the shape older versions wrote - no 'serverId' key at all.
+    final legacy = {
+      'bookId': 'book-1',
+      'seriesId': 'series-1',
+      'bookTitle': 'Issue 1',
+      'bookNumber': '1',
+      'pageCount': 20,
+      'lastPage': 3,
+      'completed': false,
+      'timestamp': DateTime.utc(2026, 8, 30).toIso8601String(),
+    };
+
+    expect(HistoryEntry.fromJson(legacy).serverId, isNull);
+  });
+
   test('record() works locally with no sync attached (backward compatible)',
       () async {
     final store = HistoryStore();

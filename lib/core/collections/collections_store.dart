@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../sync/resource_sync.dart';
 import 'collection.dart';
 
 /// CRUD for local Collections (6d) - one Hive box, each entry a JSON-encoded
@@ -12,14 +13,21 @@ class CollectionsStore {
   static const _uuid = Uuid();
 
   late final Box<String> _box;
+  final sync = ResourceSync('collections');
 
   Future<void> init() async {
     _box = await Hive.openBox<String>(_boxName);
   }
 
+  Future<bool> reconcile() => sync.reconcile(_box);
+
+  Future<void> _save(LocalCollection c) => sync.put(_box, c.id, c.toJson());
+
   List<LocalCollection> list() {
-    final items = _box.values
-        .map((raw) => LocalCollection.fromJson(jsonDecode(raw) as Map<String, dynamic>))
+    final items = _box.keys
+        .where((k) => k != ResourceSync.lastSyncKey)
+        .map((k) => LocalCollection.fromJson(
+            jsonDecode(_box.get(k)!) as Map<String, dynamic>))
         .toList();
     items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return items;
@@ -32,27 +40,25 @@ class CollectionsStore {
       seriesIds: const [],
       createdAt: DateTime.now(),
     );
-    await _box.put(collection.id, jsonEncode(collection.toJson()));
+    await _save(collection);
     return collection;
   }
 
-  Future<void> delete(String id) => _box.delete(id);
+  Future<void> delete(String id) => sync.remove(_box, id);
 
   Future<void> addSeries(String collectionId, String seriesId) async {
     final raw = _box.get(collectionId);
     if (raw == null) return;
     final c = LocalCollection.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     if (c.seriesIds.contains(seriesId)) return;
-    final updated = c.copyWith(seriesIds: [...c.seriesIds, seriesId]);
-    await _box.put(collectionId, jsonEncode(updated.toJson()));
+    await _save(c.copyWith(seriesIds: [...c.seriesIds, seriesId]));
   }
 
   Future<void> removeSeries(String collectionId, String seriesId) async {
     final raw = _box.get(collectionId);
     if (raw == null) return;
     final c = LocalCollection.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    final updated = c.copyWith(
-        seriesIds: c.seriesIds.where((id) => id != seriesId).toList());
-    await _box.put(collectionId, jsonEncode(updated.toJson()));
+    await _save(c.copyWith(
+        seriesIds: c.seriesIds.where((id) => id != seriesId).toList()));
   }
 }

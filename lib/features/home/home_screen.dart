@@ -6,6 +6,7 @@ import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import '../../core/history/history_entry.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 
@@ -19,6 +20,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final backendAsync = ref.watch(activeBackendProvider);
+    final recent = ref.watch(recentReadingProvider);
 
     return Scaffold(
       backgroundColor: AppColors.page,
@@ -31,7 +33,7 @@ class HomeScreen extends ConsumerWidget {
         ),
         data: (backend) {
           if (backend == null) return const _NoServerState();
-          return _ReadingNowContent(backend: backend);
+          return _ReadingNowContent(backend: backend, recent: recent);
         },
       ),
     );
@@ -68,12 +70,32 @@ class _NoServerState extends StatelessWidget {
 class _HeroData {
   final Series series;
   final Book? book;
-  const _HeroData({required this.series, this.book});
+
+  /// The history entry this hero was built from, when there is one.
+  final HistoryEntry? entry;
+
+  /// 0-based page to resume on. Differs from `entry.lastPage` when that
+  /// chapter was finished and the hero moved on to the next one.
+  final int page;
+
+  const _HeroData({required this.series, this.book, this.entry, this.page = 0});
+}
+
+String _ago(DateTime t) {
+  final d = DateTime.now().difference(t);
+  if (d.inMinutes < 1) return 'JUST NOW';
+  if (d.inMinutes < 60) return '${d.inMinutes}M AGO';
+  if (d.inHours < 24) return '${d.inHours}H AGO';
+  return '${d.inDays}D AGO';
 }
 
 class _ReadingNowContent extends StatefulWidget {
   final ReaderBackend backend;
-  const _ReadingNowContent({required this.backend});
+
+  /// Reading history on this server, newest first - the source of truth for
+  /// what "continue" means, since the server only knows what's unread.
+  final List<HistoryEntry> recent;
+  const _ReadingNowContent({required this.backend, required this.recent});
 
   @override
   State<_ReadingNowContent> createState() => _ReadingNowContentState();
@@ -89,9 +111,16 @@ class _ReadingNowContentState extends State<_ReadingNowContent> {
     _load();
   }
 
+  // Resolving the hero costs two backend calls, so keep it until the last
+  // read entry or the server's top series actually changes - build() runs
+  // far more often than that.
+  Future<_HeroData?>? _heroFuture;
+  (DateTime?, String?)? _heroKey;
+
   void _load() {
     _continueReadingFuture = widget.backend.continueReading();
     _recentFuture = _loadRecent();
+    _heroFuture = null;
   }
 
   Future<List<_RecentRow>> _loadRecent() async {
@@ -114,6 +143,26 @@ class _ReadingNowContentState extends State<_ReadingNowContent> {
   }
 
   Future<_HeroData?> _resolveHero(List<Series> continueReading) async {
+    // What was read *last* beats the server's "first unread chapter": for a
+    // series read out of order (jumped to ch. 181), the first unread is
+    // chapter 1, which is not where anyone left off.
+    final last = widget.recent.firstOrNull;
+    if (last != null) {
+      try {
+        final series = await widget.backend.getSeries(last.seriesId);
+        final books = await widget.backend.listBooks(last.seriesId);
+        final i = books.indexWhere((b) => b.id == last.bookId);
+        if (i >= 0) {
+          // A finished chapter means "continue" is the next one, from its start.
+          if (last.completed && i + 1 < books.length) {
+            return _HeroData(series: series, book: books[i + 1], entry: last);
+          }
+          return _HeroData(series: series, book: books[i], entry: last, page: last.lastPage);
+        }
+      } catch (_) {
+        // Fall through to the server's own idea of "in progress".
+      }
+    }
     if (continueReading.isEmpty) return null;
     final series = continueReading.first;
     try {
@@ -145,13 +194,26 @@ class _ReadingNowContentState extends State<_ReadingNowContent> {
             return const Center(child: CircularProgressIndicator());
           }
           final continueReading = snapshot.data ?? [];
+          final key = (widget.recent.firstOrNull?.timestamp, continueReading.firstOrNull?.id);
+          if (_heroFuture == null || _heroKey != key) {
+            _heroKey = key;
+            _heroFuture = _resolveHero(continueReading);
+          }
           return FutureBuilder<_HeroData?>(
-            future: _resolveHero(continueReading),
+            future: _heroFuture,
             builder: (context, heroSnapshot) {
               final hero = heroSnapshot.data;
-              final shelf = continueReading.length > 1
-                  ? continueReading.sublist(1)
-                  : <Series>[];
+              final lastBySeries = <String, HistoryEntry>{};
+              for (final e in widget.recent) {
+                lastBySeries.putIfAbsent(e.seriesId, () => e);
+              }
+              // Most recently read first; series with no local history keep
+              // the server's order after them.
+              final rest = continueReading.where((s) => s.id != hero?.series.id).toList();
+              final read = rest.where((s) => lastBySeries.containsKey(s.id)).toList()
+                ..sort((a, b) =>
+                    lastBySeries[b.id]!.timestamp.compareTo(lastBySeries[a.id]!.timestamp));
+              final shelf = [...read, ...rest.where((s) => !lastBySeries.containsKey(s.id))];
               return ListView(
                 padding: EdgeInsets.zero,
                 children: [
@@ -162,6 +224,7 @@ class _ReadingNowContentState extends State<_ReadingNowContent> {
                   if (shelf.isNotEmpty)
                     _AlsoInProgressShelf(
                       series: shelf,
+                      lastBySeries: lastBySeries,
                       headers: widget.backend.imageHeaders,
                     ),
                   _TonightList(
@@ -190,17 +253,28 @@ class _HeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final series = hero.series;
     final book = hero.book;
-    final progress = book == null
-        ? (series.booksCount == 0
-            ? 0.0
-            : series.booksReadCount / series.booksCount)
-        : book.progressRatio;
-    final pageLabel = book != null && book.pageCount > 0
-        ? '${book.readProgressPage ?? 0}/${book.pageCount}'
-        : '${series.booksReadCount}/${series.booksCount}';
-    final subtitle = book != null
-        ? 'Ch. ${book.number} · ${book.title}'
-        : '${series.booksUnreadCount} unread';
+    final entry = hero.entry;
+    final page = hero.page;
+    // With a history entry the position is exact (page within the chapter
+    // last read); without one it falls back to the server's saved progress.
+    final positioned = entry != null && book != null && book.pageCount > 0;
+    final progress = positioned
+        ? ((page + 1) / book.pageCount).clamp(0.0, 1.0)
+        : book == null
+            ? (series.booksCount == 0
+                ? 0.0
+                : series.booksReadCount / series.booksCount)
+            : book.progressRatio;
+    final pageLabel = positioned
+        ? '${page + 1}/${book.pageCount}'
+        : book != null && book.pageCount > 0
+            ? '${book.readProgressPage ?? 0}/${book.pageCount}'
+            : '${series.booksReadCount}/${series.booksCount}';
+    final subtitle = positioned
+        ? 'Ch. ${_formatNumber(book.number)} · page ${page + 1} of ${book.pageCount}'
+        : book != null
+            ? 'Ch. ${book.number} · ${book.title}'
+            : '${series.booksUnreadCount} unread';
 
     return SizedBox(
       height: 452,
@@ -231,7 +305,7 @@ class _HeroCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'CONTINUE',
+                  entry == null ? 'CONTINUE' : 'CONTINUE · ${_ago(entry.timestamp)}',
                   style: AppText.mono(
                     size: 9,
                     weight: FontWeight.w500,
@@ -258,7 +332,11 @@ class _HeroCard extends StatelessWidget {
                     _ResumeButton(
                       onTap: book == null
                           ? null
-                          : () => context.go('/read/${Uri.encodeComponent(book.id)}'),
+                          // push, not go: back from the reader returns here.
+                          : () => context.push(
+                                '/read/${Uri.encodeComponent(book.id)}'
+                                '${entry != null && page > 0 ? '?page=$page' : ''}',
+                              ),
                     ),
                     const SizedBox(width: 10),
                     _IconSquareButton(
@@ -367,9 +445,16 @@ class _ProgressBar extends StatelessWidget {
 
 class _AlsoInProgressShelf extends StatelessWidget {
   final List<Series> series;
+
+  /// Last-read entry per series id, for the "Ch. N · pX" line.
+  final Map<String, HistoryEntry> lastBySeries;
   final Map<String, String> headers;
 
-  const _AlsoInProgressShelf({required this.series, required this.headers});
+  const _AlsoInProgressShelf({
+    required this.series,
+    required this.lastBySeries,
+    required this.headers,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +531,13 @@ class _AlsoInProgressShelf extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${s.booksUnreadCount} unread',
+                          switch (lastBySeries[s.id]) {
+                            final e? =>
+                              'Ch. ${_formatNumber(e.bookNumber)} · p${e.lastPage + 1}',
+                            null => '${s.booksUnreadCount} unread',
+                          },
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: AppText.mono(size: 10.5),
                         ),
                       ],

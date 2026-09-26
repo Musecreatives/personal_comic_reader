@@ -95,9 +95,42 @@ class SuwayomiMaintenanceClient {
     return LibraryHealth(categoryCount: nodes.length, totalManga: total);
   }
 
+  /// A wiped/replaced database loses the configured extension repo, and
+  /// with no repo the catalog comes back empty - so every extension looks
+  /// "not installed" and can't be reinstalled (hit on 2026-09-22). Restore
+  /// the standard repo the known packages come from whenever it's missing.
+  Future<void> _ensureExtensionRepo() async {
+    final data = await _gql('{ settings { extensionRepos } }');
+    final repos = (data['settings'] as Map<String, dynamic>)['extensionRepos'] as List;
+    if (repos.isNotEmpty) return;
+    await _gql(
+      'mutation(\$repos: [String!]!) { setSettings(input: {settings: {extensionRepos: \$repos}}) { settings { extensionRepos } } }',
+      {
+        'repos': ['https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json'],
+      },
+    );
+  }
+
+  /// Installs every known extension that isn't installed yet. Returns the
+  /// package names that couldn't be installed because of a stale on-disk
+  /// copy (those need clearing on the server); other failures propagate.
+  Future<List<String>> reinstallAllMissing() async {
+    final stale = <String>[];
+    for (final ext in await extensionStatus()) {
+      if (ext.isInstalled) continue;
+      try {
+        await reinstallExtension(ext.pkgName);
+      } on StaleExtensionFileException {
+        stale.add(ext.pkgName);
+      }
+    }
+    return stale;
+  }
+
   /// Fetches the remote extension catalog and reports install state for
   /// [knownExtensionPackages] only.
   Future<List<ExtensionStatus>> extensionStatus() async {
+    await _ensureExtensionRepo();
     final data = await _gql(
         'mutation { fetchExtensions(input: {}) { extensions { pkgName isInstalled } } }');
     final nodes =

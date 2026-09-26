@@ -53,6 +53,7 @@ void main() {
       '/api/graphql',
       (server) => server.reply(200, {
         'data': {
+          'settings': {'extensionRepos': ['https://example.test/index.json']},
           'fetchExtensions': {
             'extensions': [
               {
@@ -81,6 +82,57 @@ void main() {
     expect(mangabat.isInstalled, true);
     final flame = statuses.firstWhere((e) => e.name == 'Flame Comics');
     expect(flame.isInstalled, false);
+  });
+
+  test('extensionStatus() restores the extension repo when the list is empty',
+      () async {
+    // A wiped database loses the repo, the catalog comes back empty, and
+    // every extension looks uninstalled - so the repo must be set again
+    // before the catalog is fetched (regression: 2026-09-22 incident).
+    final queries = <String>[];
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      queries.add((options.data as Map)['query'] as String);
+      handler.next(options);
+    }));
+    adapter.onPost(
+      '/api/graphql',
+      (server) => server.reply(200, {
+        'data': {
+          'settings': {'extensionRepos': <String>[]},
+          'fetchExtensions': {'extensions': <Map<String, dynamic>>[]},
+        },
+      }),
+      data: Matchers.any,
+    );
+
+    await client.extensionStatus();
+
+    final setIndex = queries.indexWhere((q) => q.contains('setSettings'));
+    final fetchIndex = queries.indexWhere((q) => q.contains('fetchExtensions'));
+    expect(setIndex, isNonNegative);
+    expect(setIndex, lessThan(fetchIndex));
+  });
+
+  test('extensionStatus() leaves an existing repo alone', () async {
+    final queries = <String>[];
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      queries.add((options.data as Map)['query'] as String);
+      handler.next(options);
+    }));
+    adapter.onPost(
+      '/api/graphql',
+      (server) => server.reply(200, {
+        'data': {
+          'settings': {'extensionRepos': ['https://example.test/index.json']},
+          'fetchExtensions': {'extensions': <Map<String, dynamic>>[]},
+        },
+      }),
+      data: Matchers.any,
+    );
+
+    await client.extensionStatus();
+
+    expect(queries.any((q) => q.contains('setSettings')), isFalse);
   });
 
   test('reinstallExtension() succeeds when the server accepts it', () async {

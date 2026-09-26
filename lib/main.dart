@@ -73,14 +73,6 @@ Future<void> main() async {
   final syncClient =
       SyncClient(baseUrl: SyncClient.defaultBaseUrl(), token: syncToken);
 
-  if (syncToken != null) {
-    historyStore.attachSync(syncClient, syncQueue);
-    // Best-effort - don't block startup on a network round trip. Failures
-    // just mean this device stays on what it already has locally until
-    // the next successful reconcile (e.g. next app resume).
-    unawaited(historyStore.reconcile());
-  }
-
   final lastRouteStore = LastRouteStore();
   var lastRoute = await lastRouteStore.getLastRoute();
   // A saved route from a previous signed-in session (or /login itself)
@@ -95,8 +87,7 @@ Future<void> main() async {
     onRouteChange: lastRouteStore.setLastRoute,
   );
 
-  runApp(
-    ProviderScope(
+  final container = ProviderContainer(
       overrides: [
         serverStoreProvider.overrideWithValue(serverStore),
         readerSettingsStoreProvider.overrideWithValue(readerSettingsStore),
@@ -115,9 +106,17 @@ Future<void> main() async {
         syncClientProvider.overrideWithValue(syncClient),
         currentUsernameProvider.overrideWith((ref) => syncUsername),
       ],
-      child: ShaddaiReaderApp(router: router),
-    ),
   );
+
+  // Best-effort - don't block startup on a network round trip. Failures
+  // just mean this device stays on what it already has locally until
+  // the next successful sync (e.g. next app launch).
+  if (syncToken != null) unawaited(startSync(container));
+
+  runApp(UncontrolledProviderScope(
+    container: container,
+    child: ShaddaiReaderApp(router: router),
+  ));
 }
 
 class ShaddaiReaderApp extends ConsumerWidget {

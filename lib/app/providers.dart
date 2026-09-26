@@ -8,6 +8,7 @@ import '../core/appearance/appearance_settings.dart';
 import '../core/appearance/appearance_store.dart';
 import '../core/backend/reader_backend.dart';
 import '../core/collections/collections_store.dart';
+import '../core/history/history_entry.dart';
 import '../core/history/history_store.dart';
 import '../core/downloads/download_manager.dart';
 import '../core/downloads/download_models.dart';
@@ -167,6 +168,25 @@ final historyStoreProvider = Provider<HistoryStore>((ref) {
 /// the store itself doesn't notify, mirroring [collectionsRevisionProvider].
 final historyRevisionProvider = StateProvider<int>((ref) => 0);
 
+/// What's been read on the active server, newest first. Entries recorded
+/// before servers were tracked (`serverId == null`) count as active, the
+/// same rule the History screen uses. This is what drives Home's hero and
+/// the persistent now-reading bar: the server only knows which chapters are
+/// unread, not which one was read *last*.
+final recentReadingProvider = Provider<List<HistoryEntry>>((ref) {
+  ref.watch(historyRevisionProvider);
+  final activeId = ref.watch(activeServerIdProvider);
+  return ref
+      .watch(historyStoreProvider)
+      .list()
+      .where((e) => e.serverId == null || e.serverId == activeId)
+      .toList();
+});
+
+/// Timestamp of the history entry whose now-reading bar was dismissed.
+/// Reading again writes a newer timestamp, which brings the bar back.
+final nowReadingDismissedProvider = StateProvider<DateTime?>((ref) => null);
+
 /// Set once in main() after CollectionsStore.init() completes.
 final collectionsStoreProvider = Provider<CollectionsStore>((ref) {
   throw UnimplementedError('collectionsStoreProvider must be overridden in main()');
@@ -195,6 +215,40 @@ final syncQueueProvider = Provider<SyncQueue>((ref) {
 final syncClientProvider = Provider<SyncClient>((ref) {
   throw UnimplementedError('syncClientProvider must be overridden in main()');
 });
+
+/// Attaches every synced store (history, collections, appearance, reader
+/// settings) to the current session and pulls remote changes, refreshing the
+/// UI providers for whatever changed. Called at startup and after login;
+/// each store is best-effort so one failure never blocks the rest.
+Future<void> startSync(ProviderContainer c) async {
+  final client = c.read(syncClientProvider);
+  final queue = c.read(syncQueueProvider);
+  final history = c.read(historyStoreProvider)..attachSync(client, queue);
+  final collections = c.read(collectionsStoreProvider)
+    ..sync.attach(client, queue);
+  final appearance = c.read(appearanceStoreProvider)..sync.attach(client, queue);
+  final reader = c.read(readerSettingsStoreProvider)..sync.attach(client, queue);
+
+  Future<void> run(Future<bool> Function() reconcile, void Function() onChanged) async {
+    try {
+      if (await reconcile()) onChanged();
+    } catch (_) {
+      // Offline or server down: stay on local data until the next attempt.
+    }
+  }
+
+  await Future.wait([
+    run(() async {
+      await history.reconcile();
+      return true;
+    }, () => c.read(historyRevisionProvider.notifier).state++),
+    run(collections.reconcile,
+        () => c.read(collectionsRevisionProvider.notifier).state++),
+    run(appearance.reconcile,
+        () => c.read(appearanceProvider.notifier).state = appearance.get()),
+    run(reader.reconcile, () {}),
+  ]);
+}
 
 /// The signed-in username, or null if no session exists - seeded from
 /// [AuthStore] at startup in main(), same pattern as [appearanceProvider].

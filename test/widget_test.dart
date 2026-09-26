@@ -25,6 +25,7 @@ void main() {
       ProviderScope(
         overrides: [
           activeServerIdProvider.overrideWith((ref) => null),
+          recentReadingProvider.overrideWithValue(const []),
           activeBackendProvider
               .overrideWith((ref) async => null as ReaderBackend?),
         ],

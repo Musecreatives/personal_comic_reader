@@ -27,6 +27,7 @@ class _SuwayomiMaintenanceScreenState extends ConsumerState<SuwayomiMaintenanceS
   SuwayomiMaintenanceClient? _client;
   Future<(LibraryHealth, List<ExtensionStatus>)>? _future;
   final Set<String> _reinstalling = {};
+  bool _reinstallingAll = false;
   String? _actionMessage;
   bool _creatingBackup = false;
   bool _restoring = false;
@@ -56,6 +57,26 @@ class _SuwayomiMaintenanceScreenState extends ConsumerState<SuwayomiMaintenanceS
       setState(() => _actionMessage = '$e');
     } finally {
       if (mounted) setState(() => _reinstalling.remove(pkgName));
+    }
+  }
+
+  Future<void> _reinstallAll() async {
+    setState(() {
+      _reinstallingAll = true;
+      _actionMessage = null;
+    });
+    try {
+      final stale = await _client!.reinstallAllMissing();
+      if (stale.isNotEmpty) {
+        _actionMessage = '${stale.length} extension(s) have an old copy on the server '
+            'that needs clearing by hand before they can reinstall.';
+      }
+      setState(() => _future = _load(_client!));
+      await _future;
+    } catch (e) {
+      setState(() => _actionMessage = '$e');
+    } finally {
+      if (mounted) setState(() => _reinstallingAll = false);
     }
   }
 
@@ -164,6 +185,8 @@ class _SuwayomiMaintenanceScreenState extends ConsumerState<SuwayomiMaintenanceS
                     future: _future!,
                     reinstalling: _reinstalling,
                     onReinstall: _reinstall,
+                    reinstallingAll: _reinstallingAll,
+                    onReinstallAll: _reinstallAll,
                     actionMessage: _actionMessage,
                     creatingBackup: _creatingBackup,
                     restoring: _restoring,
@@ -185,6 +208,8 @@ class _Body extends StatelessWidget {
   final Future<(LibraryHealth, List<ExtensionStatus>)> future;
   final Set<String> reinstalling;
   final Future<void> Function(String pkgName) onReinstall;
+  final bool reinstallingAll;
+  final VoidCallback onReinstallAll;
   final String? actionMessage;
   final bool creatingBackup;
   final bool restoring;
@@ -196,6 +221,8 @@ class _Body extends StatelessWidget {
     required this.future,
     required this.reinstalling,
     required this.onReinstall,
+    required this.reinstallingAll,
+    required this.onReinstallAll,
     required this.actionMessage,
     required this.creatingBackup,
     required this.restoring,
@@ -269,6 +296,15 @@ class _Body extends StatelessWidget {
             const SizedBox(height: 22),
             Text('EXTENSIONS', style: AppText.sectionLabel()),
             const SizedBox(height: 10),
+            if (extensions.any((e) => !e.isInstalled)) ...[
+              _ActionRow(
+                icon: Icons.build_circle_outlined,
+                label: 'Reinstall all missing (${extensions.where((e) => !e.isInstalled).length})',
+                busy: reinstallingAll,
+                onTap: onReinstallAll,
+              ),
+              const SizedBox(height: 10),
+            ],
             for (final ext in extensions)
               _ExtensionRow(
                 extension: ext,

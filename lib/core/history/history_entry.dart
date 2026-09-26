@@ -2,6 +2,9 @@
 /// reader session ends (dispose), upserted per book so reopening the same
 /// chapter updates its existing row instead of duplicating it.
 class HistoryEntry {
+  /// The server this was read on. Null for entries recorded before this
+  /// existed, or synced from a device where that server id isn't known.
+  final String? serverId;
   final String bookId;
   final String seriesId;
   final String bookTitle;
@@ -12,6 +15,7 @@ class HistoryEntry {
   final DateTime timestamp;
 
   const HistoryEntry({
+    this.serverId,
     required this.bookId,
     required this.seriesId,
     required this.bookTitle,
@@ -23,6 +27,7 @@ class HistoryEntry {
   });
 
   Map<String, dynamic> toJson() => {
+        'serverId': serverId,
         'bookId': bookId,
         'seriesId': seriesId,
         'bookTitle': bookTitle,
@@ -34,6 +39,7 @@ class HistoryEntry {
       };
 
   factory HistoryEntry.fromJson(Map<String, dynamic> json) => HistoryEntry(
+        serverId: json['serverId'] as String?,
         bookId: json['bookId'] as String,
         seriesId: json['seriesId'] as String,
         bookTitle: json['bookTitle'] as String,
