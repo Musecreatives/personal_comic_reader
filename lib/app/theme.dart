@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -31,6 +32,18 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
     useMaterial3: true,
     colorScheme: colorScheme,
     scaffoldBackgroundColor: AppColors.page,
+    // iOS-style push/pop (slide + swipe-back) on every platform, and press
+    // feedback from PressScale instead of Material ripples.
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.fuchsia: CupertinoPageTransitionsBuilder(),
+    }),
+    splashFactory: NoSplash.splashFactory,
+    highlightColor: AppColors.fillHover,
     textTheme: baseTextTheme.apply(
       bodyColor: AppColors.text,
       displayColor: AppColors.text,
