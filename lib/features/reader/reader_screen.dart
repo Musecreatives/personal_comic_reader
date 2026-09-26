@@ -1,9 +1,13 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
@@ -17,6 +21,7 @@ import '../../core/reader/reader_settings_store.dart';
 import '../../core/panels/panel_detector.dart';
 import '../../core/stats/reading_stats_store.dart';
 import '../shared/error_state.dart';
+import 'widgets/chapter_panel.dart';
 import 'widgets/double_page_view.dart';
 import 'widgets/edge_swipe.dart';
 import 'widgets/panel_zoom_view.dart';
@@ -49,9 +54,15 @@ class ReaderScreen extends ConsumerWidget {
       data: (backend) {
         if (backend == null) {
           return const Scaffold(
-              backgroundColor: Colors.black, body: Center(child: Text('No server')));
+            backgroundColor: Colors.black,
+            body: Center(child: Text('No server')),
+          );
         }
-        return _ReaderLoader(backend: backend, bookId: bookId, initialPage: initialPage);
+        return _ReaderLoader(
+          backend: backend,
+          bookId: bookId,
+          initialPage: initialPage,
+        );
       },
     );
   }
@@ -62,7 +73,11 @@ class _ReaderLoader extends ConsumerStatefulWidget {
   final String bookId;
   final int? initialPage;
 
-  const _ReaderLoader({required this.backend, required this.bookId, this.initialPage});
+  const _ReaderLoader({
+    required this.backend,
+    required this.bookId,
+    this.initialPage,
+  });
 
   @override
   ConsumerState<_ReaderLoader> createState() => _ReaderLoaderState();
@@ -99,7 +114,9 @@ class _ReaderLoaderState extends ConsumerState<_ReaderLoader> {
             );
           }
           return const Scaffold(
-              backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator()));
+            backgroundColor: Colors.black,
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
         final (book, seriesBooks) = snapshot.data!;
         return _ReaderBody(
@@ -130,7 +147,8 @@ class _ReaderBody extends ConsumerStatefulWidget {
   ConsumerState<_ReaderBody> createState() => _ReaderBodyState();
 }
 
-class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObserver {
+class _ReaderBodyState extends ConsumerState<_ReaderBody>
+    with WidgetsBindingObserver {
   final _singleKey = GlobalKey<SinglePageViewState>();
   final _doubleKey = GlobalKey<DoublePageViewState>();
   final _verticalKey = GlobalKey<VerticalPageViewState>();
@@ -141,6 +159,13 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
   bool _overlayVisible = false;
   bool _showEndCard = false;
 
+  // Desktop/tablet: chapter panel, and chrome that follows the mouse.
+  static const _wideBreakpoint = 900.0;
+  final _focus = FocusNode();
+  bool _panelOpen = false;
+  bool _hoverShown = false;
+  Timer? _hideTimer;
+
   // Experimental smart panel view (single-page mode only).
   bool _panelModeActive = false;
   bool _panelLoading = false;
@@ -150,7 +175,8 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
   final Set<int> _seenPages = {};
   late DateTime _sessionStart;
 
-  ReaderSettingsStore get _settingsStore => ref.read(readerSettingsStoreProvider);
+  ReaderSettingsStore get _settingsStore =>
+      ref.read(readerSettingsStoreProvider);
   ProgressSync get _progressSync => ref.read(progressSyncProvider);
   PageCache get _pageCache => ref.read(pageCacheProvider);
   ReadingStatsStore get _statsStore => ref.read(readingStatsStoreProvider);
@@ -169,13 +195,19 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
     _sessionStart = DateTime.now();
     _seenPages.add(_currentPage);
     _applyWakelock();
-    _pageCache.prefetch(widget.backend, widget.book.id, _currentPage + 1,
-        widget.book.pageCount);
+    _pageCache.prefetch(
+      widget.backend,
+      widget.book.id,
+      _currentPage + 1,
+      widget.book.pageCount,
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _hideTimer?.cancel();
+    _focus.dispose();
     WakelockPlus.disable();
     _checkpointSession();
     super.dispose();
@@ -217,17 +249,20 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
     // Only log a session that actually turned a page - opening a book and
     // immediately backing out shouldn't clutter history.
     if (_seenPages.length > 1 || completed) {
-      _historyStore.record(HistoryEntry(
-        serverId: widget.backend.config.id,
-        bookId: widget.book.id,
-        seriesId: widget.book.seriesId,
-        bookTitle: widget.book.title,
-        bookNumber: widget.book.number,
-        pageCount: widget.book.pageCount,
-        lastPage: _currentPage,
-        completed: completed,
-        timestamp: DateTime.now(),
-      ));
+      _historyStore.record(
+        HistoryEntry(
+          serverId: widget.backend.config.id,
+          serverKey: widget.backend.config.portableKey,
+          bookId: widget.book.id,
+          seriesId: widget.book.seriesId,
+          bookTitle: widget.book.title,
+          bookNumber: widget.book.number,
+          pageCount: widget.book.pageCount,
+          lastPage: _currentPage,
+          completed: completed,
+          timestamp: DateTime.now(),
+        ),
+      );
       ref.read(historyRevisionProvider.notifier).state++;
     }
   }
@@ -243,16 +278,118 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
   void _onPageChanged(int page) {
     setState(() => _currentPage = page);
     final completed = page >= widget.book.pageCount - 1;
-    _progressSync.scheduleUpdate(widget.backend, widget.book.id,
-        page: page, completed: completed);
+    _progressSync.scheduleUpdate(
+      widget.backend,
+      widget.book.id,
+      page: page,
+      completed: completed,
+    );
     _pageCache.prefetch(
-        widget.backend, widget.book.id, page + 1, widget.book.pageCount);
+      widget.backend,
+      widget.book.id,
+      page + 1,
+      widget.book.pageCount,
+    );
     if (_seenPages.add(page)) {
       _statsStore.recordPages(1);
     }
   }
 
-  void _toggleOverlay() => setState(() => _overlayVisible = !_overlayVisible);
+  void _toggleOverlay() {
+    // A tap pins the chrome: it stays until tapped away, not on a timer.
+    _hideTimer?.cancel();
+    _hoverShown = false;
+    setState(() => _overlayVisible = !_overlayVisible);
+  }
+
+  /// With a mouse the chrome follows the pointer: it appears on movement and
+  /// tucks away after a moment of stillness, unless a tap pinned it.
+  void _onHover(PointerHoverEvent e) {
+    if (_panelModeActive) return;
+    if (!_overlayVisible) {
+      _hoverShown = true;
+      setState(() => _overlayVisible = true);
+    }
+    if (!_hoverShown) return;
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted && _hoverShown) {
+        _hoverShown = false;
+        setState(() => _overlayVisible = false);
+      }
+    });
+  }
+
+  void _togglePanel() => setState(() => _panelOpen = !_panelOpen);
+
+  Future<void> _openContextMenu(Offset at) async {
+    final size = MediaQuery.sizeOf(context);
+    PopupMenuItem<VoidCallback> item(
+      IconData icon,
+      String label,
+      String key,
+      VoidCallback run,
+    ) {
+      return PopupMenuItem<VoidCallback>(
+        value: run,
+        height: 40,
+        child: Row(
+          children: [
+            Icon(icon, size: 17, color: AppColors.text60),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label, style: AppText.body(size: 14))),
+            const SizedBox(width: 20),
+            Text(key, style: AppText.mono(size: 10)),
+          ],
+        ),
+      );
+    }
+
+    final run = await showMenu<VoidCallback>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        at.dx,
+        at.dy,
+        size.width - at.dx,
+        size.height - at.dy,
+      ),
+      color: AppColors.card,
+      elevation: 12,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(13),
+        side: BorderSide(color: AppColors.borderStrong),
+      ),
+      items: [
+        item(Icons.list_rounded, 'Chapters', 'C', _togglePanel),
+        if (_nextBook != null)
+          item(
+            Icons.skip_next_rounded,
+            'Next chapter',
+            ']',
+            () => _goToBook(_nextBook!.id),
+          ),
+        if (_previousBook != null)
+          item(
+            Icons.skip_previous_rounded,
+            'Previous chapter',
+            '[',
+            () => _goToBook(_previousBook!.id),
+          ),
+        const PopupMenuDivider(height: 8),
+        item(
+          Icons.view_carousel_outlined,
+          'Change reading mode',
+          'M',
+          _cycleMode,
+        ),
+        item(Icons.swap_horiz_rounded, 'Flip direction', 'D', _toggleDirection),
+        item(Icons.tune_rounded, 'Reader settings', '', _openSettingsSheet),
+        const PopupMenuDivider(height: 8),
+        item(Icons.close_rounded, 'Close reader', 'Esc', () => context.pop()),
+      ],
+    );
+    if (mounted) run?.call();
+  }
 
   Future<void> _togglePanelMode() async {
     if (_panelModeActive) {
@@ -262,10 +399,15 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
     if (_panelLoading) return;
     setState(() => _panelLoading = true);
     try {
-      final bytes =
-          await _pageCache.getPage(widget.backend, widget.book.id, _currentPage);
-      final panels = await detectPanels(bytes,
-          rtl: _settings.direction == ReadingDirection.rtl);
+      final bytes = await _pageCache.getPage(
+        widget.backend,
+        widget.book.id,
+        _currentPage,
+      );
+      final panels = await detectPanels(
+        bytes,
+        rtl: _settings.direction == ReadingDirection.rtl,
+      );
       if (!mounted) return;
       setState(() {
         _panelPageBytes = bytes;
@@ -321,11 +463,13 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
   }
 
   void _toggleDirection() {
-    _updateSettings(_settings.copyWith(
-      direction: _settings.direction == ReadingDirection.ltr
-          ? ReadingDirection.rtl
-          : ReadingDirection.ltr,
-    ));
+    _updateSettings(
+      _settings.copyWith(
+        direction: _settings.direction == ReadingDirection.ltr
+            ? ReadingDirection.rtl
+            : ReadingDirection.ltr,
+      ),
+    );
   }
 
   void _openSettingsSheet() {
@@ -352,12 +496,17 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
 
   void _goToBook(String bookId, {int? page}) {
     context.pushReplacement(
-        '/read/${Uri.encodeComponent(bookId)}${page == null ? '' : '?page=$page'}');
+      '/read/${Uri.encodeComponent(bookId)}${page == null ? '' : '?page=$page'}',
+    );
   }
 
   Future<void> _markBooksRead(Iterable<Book> books) async {
     for (final b in books) {
-      await widget.backend.updateProgress(b.id, page: b.pageCount - 1, completed: true);
+      await widget.backend.updateProgress(
+        b.id,
+        page: b.pageCount - 1,
+        completed: true,
+      );
     }
   }
 
@@ -389,19 +538,27 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
       isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
-          Future<void> runBulk(Future<void> Function(Iterable<Book>) action, String doneMessage) async {
-            final books = widget.seriesBooks.where((b) => selected.contains(b.id));
+          Future<void> runBulk(
+            Future<void> Function(Iterable<Book>) action,
+            String doneMessage,
+          ) async {
+            final books = widget.seriesBooks.where(
+              (b) => selected.contains(b.id),
+            );
             Navigator.pop(sheetContext);
             await action(books);
             if (mounted) {
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(SnackBar(content: Text(doneMessage)));
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(doneMessage)));
             }
           }
 
           return SafeArea(
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * 0.75),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.75,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -411,11 +568,16 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
                       children: [
                         Expanded(
                           child: Text(
-                            selectMode ? '${selected.length} selected' : widget.book.title,
+                            selectMode
+                                ? '${selected.length} selected'
+                                : widget.book.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
                         TextButton(
@@ -442,7 +604,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
                         final isSelected = selected.contains(b.id);
                         return ListTile(
                           selected: current || isSelected,
-                          selectedTileColor: Colors.white.withValues(alpha: 0.06),
+                          selectedTileColor: Colors.white.withValues(
+                            alpha: 0.06,
+                          ),
                           leading: selectMode
                               ? Checkbox(
                                   value: isSelected,
@@ -455,22 +619,35 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
                                   }),
                                 )
                               : current
-                                  ? const Icon(Icons.play_arrow, color: Colors.white)
-                                  : read
-                                      ? const Icon(Icons.check_circle, color: Colors.white38, size: 20)
-                                      : const Icon(Icons.circle_outlined, color: Colors.white24, size: 18),
+                              ? const Icon(
+                                  Icons.play_arrow,
+                                  color: Colors.white,
+                                )
+                              : read
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.white38,
+                                  size: 20,
+                                )
+                              : const Icon(
+                                  Icons.circle_outlined,
+                                  color: Colors.white24,
+                                  size: 18,
+                                ),
                           title: Text(
                             b.title,
                             style: TextStyle(
                               color: current
                                   ? Colors.white
                                   : read
-                                      ? Colors.white38
-                                      : Colors.white70,
+                                  ? Colors.white38
+                                  : Colors.white70,
                             ),
                           ),
-                          subtitle:
-                              Text('Ch. ${b.number}', style: const TextStyle(color: Colors.white38)),
+                          subtitle: Text(
+                            'Ch. ${b.number}',
+                            style: const TextStyle(color: Colors.white38),
+                          ),
                           onTap: () {
                             if (selectMode) {
                               setSheetState(() {
@@ -498,27 +675,57 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
                             child: TextButton.icon(
                               onPressed: selected.isEmpty
                                   ? null
-                                  : () => runBulk(_markBooksRead, 'Marked as read'),
-                              icon: const Icon(Icons.check, color: Colors.white70, size: 18),
-                              label: const Text('Mark read', style: TextStyle(color: Colors.white70)),
+                                  : () => runBulk(
+                                      _markBooksRead,
+                                      'Marked as read',
+                                    ),
+                              icon: const Icon(
+                                Icons.check,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'Mark read',
+                                style: TextStyle(color: Colors.white70),
+                              ),
                             ),
                           ),
                           Expanded(
                             child: TextButton.icon(
                               onPressed: selected.isEmpty
                                   ? null
-                                  : () => runBulk(_downloadBooks, 'Queued for download'),
-                              icon: const Icon(Icons.download_outlined, color: Colors.white70, size: 18),
-                              label: const Text('Download', style: TextStyle(color: Colors.white70)),
+                                  : () => runBulk(
+                                      _downloadBooks,
+                                      'Queued for download',
+                                    ),
+                              icon: const Icon(
+                                Icons.download_outlined,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'Download',
+                                style: TextStyle(color: Colors.white70),
+                              ),
                             ),
                           ),
                           Expanded(
                             child: TextButton.icon(
                               onPressed: selected.isEmpty
                                   ? null
-                                  : () => runBulk(_deleteBooks, 'Deleted downloads'),
-                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
-                              label: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                                  : () => runBulk(
+                                      _deleteBooks,
+                                      'Deleted downloads',
+                                    ),
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.redAccent,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'Delete',
+                                style: TextStyle(color: Colors.redAccent),
+                              ),
                             ),
                           ),
                         ],
@@ -535,8 +742,12 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
 
   void _onEndOfBook() {
     if (_showEndCard) return;
-    _progressSync.sendNow(widget.backend, widget.book.id,
-        page: widget.book.pageCount - 1, completed: true);
+    _progressSync.sendNow(
+      widget.backend,
+      widget.book.id,
+      page: widget.book.pageCount - 1,
+      completed: true,
+    );
     final next = _nextBook;
     if (next != null) {
       // Seamless chapter-to-chapter continuation - go straight into the
@@ -556,7 +767,40 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
     } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
       isRtl ? _stepForward() : _stepBackward();
     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
-      context.pop();
+      // Peel back one layer at a time: panel, then chrome, then the reader.
+      if (_panelOpen) {
+        setState(() => _panelOpen = false);
+      } else if (_overlayVisible) {
+        _hideTimer?.cancel();
+        _hoverShown = false;
+        setState(() => _overlayVisible = false);
+      } else {
+        context.pop();
+      }
+    } else if (event.logicalKey == LogicalKeyboardKey.space ||
+        event.logicalKey == LogicalKeyboardKey.pageDown) {
+      final back =
+          event.logicalKey == LogicalKeyboardKey.space &&
+          HardwareKeyboard.instance.isShiftPressed;
+      back ? _stepBackward() : _stepForward();
+    } else if (event.logicalKey == LogicalKeyboardKey.pageUp) {
+      _stepBackward();
+    } else if (event.logicalKey == LogicalKeyboardKey.home) {
+      _seek(0);
+    } else if (event.logicalKey == LogicalKeyboardKey.end) {
+      _seek(widget.book.pageCount - 1);
+    } else if (event.logicalKey == LogicalKeyboardKey.bracketRight) {
+      final next = _nextBook;
+      if (next != null) _goToBook(next.id);
+    } else if (event.logicalKey == LogicalKeyboardKey.bracketLeft) {
+      final prev = _previousBook;
+      if (prev != null) _goToBook(prev.id);
+    } else if (event.logicalKey == LogicalKeyboardKey.keyC) {
+      _togglePanel();
+    } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
+      _cycleMode();
+    } else if (event.logicalKey == LogicalKeyboardKey.keyD) {
+      _toggleDirection();
     }
   }
 
@@ -573,7 +817,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
       final previous = _previousBook;
       // Land on the previous chapter's last page - going back should feel
       // like turning a page, not restarting or resuming somewhere else.
-      if (previous != null) _goToBook(previous.id, page: previous.pageCount - 1);
+      if (previous != null) {
+        _goToBook(previous.id, page: previous.pageCount - 1);
+      }
       return;
     }
     _seek(_currentPage - 1);
@@ -625,56 +871,103 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody> with WidgetsBindingObs
 
   @override
   Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= _wideBreakpoint;
     return KeyboardListener(
-      focusNode: FocusNode()..canRequestFocus = true,
+      focusNode: _focus,
       autofocus: true,
       onKeyEvent: _handleKey,
       child: Scaffold(
         backgroundColor: Color(_settings.backgroundColor),
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: EdgeSwipe(
-                onPastStart: _stepBackward,
-                child: _buildPager(),
-              ),
-            ),
-            ReaderOverlay(
-              visible: _overlayVisible,
-              title: widget.book.title,
-              subtitle:
-                  'Ch. ${widget.book.number.replaceFirst(RegExp(r'^0+(?=\d)'), '')}',
-              currentPage: _currentPage,
-              pageCount: widget.book.pageCount,
-              settings: _settings,
-              onSeek: _seek,
-              onClose: () => context.pop(),
-              onOpenSettings: _openSettingsSheet,
-              onToggleDirection: _toggleDirection,
-              onCycleMode: _cycleMode,
-              onOpenChapters: _openChapterPicker,
-              onTogglePanelMode:
-                  _settings.mode == ReaderMode.single ? _togglePanelMode : null,
-            ),
-            if (_panelModeActive && _panelRects != null && _panelPageBytes != null)
-              Positioned.fill(
-                child: PanelZoomView(
-                  imageBytes: _panelPageBytes!,
-                  panels: _panelRects!,
-                  onExhausted: () => setState(() => _panelModeActive = false),
-                  onExit: () => setState(() => _panelModeActive = false),
+        // Listener + MouseRegion observe the mouse without joining the
+        // gesture arena, so page taps, drags and zoom behave as before.
+        body: Listener(
+          onPointerDown: (e) {
+            if (e.kind == PointerDeviceKind.mouse &&
+                e.buttons == kSecondaryMouseButton) {
+              _openContextMenu(e.position);
+            }
+          },
+          child: MouseRegion(
+            onHover: _onHover,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: EdgeSwipe(
+                    onPastStart: _stepBackward,
+                    child: _buildPager(),
+                  ),
                 ),
-              ),
-            if (_showEndCard) _EndOfBookCard(
-              nextBook: _nextBook,
-              onNext: (id) {
-                setState(() => _showEndCard = false);
-                context.pushReplacement('/read/${Uri.encodeComponent(id)}');
-              },
-              onBackToSeries: () => context.go('/series/${Uri.encodeComponent(widget.book.seriesId)}'),
-              onDismiss: () => setState(() => _showEndCard = false),
+                ReaderOverlay(
+                  visible: _overlayVisible,
+                  title: widget.book.title,
+                  subtitle:
+                      'Ch. ${widget.book.number.replaceFirst(RegExp(r'^0+(?=\d)'), '')}',
+                  currentPage: _currentPage,
+                  pageCount: widget.book.pageCount,
+                  settings: _settings,
+                  onSeek: _seek,
+                  onClose: () => context.pop(),
+                  onOpenSettings: _openSettingsSheet,
+                  onToggleDirection: _toggleDirection,
+                  onCycleMode: _cycleMode,
+                  onOpenChapters: wide ? _togglePanel : _openChapterPicker,
+                  onTogglePanelMode: _settings.mode == ReaderMode.single
+                      ? _togglePanelMode
+                      : null,
+                ),
+                if (_panelModeActive &&
+                    _panelRects != null &&
+                    _panelPageBytes != null)
+                  Positioned.fill(
+                    child: PanelZoomView(
+                      imageBytes: _panelPageBytes!,
+                      panels: _panelRects!,
+                      onExhausted: () =>
+                          setState(() => _panelModeActive = false),
+                      onExit: () => setState(() => _panelModeActive = false),
+                    ),
+                  ),
+                if (_showEndCard)
+                  _EndOfBookCard(
+                    nextBook: _nextBook,
+                    onNext: (id) {
+                      setState(() => _showEndCard = false);
+                      context.pushReplacement(
+                        '/read/${Uri.encodeComponent(id)}',
+                      );
+                    },
+                    onBackToSeries: () => context.go(
+                      '/series/${Uri.encodeComponent(widget.book.seriesId)}',
+                    ),
+                    onDismiss: () => setState(() => _showEndCard = false),
+                  ),
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  width: ChapterPanel.width,
+                  child: IgnorePointer(
+                    ignoring: !_panelOpen,
+                    child: AnimatedSlide(
+                      offset: _panelOpen ? Offset.zero : const Offset(1, 0),
+                      duration: Motion.scaled(
+                        context,
+                        _panelOpen ? Motion.base : Motion.fast,
+                      ),
+                      curve: Motion.easeOut,
+                      child: ChapterPanel(
+                        title: widget.book.title,
+                        books: widget.seriesBooks,
+                        currentId: widget.book.id,
+                        onOpen: (b) => _goToBook(b.id),
+                        onClose: _togglePanel,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -708,13 +1001,17 @@ class _EndOfBookCard extends StatelessWidget {
             children: [
               const Icon(Icons.check_circle, size: 40),
               const SizedBox(height: 12),
-              Text('Finished this book',
-                  style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Finished this book',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 16),
               if (nextBook != null) ...[
-                Text('Next: ${nextBook!.title}',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium),
+                Text(
+                  'Next: ${nextBook!.title}',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => onNext(nextBook!.id),
@@ -726,7 +1023,10 @@ class _EndOfBookCard extends StatelessWidget {
                 onPressed: onBackToSeries,
                 child: const Text('Back to series'),
               ),
-              TextButton(onPressed: onDismiss, child: const Text('Keep reading')),
+              TextButton(
+                onPressed: onDismiss,
+                child: const Text('Keep reading'),
+              ),
             ],
           ),
         ),
