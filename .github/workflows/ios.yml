@@ -1,0 +1,41 @@
+name: iOS build (unsigned IPA for sideloading)
+
+# Builds the app on a free macOS runner and uploads an UNSIGNED .ipa as a
+# downloadable artifact. There is no signing here on purpose: install it with
+# SideStore / AltStore / Sideloadly, which re-sign it with your own (free)
+# Apple ID. Free-ID installs expire after 7 days and need refreshing.
+#
+# Run it by hand: GitHub > Actions > "iOS build" > Run workflow. Public
+# repositories get macOS runner time for free.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build (no code signing)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package the .ipa
+        run: |
+          mkdir Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qr ShaddaiReader-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShaddaiReader-unsigned-ipa
+          path: ShaddaiReader-unsigned.ipa
+          retention-days: 14
