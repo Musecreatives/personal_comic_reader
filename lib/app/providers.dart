@@ -10,6 +10,7 @@ import '../core/backend/reader_backend.dart';
 import '../core/collections/collections_store.dart';
 import '../core/history/history_entry.dart';
 import '../core/history/history_store.dart';
+import '../core/history/stopped_series_store.dart';
 import '../core/downloads/download_manager.dart';
 import '../core/downloads/download_models.dart';
 import '../core/downloads/download_store.dart';
@@ -176,8 +177,26 @@ final historyRevisionProvider = StateProvider<int>((ref) => 0);
 /// one was read *last*.
 final recentReadingProvider = Provider<List<HistoryEntry>>((ref) {
   ref.watch(historyRevisionProvider);
-  return ref.watch(historyStoreProvider).list();
+  ref.watch(stoppedRevisionProvider);
+  final activeId = ref.watch(activeServerIdProvider);
+  final stopped = ref.watch(stoppedSeriesStoreProvider);
+  return ref
+      .watch(historyStoreProvider)
+      .list()
+      // A series the user stopped stays hidden until they read it again.
+      .where((e) => !stopped.isStopped('${e.serverId ?? activeId}|${e.seriesId}',
+          lastReadAt: e.timestamp))
+      .toList();
 });
+
+/// Set once in main() after StoppedSeriesStore.init() completes.
+final stoppedSeriesStoreProvider = Provider<StoppedSeriesStore>((ref) {
+  throw UnimplementedError(
+      'stoppedSeriesStoreProvider must be overridden in main()');
+});
+
+/// Bump after stopping or resuming a series so Home refilters.
+final stoppedRevisionProvider = StateProvider<int>((ref) => 0);
 
 /// The backend for [serverId] (or the active one when null, i.e. a legacy
 /// history entry from before servers were tracked). Null if that server has

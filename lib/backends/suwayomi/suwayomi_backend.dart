@@ -285,6 +285,19 @@ class SuwayomiBackend implements ReaderBackend {
     return nodes.map((e) => _bookFromJson(e)).toList();
   }
 
+  /// Takes a series out of the Suwayomi library. It only stops being a library
+  /// entry (so it leaves Library, updates and Continue reading); nothing is
+  /// deleted from the source, and it can be added again from Browse sources.
+  /// Suwayomi-specific - Komga and Kavita have no equivalent short of
+  /// deleting files, which the app deliberately does not offer.
+  Future<void> removeFromLibrary(String seriesId) async {
+    await _gql(
+      'mutation(\$id: Int!) { updateManga(input: {id: \$id, patch: {inLibrary: false}}) '
+      '{ manga { id inLibrary } } }',
+      {'id': int.parse(seriesId)},
+    );
+  }
+
   @override
   Future<List<Collection>> listCollections() async => const [];
 

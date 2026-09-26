@@ -7,6 +7,10 @@ import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/downloads/download_models.dart';
+import '../../backends/suwayomi/suwayomi_backend.dart';
+import '../home/home_feed.dart';
+import 'download_sheet.dart';
+import 'series_actions_sheet.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 
@@ -79,10 +83,72 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
         _booksFuture = widget.backend.listBooks(widget.seriesId);
       });
 
+  /// The download button opens a picker (next 5/10, new since you last read,
+  /// all unread, everything, or a checklist) rather than queueing the lot.
   Future<void> _downloadSeries(Series series) async {
     final books = await _booksFuture;
-    await ref.read(downloadManagerProvider).enqueueBooks(
-        widget.backend, books, widget.seriesId, series.title);
+    if (!mounted) return;
+    final tasks = ref.read(downloadQueueProvider).valueOrNull ?? const <DownloadTask>[];
+    // Failed ones can be offered again; anything else is already handled.
+    final already = tasks
+        .where((t) => t.seriesId == widget.seriesId && t.state != DownloadState.failed)
+        .map((t) => t.bookId)
+        .toSet();
+    await DownloadSheet.show(
+      context,
+      books: books,
+      alreadyIds: already,
+      onConfirm: (chosen) async {
+        await ref.read(downloadManagerProvider).enqueueBooks(
+            widget.backend, chosen, widget.seriesId, series.title);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Downloading ${chosen.length} chapter${chosen.length == 1 ? '' : 's'}'),
+          duration: const Duration(seconds: 2),
+        ));
+      },
+    );
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)));
+  }
+
+  /// Stop reading / delete downloads / remove from library.
+  void _showActions(Series series, int downloadedCount) {
+    final backend = widget.backend;
+    SeriesActionsSheet.show(
+      context,
+      title: series.title,
+      downloadedCount: downloadedCount,
+      canRemoveFromLibrary: backend is SuwayomiBackend,
+      onStopReading: () async {
+        await ref
+            .read(stoppedSeriesStoreProvider)
+            .stop('${backend.config.id}|${widget.seriesId}');
+        ref.read(stoppedRevisionProvider.notifier).state++;
+        _snack('Hidden from Home. It comes back when you read it again.');
+      },
+      onDeleteDownloads: () async {
+        await ref.read(downloadManagerProvider).cancelSeries(widget.seriesId);
+        _snack('Downloads removed from this device');
+      },
+      onRemoveFromLibrary: () async {
+        try {
+          await (backend as SuwayomiBackend).removeFromLibrary(widget.seriesId);
+        } catch (e) {
+          _snack("Couldn't remove it: $e");
+          return;
+        }
+        ref.invalidate(homeFeedProvider);
+        if (!mounted) return;
+        context.pop();
+        _snack('Removed from library');
+      },
+    );
   }
 
   void _showCollectionPicker(BuildContext context, String seriesId) {
@@ -175,6 +241,10 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
               context.push('/read/${Uri.encodeComponent(next.id)}');
             },
             onSaveToCollection: () => _showCollectionPicker(context, series.id),
+            onMore: () => _showActions(
+              series,
+              seriesTasks.where((t) => t.state == DownloadState.done).length,
+            ),
           );
 
           final bookList = FutureBuilder<List<Book>>(
@@ -251,6 +321,7 @@ class _SeriesHeader extends StatelessWidget {
   final VoidCallback onDownloadAll;
   final VoidCallback onRead;
   final VoidCallback onSaveToCollection;
+  final VoidCallback onMore;
 
   const _SeriesHeader({
     required this.series,
@@ -259,6 +330,7 @@ class _SeriesHeader extends StatelessWidget {
     required this.onDownloadAll,
     required this.onRead,
     required this.onSaveToCollection,
+    required this.onMore,
   });
 
   @override
@@ -369,6 +441,8 @@ class _SeriesHeader extends StatelessWidget {
               const SizedBox(width: 10),
               _ActionIconButton(
                   icon: Icons.bookmark_border, onTap: onSaveToCollection),
+              const SizedBox(width: 10),
+              _ActionIconButton(icon: Icons.more_horiz_rounded, onTap: onMore),
             ],
           ),
         ),
