@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../../core/backend/models.dart';
+import '../../core/discovery/recommender.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/network/retry_interceptor.dart';
 
@@ -374,6 +375,64 @@ class SuwayomiBackend implements ReaderBackend {
             ))
         .toList();
     return (mangas: mangas, hasNext: result['hasNextPage'] as bool? ?? false);
+  }
+
+  /// The library reduced to title, genres and source - what taste is built
+  /// from (see [Recommender]).
+  Future<List<TasteTitle>> libraryTaste() async {
+    final data = await _gql(
+      '{ mangas(condition: {inLibrary: true}, first: 1000) { nodes { title genre sourceId } } }',
+    );
+    return (data['mangas']['nodes'] as List)
+        .map((e) => TasteTitle(
+              title: e['title'] as String? ?? '',
+              genres: ((e['genre'] as List?) ?? const []).cast<String>(),
+              sourceId: '${e['sourceId']}',
+            ))
+        .toList();
+  }
+
+  Future<List<String>> _mangaGenres(int id) async {
+    final data = await _gql(
+      'mutation(\$id: Int!) { fetchManga(input: {id: \$id}) { manga { genre } } }',
+      {'id': id},
+    );
+    return ((data['fetchManga']['manga']['genre'] as List?) ?? const [])
+        .cast<String>();
+  }
+
+  /// Popular titles from each of [sourceIds], with genres filled in (a source
+  /// listing carries none, so each title costs one detail lookup, done a few
+  /// at a time). A source that fails is skipped rather than failing the lot.
+  Future<List<Candidate>> discoverCandidates(List<String> sourceIds,
+      {int perSource = 15}) async {
+    final out = <Candidate>[];
+    // Sources in parallel (they are different sites), titles within one
+    // source a few at a time so no single site is hammered.
+    await Future.wait(sourceIds.map((sid) async {
+      try {
+        final page = await browseSource(sid);
+        final picks = page.mangas.take(perSource).toList();
+        for (var i = 0; i < picks.length; i += 5) {
+          await Future.wait(picks.skip(i).take(5).map((m) async {
+            try {
+              out.add(Candidate(
+                id: m.id,
+                title: m.title,
+                thumbnailUrl: m.thumbnailUrl,
+                genres: await _mangaGenres(m.id),
+                sourceId: sid,
+              ));
+            } catch (_) {
+              // One title's details failing shouldn't lose the rest.
+            }
+          }));
+        }
+      } catch (_) {
+        // Source down or unsupported: the others still count.
+      }
+    }));
+    return out;
   }
 
   /// Returns the id of an existing category named [name], or creates one.

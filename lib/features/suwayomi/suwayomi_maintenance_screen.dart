@@ -293,6 +293,13 @@ class _Body extends StatelessWidget {
               busy: false,
               onTap: () => context.push('/settings/suwayomi/browse'),
             ),
+            const SizedBox(height: 8),
+            _ActionRow(
+              icon: Icons.auto_awesome_outlined,
+              label: 'Recommended for you',
+              busy: false,
+              onTap: () => context.push('/discover/recommendations'),
+            ),
             const SizedBox(height: 22),
             Text('EXTENSIONS', style: AppText.sectionLabel()),
             const SizedBox(height: 10),

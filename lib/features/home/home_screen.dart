@@ -11,6 +11,8 @@ import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/history/history_entry.dart';
+import '../../core/discovery/recommender.dart';
+import '../discovery/discovery_providers.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 import 'home_feed.dart';
@@ -221,6 +223,10 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
     final servers = ref.watch(serverListProvider);
     final stoppedRevision = ref.watch(stoppedRevisionProvider);
     final stopped = ref.watch(stoppedSeriesStoreProvider);
+    // Cache only: computing recommendations is slow and lives on its own screen.
+    final recs = ref.watch(cachedRecommendationsProvider).valueOrNull ?? const [];
+    final suwayomiVisible = _filter == null ||
+        servers.any((s) => s.id == _filter && s.type == ServerType.suwayomi);
 
     return RefreshIndicator(
       onRefresh: _refresh,
@@ -292,6 +298,8 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                               lastBySeries: last,
                               onOpen: _openSeries,
                             ),
+                          if (recs.length >= 3 && suwayomiVisible)
+                            _RecommendedShelf(recs: recs.take(12).toList()),
                           if (recent.length >= 3)
                             _JustAdded(rows: recent, onOpen: _openSeries),
                           if (shelf.isEmpty && recent.isEmpty && heroes.isEmpty)
@@ -874,6 +882,92 @@ class _ContinueShelf extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Recommended for you": titles matched to the library's genres, from the
+/// last time the Recommended screen ran. Tapping anything opens that screen,
+/// where they can be added.
+class _RecommendedShelf extends StatelessWidget {
+  final List<Recommendation> recs;
+  const _RecommendedShelf({required this.recs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 22, 12, 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Recommended for you', style: AppText.heading(size: 17)),
+              TextButton(
+                onPressed: () => context.push('/discover/recommendations'),
+                child: Text('See all',
+                    style: AppText.body(
+                        size: 13, weight: FontWeight.w500, color: AppColors.accentLink)),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 186,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: recs.length,
+            itemBuilder: (context, i) {
+              final r = recs[i];
+              return FadeSlideIn(
+                delay: Duration(milliseconds: 35 * math.min(i, 6)),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 13),
+                  child: PressScale(
+                    child: GestureDetector(
+                      onTap: () => context.push('/discover/recommendations'),
+                      behavior: HitTestBehavior.opaque,
+                      child: SizedBox(
+                        width: 104,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(13),
+                                child: SizedBox.expand(
+                                  child: SeriesCover(imageUrl: r.candidate.thumbnailUrl),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(r.candidate.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppText.body(size: 12, weight: FontWeight.w500)),
+                            const SizedBox(height: 2),
+                            Text(
+                              r.because.isEmpty
+                                  ? ''
+                                  : r.because.first[0].toUpperCase() +
+                                      r.because.first.substring(1),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.mono(size: 10, color: AppColors.accentLink),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],
