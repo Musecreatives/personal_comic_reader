@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
+import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
@@ -148,7 +149,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         }
 
         final wide = MediaQuery.of(context).size.width >= _wideBreakpoint;
-        if (wide) _librariesFuture ??= backend.listLibraries();
+        // Needed on phones too: the category chips under the search field.
+        _librariesFuture ??= backend.listLibraries();
 
         final content = Scaffold(
           backgroundColor: AppColors.page,
@@ -191,6 +193,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       sourceColor: AppColors.sourceColor(backend.config.type.name),
                       sourceName: backend.config.name,
                       count: _items.length,
+                      // On wide screens the sidebar already lists them.
+                      librariesFuture: wide ? null : _librariesFuture,
+                      selectedLibraryId: _libraryId,
+                      onSelectLibrary: _selectLibrary,
                     ),
                   ),
                   SliverPadding(
@@ -457,6 +463,9 @@ class _LibraryHeader extends StatelessWidget {
   final Color sourceColor;
   final String sourceName;
   final int count;
+  final Future<List<Library>>? librariesFuture;
+  final String? selectedLibraryId;
+  final ValueChanged<String> onSelectLibrary;
 
   const _LibraryHeader({
     required this.viewMode,
@@ -470,6 +479,9 @@ class _LibraryHeader extends StatelessWidget {
     required this.sourceColor,
     required this.sourceName,
     required this.count,
+    required this.librariesFuture,
+    required this.selectedLibraryId,
+    required this.onSelectLibrary,
   });
 
   @override
@@ -547,20 +559,52 @@ class _LibraryHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              _FilterChip(label: 'All', selected: !unreadOnly, onTap: () {
-                if (unreadOnly) onToggleUnread();
-              }),
-              const SizedBox(width: 7),
-              _FilterChip(
-                label: 'Unread',
-                selected: unreadOnly,
-                onTap: () {
-                  if (!unreadOnly) onToggleUnread();
-                },
-              ),
-            ],
+          SizedBox(
+            height: 34,
+            child: FutureBuilder<List<Library>>(
+              future: librariesFuture,
+              builder: (context, snapshot) {
+                final libraries = snapshot.data ?? const <Library>[];
+                return ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.zero,
+                  // Let the row scroll out to the screen edge, not the padding.
+                  clipBehavior: Clip.none,
+                  children: [
+                    _FilterChip(label: 'All', selected: !unreadOnly, onTap: () {
+                      if (unreadOnly) onToggleUnread();
+                    }),
+                    const SizedBox(width: 7),
+                    _FilterChip(
+                      label: 'Unread',
+                      selected: unreadOnly,
+                      onTap: () {
+                        if (!unreadOnly) onToggleUnread();
+                      },
+                    ),
+                    // The collections/categories, so a phone can switch between
+                    // them (the sidebar that lists them only exists when wide).
+                    if (libraries.length > 1) ...[
+                      Container(
+                        width: 1,
+                        height: 18,
+                        margin: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                        color: AppColors.border,
+                      ),
+                      for (final lib in libraries) ...[
+                        _FilterChip(
+                          label: lib.name,
+                          selected: lib.id == selectedLibraryId,
+                          tinted: true,
+                          onTap: () => onSelectLibrary(lib.id),
+                        ),
+                        const SizedBox(width: 7),
+                      ],
+                    ],
+                  ],
+                );
+              },
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -612,26 +656,45 @@ class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Selected collections use an outlined, tinted look so they read as a
+  /// different kind of choice from the filled All / Unread filters.
+  final bool tinted;
   const _FilterChip(
-      {required this.label, required this.selected, required this.onTap});
+      {required this.label,
+      required this.selected,
+      required this.onTap,
+      this.tinted = false});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.accent : AppColors.fillSubtle,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+    return PressScale(
+      child: GestureDetector(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-          child: Text(
-            label,
+        child: AnimatedContainer(
+          duration: Motion.scaled(context, Motion.fast),
+          curve: Motion.easeOut,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 13),
+          decoration: BoxDecoration(
+            color: selected
+                ? (tinted ? AppColors.accent.withValues(alpha: 0.16) : AppColors.accent)
+                : AppColors.fillSubtle,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected && tinted ? AppColors.accent : Colors.transparent,
+            ),
+          ),
+          child: AnimatedDefaultTextStyle(
+            duration: Motion.scaled(context, Motion.fast),
             style: AppText.body(
               size: 11.5,
               weight: FontWeight.w600,
-              color: selected ? Colors.white : AppColors.text60,
+              color: selected
+                  ? (tinted ? AppColors.accentLink : Colors.white)
+                  : AppColors.text60,
             ),
+            child: Text(label),
           ),
         ),
       ),
