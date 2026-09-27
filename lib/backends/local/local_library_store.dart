@@ -51,12 +51,17 @@ class LocalBookRecord {
     required this.addedAt,
   });
 
-  LocalBookRecord copyWith({int? readProgressPage, bool? completed}) =>
+  LocalBookRecord copyWith({
+    String? title,
+    String? number,
+    int? readProgressPage,
+    bool? completed,
+  }) =>
       LocalBookRecord(
         id: id,
         seriesId: seriesId,
-        title: title,
-        number: number,
+        title: title ?? this.title,
+        number: number ?? this.number,
         pageCount: pageCount,
         readProgressPage: readProgressPage ?? this.readProgressPage,
         completed: completed ?? this.completed,

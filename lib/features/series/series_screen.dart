@@ -9,6 +9,7 @@ import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/downloads/download_models.dart';
+import '../../backends/local/local_backend.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../home/home_feed.dart';
 import 'chapter_actions.dart';
@@ -327,6 +328,52 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
     );
   }
 
+  Future<void> _renameBook(Book book) async {
+    final titleController = TextEditingController(text: book.title);
+    final numberController = TextEditingController(text: book.number);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('Rename chapter'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Title'),
+              style: AppText.body(size: 14),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: numberController,
+              decoration: const InputDecoration(labelText: 'Chapter number'),
+              style: AppText.body(size: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (result != true) return;
+    final store = ref.read(localLibraryStoreProvider);
+    final existing = store.getBook(book.id);
+    if (existing == null) return;
+    await store.putBook(existing.copyWith(
+      title: titleController.text.trim(),
+      number: numberController.text.trim(),
+    ));
+    _reloadBooks();
+  }
+
   void _showCollectionPicker(BuildContext context, String seriesId) {
     showModalBottomSheet<void>(
       context: context,
@@ -592,6 +639,9 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
               onLongPress: () => _onLongPressBook(book),
               onSecondaryTap: (at) => _onSecondaryTap(book, at, tasks),
               onDownload: () => onDownloadBook(book),
+              onRename: widget.backend is LocalBackend
+                  ? () => _renameBook(book)
+                  : null,
             );
           },
         ),
@@ -972,6 +1022,7 @@ class _ChapterRow extends StatelessWidget {
   final VoidCallback onLongPress;
   final ValueChanged<Offset> onSecondaryTap;
   final VoidCallback onDownload;
+  final VoidCallback? onRename;
 
   const _ChapterRow({
     required this.book,
@@ -983,6 +1034,7 @@ class _ChapterRow extends StatelessWidget {
     required this.onLongPress,
     required this.onSecondaryTap,
     required this.onDownload,
+    this.onRename,
   });
 
   @override
@@ -1066,6 +1118,14 @@ class _ChapterRow extends StatelessWidget {
                 ],
               ),
             ),
+            if (onRename != null)
+              InkWell(
+                onTap: onRename,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(Icons.edit_outlined, size: 16, color: AppColors.text30),
+                ),
+              ),
             if (book.completed)
               Icon(Icons.check, size: 16, color: AppColors.suwayomiText)
             else if (task != null && task!.state != DownloadState.done)
