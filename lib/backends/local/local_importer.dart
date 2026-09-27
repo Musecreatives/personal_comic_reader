@@ -200,6 +200,52 @@ class PickedImageFile {
   const PickedImageFile(this.name, this.bytes);
 }
 
+/// Re-zips a previously-imported book's stored pages back into a CBZ - the
+/// only backup path this data has, since it lives solely in this device's
+/// Hive boxes with no server behind it. Page order matches storage order
+/// (already-sorted at import time), so this round-trips byte-for-byte.
+Uint8List exportBookToCbz(LocalLibraryStore store, LocalBookRecord book) {
+  final archive = Archive();
+  for (var i = 0; i < book.pageCount; i++) {
+    final bytes = store.getPage(book.id, i);
+    if (bytes == null) continue;
+    archive.addFile(ArchiveFile(
+      '${(i + 1).toString().padLeft(3, '0')}.jpg',
+      bytes.length,
+      bytes,
+    ));
+  }
+  return Uint8List.fromList(ZipEncoder().encode(archive));
+}
+
+/// A filesystem-safe version of [name] - strips characters Windows/macOS
+/// forbid in file/folder names.
+String sanitizeFileName(String name) {
+  final cleaned = name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+  return cleaned.isEmpty ? 'Untitled' : cleaned;
+}
+
+/// Exports every book in [seriesId] as one CBZ per chapter, under
+/// `<folderPath>/<series title>/<chapter title>.cbz`. Returns the number of
+/// files written.
+Future<int> exportSeriesToFolder({
+  required LocalLibraryStore store,
+  required String seriesId,
+  required String folderPath,
+}) async {
+  final series = store.getSeries(seriesId);
+  if (series == null) throw const ImportException('Series not found.');
+  final books = store.listBooksForSeries(seriesId);
+  final dir = Directory('$folderPath/${sanitizeFileName(series.title)}');
+  await dir.create(recursive: true);
+  for (final book in books) {
+    final bytes = exportBookToCbz(store, book);
+    final file = File('${dir.path}/${sanitizeFileName(book.title)}.cbz');
+    await file.writeAsBytes(bytes);
+  }
+  return books.length;
+}
+
 Future<String> importLooseFiles({
   required LocalLibraryStore store,
   required List<PickedImageFile> files,
