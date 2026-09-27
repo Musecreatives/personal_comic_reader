@@ -72,16 +72,14 @@ class _NoServerState extends StatelessWidget {
 
 String _typeLabel(ServerType t) => switch (t) {
       ServerType.komga => 'Komga',
-      ServerType.kavita => 'Kavita',
       ServerType.suwayomi => 'Suwayomi',
       ServerType.opds => 'OPDS',
       ServerType.local => 'On This Device',
     };
 
-/// Komga/Kavita are Western-comic-shaped (issues, not chapters); Suwayomi/OPDS
-/// read as manga. Only affects the label word - the data is backend-agnostic.
-bool _isComicBackend(ServerType type) =>
-    type == ServerType.komga || type == ServerType.kavita;
+/// Komga is Western-comic-shaped (issues, not chapters); Suwayomi/OPDS read
+/// as manga. Only affects the label word - the data is backend-agnostic.
+bool _isComicBackend(ServerType type) => type == ServerType.komga;
 
 String _ago(DateTime t) {
   final d = DateTime.now().difference(t);

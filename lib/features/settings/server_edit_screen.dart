@@ -5,7 +5,6 @@ import 'package:uuid/uuid.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
-import '../../backends/kavita/kavita_backend.dart';
 import '../../backends/komga/komga_backend.dart';
 import '../../backends/opds/opds_backend.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
@@ -44,17 +43,15 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
   bool get _isEditing => widget.serverId != null;
 
   /// When the PWA is itself served from reader.shaddai.home (see
-  /// deploy/Caddyfile.snippet), a Caddy reverse proxy makes Komga, Kavita,
-  /// and Suwayomi reachable same-origin under /komga, /kavita, and
-  /// /suwayomi - avoiding the browser CORS restriction that a bare
-  /// Tailscale IP always hits. Direct IP entry still works fine for local
-  /// dev. OPDS has no proxy path since it's not tied to a single fixed
-  /// server the way the other three are.
+  /// deploy/Caddyfile.snippet), a Caddy reverse proxy makes Komga and
+  /// Suwayomi reachable same-origin under /komga and /suwayomi - avoiding
+  /// the browser CORS restriction that a bare Tailscale IP always hits.
+  /// Direct IP entry still works fine for local dev. OPDS has no proxy path
+  /// since it's not tied to a single fixed server the way the other two are.
   String? _sameOriginDefaultUrl(ServerType type) {
     if (Uri.base.host != 'reader.shaddai.home') return null;
     return switch (type) {
       ServerType.komga => '${Uri.base.origin}/komga',
-      ServerType.kavita => '${Uri.base.origin}/kavita',
       ServerType.suwayomi => '${Uri.base.origin}/suwayomi',
       ServerType.opds => null,
       ServerType.local => null, // never reachable here - not an addable type
@@ -117,8 +114,6 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
     final backend = switch (_type) {
       ServerType.komga =>
         KomgaBackend(config: config, password: _passwordController.text),
-      ServerType.kavita =>
-        KavitaBackend(config: config, password: _passwordController.text),
       ServerType.suwayomi =>
         SuwayomiBackend(config: config, password: _passwordController.text),
       ServerType.opds =>
@@ -172,7 +167,6 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
 
   String get _serverTypeLabel => switch (_type) {
         ServerType.komga => 'Komga',
-        ServerType.kavita => 'Kavita',
         ServerType.suwayomi => 'Suwayomi',
         ServerType.opds => 'OPDS',
         ServerType.local => 'On This Device',
@@ -239,7 +233,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
                 children: [
-                  for (final t in ServerType.values)
+                  for (final t in ServerType.values.where((t) => t != ServerType.local))
                     _TypeCard(
                       type: t,
                       selected: _type == t,
@@ -383,7 +377,6 @@ class _TypeCard extends StatelessWidget {
     final color = AppColors.sourceColor(type.name);
     final label = switch (type) {
       ServerType.komga => 'Komga',
-      ServerType.kavita => 'Kavita',
       ServerType.suwayomi => 'Suwayomi',
       ServerType.opds => 'OPDS',
       // Never offered as a type card - not an addable type.

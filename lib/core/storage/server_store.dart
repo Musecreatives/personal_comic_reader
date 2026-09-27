@@ -27,17 +27,29 @@ class ServerStore {
   }
 
   List<ServerConfig> listServers() {
-    return _box.keys
-        .where((k) => k != _activeIdKey)
-        .map((k) => ServerConfig.fromJson(
-            jsonDecode(_box.get(k)!) as Map<String, dynamic>))
-        .toList();
+    final configs = <ServerConfig>[];
+    for (final k in _box.keys) {
+      if (k == _activeIdKey) continue;
+      try {
+        configs.add(ServerConfig.fromJson(
+            jsonDecode(_box.get(k)!) as Map<String, dynamic>));
+      } catch (_) {
+        // A server type removed from the app (e.g. a discontinued backend)
+        // leaves a config this build can no longer parse - drop it rather
+        // than crash the whole list; the user can add a replacement server.
+      }
+    }
+    return configs;
   }
 
   ServerConfig? getServer(String id) {
     final raw = _box.get(id);
     if (raw == null) return null;
-    return ServerConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    try {
+      return ServerConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> saveServer(ServerConfig config, {String? password}) async {

@@ -10,16 +10,31 @@ class LocalSeriesRecord {
   final String title;
   final DateTime addedAt;
 
+  /// Which media-pool folder "Upload to media pool" targets - 'comic' or
+  /// 'manga'. Null until the user is asked (or answers) the first time they
+  /// upload this series; there's no reliable way to infer it from the file.
+  final String? contentKind;
+
   const LocalSeriesRecord({
     required this.id,
     required this.title,
     required this.addedAt,
+    this.contentKind,
   });
+
+  LocalSeriesRecord copyWith({String? title, String? contentKind}) =>
+      LocalSeriesRecord(
+        id: id,
+        title: title ?? this.title,
+        addedAt: addedAt,
+        contentKind: contentKind ?? this.contentKind,
+      );
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
         'addedAt': addedAt.toIso8601String(),
+        if (contentKind != null) 'contentKind': contentKind,
       };
 
   factory LocalSeriesRecord.fromJson(Map<String, dynamic> json) =>
@@ -27,6 +42,7 @@ class LocalSeriesRecord {
         id: json['id'] as String,
         title: json['title'] as String,
         addedAt: DateTime.parse(json['addedAt'] as String),
+        contentKind: json['contentKind'] as String?,
       );
 }
 

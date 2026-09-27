@@ -139,8 +139,9 @@ class _MediaPoolSettingsScreenState
               Padding(
                 padding: const EdgeInsets.only(left: 4),
                 child: Text(
-                  'A WebDAV address to back up locally-imported comics to - '
-                  'e.g. a Nextcloud folder mounted onto your library.',
+                  "Your WebDAV files root (not a specific folder) - e.g. a "
+                  'Nextcloud account with "Comics" and "Manga" external '
+                  'storage mounts. Each upload asks which one to use.',
                   style: AppText.body(size: 12.5, color: AppColors.text45),
                 ),
               ),
@@ -149,7 +150,7 @@ class _MediaPoolSettingsScreenState
                 controller: _urlController,
                 style: AppText.body(size: 14),
                 decoration: _fieldDecoration('WebDAV URL',
-                    hint: 'https://nextcloud.example.com/remote.php/dav/files/user/Comics'),
+                    hint: 'https://nextcloud.example.com/remote.php/dav/files/user'),
                 keyboardType: TextInputType.url,
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) return 'Required';

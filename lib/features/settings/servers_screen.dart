@@ -193,7 +193,7 @@ class _EmptyState extends StatelessWidget {
             Text('No servers yet', style: AppText.heading(size: 18)),
             const SizedBox(height: 4),
             Text(
-              'Add a Komga, Kavita, Suwayomi or OPDS server to get started.',
+              'Add a Komga, Suwayomi or OPDS server to get started.',
               textAlign: TextAlign.center,
               style: AppText.body(color: AppColors.text45),
             ),
