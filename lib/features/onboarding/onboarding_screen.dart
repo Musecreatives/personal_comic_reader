@@ -105,6 +105,8 @@ class _SourceCard extends StatelessWidget {
       ServerType.kavita => 'Kavita',
       ServerType.suwayomi => 'Suwayomi',
       ServerType.opds => 'OPDS',
+      // Never offered as an onboarding source card - it's always present.
+      ServerType.local => 'On This Device',
     };
     return Material(
       color: AppColors.card,

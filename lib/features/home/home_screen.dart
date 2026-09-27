@@ -75,6 +75,7 @@ String _typeLabel(ServerType t) => switch (t) {
       ServerType.kavita => 'Kavita',
       ServerType.suwayomi => 'Suwayomi',
       ServerType.opds => 'OPDS',
+      ServerType.local => 'On This Device',
     };
 
 /// Komga/Kavita are Western-comic-shaped (issues, not chapters); Suwayomi/OPDS

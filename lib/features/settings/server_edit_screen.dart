@@ -57,6 +57,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
       ServerType.kavita => '${Uri.base.origin}/kavita',
       ServerType.suwayomi => '${Uri.base.origin}/suwayomi',
       ServerType.opds => null,
+      ServerType.local => null, // never reachable here - not an addable type
     };
   }
 
@@ -122,6 +123,8 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
         SuwayomiBackend(config: config, password: _passwordController.text),
       ServerType.opds =>
         OpdsBackend(config: config, password: _passwordController.text),
+      // Never reachable: local isn't an addable/testable server type.
+      ServerType.local => throw UnsupportedError('local is not addable here'),
     };
 
     try {
@@ -172,6 +175,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
         ServerType.kavita => 'Kavita',
         ServerType.suwayomi => 'Suwayomi',
         ServerType.opds => 'OPDS',
+        ServerType.local => 'On This Device',
       };
 
   Future<void> _save() async {
@@ -382,6 +386,8 @@ class _TypeCard extends StatelessWidget {
       ServerType.kavita => 'Kavita',
       ServerType.suwayomi => 'Suwayomi',
       ServerType.opds => 'OPDS',
+      // Never offered as a type card - not an addable type.
+      ServerType.local => 'On This Device',
     };
     return Material(
       color: selected ? AppColors.accent.withValues(alpha: 0.14) : AppColors.card,

@@ -11,6 +11,7 @@ import 'app/providers.dart';
 import 'app/router.dart';
 import 'app/sync_scheduler.dart';
 import 'app/theme.dart';
+import 'backends/local/local_library_store.dart';
 import 'core/appearance/appearance_store.dart';
 import 'core/collections/collections_store.dart';
 import 'core/downloads/download_manager.dart';
@@ -68,6 +69,9 @@ Future<void> main() async {
   final stoppedSeriesStore = StoppedSeriesStore();
   await stoppedSeriesStore.init();
 
+  final localLibraryStore = LocalLibraryStore();
+  await localLibraryStore.init();
+
   final authStore = AuthStore();
   final syncToken = await authStore.getToken();
   final syncUsername = await authStore.getUsername();
@@ -107,6 +111,7 @@ Future<void> main() async {
         historyStoreProvider.overrideWithValue(historyStore),
         collectionsStoreProvider.overrideWithValue(collectionsStore),
         stoppedSeriesStoreProvider.overrideWithValue(stoppedSeriesStore),
+        localLibraryStoreProvider.overrideWithValue(localLibraryStore),
         authStoreProvider.overrideWithValue(authStore),
         syncQueueProvider.overrideWithValue(syncQueue),
         syncClientProvider.overrideWithValue(syncClient),
