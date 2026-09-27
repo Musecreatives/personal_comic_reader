@@ -473,77 +473,121 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
           ),
         );
 
-        final bookList = FutureBuilder<List<Book>>(
+        return FutureBuilder<List<Book>>(
           future: _booksFuture,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return Padding(
-                padding: const EdgeInsets.all(24),
-                child: AppErrorState(
-                  error: snapshot.error!,
-                  onRetry: _reloadBooks,
+              return CustomScrollView(slivers: [
+                if (!wide) SliverToBoxAdapter(child: header),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: AppErrorState(
+                      error: snapshot.error!,
+                      onRetry: _reloadBooks,
+                    ),
+                  ),
                 ),
-              );
+              ]);
             }
             if (!snapshot.hasData) {
-              return const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              );
+              return CustomScrollView(slivers: [
+                if (!wide) SliverToBoxAdapter(child: header),
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                ),
+              ]);
             }
             final books = List<Book>.from(snapshot.data!);
             final ordered = _newestFirst ? books.reversed.toList() : books;
             _ordered = ordered;
-            return _BookList(
+
+            void onDownloadBook(Book book) => ref
+                .read(downloadManagerProvider)
+                .enqueueBook(
+                  widget.backend,
+                  bookId: book.id,
+                  seriesId: widget.seriesId,
+                  seriesTitle: series.title,
+                  title: book.title,
+                  totalPages: book.pageCount,
+                );
+
+            final chapterSlivers = _chapterSlivers(
               books: ordered,
               headers: headers,
               tasks: tasks,
-              selected: _selected,
-              onTap: _onTapBook,
-              onLongPress: _onLongPressBook,
-              onSecondaryTap: (b, at) => _onSecondaryTap(b, at, tasks),
-              newestFirst: _newestFirst,
-              onToggleSort: () => setState(() => _newestFirst = !_newestFirst),
-              onDownloadBook: (book) => ref
-                  .read(downloadManagerProvider)
-                  .enqueueBook(
-                    widget.backend,
-                    bookId: book.id,
-                    seriesId: widget.seriesId,
-                    seriesTitle: series.title,
-                    title: book.title,
-                    totalPages: book.pageCount,
+              onDownloadBook: onDownloadBook,
+            );
+
+            if (wide) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 400,
+                    child: SingleChildScrollView(child: header),
                   ),
+                  VerticalDivider(width: 1, color: AppColors.border),
+                  Expanded(
+                    child: CustomScrollView(slivers: chapterSlivers),
+                  ),
+                ],
+              );
+            }
+
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: header),
+                ...chapterSlivers,
+              ],
             );
           },
         );
-
-        if (wide) {
-          return CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(width: 360, child: header),
-                    Expanded(child: bookList),
-                  ],
-                ),
-              ),
-            ],
-          );
-        }
-
-        return CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: header),
-            SliverToBoxAdapter(child: bookList),
-            // Room for the selection bar to sit below the last row.
-            const SliverToBoxAdapter(child: SizedBox(height: 96)),
-          ],
-        );
       },
     );
+  }
+
+  List<Widget> _chapterSlivers({
+    required List<Book> books,
+    required Map<String, String> headers,
+    required List<DownloadTask> tasks,
+    required ValueChanged<Book> onDownloadBook,
+  }) {
+    return [
+      SliverToBoxAdapter(
+        child: _ChaptersHeaderRow(
+          newestFirst: _newestFirst,
+          onToggleSort: () => setState(() => _newestFirst = !_newestFirst),
+        ),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        sliver: SliverList.builder(
+          itemCount: books.length,
+          itemBuilder: (context, i) {
+            final book = books[i];
+            final task = tasks.where((t) => t.bookId == book.id).firstOrNull;
+            return _ChapterRow(
+              book: book,
+              headers: headers,
+              task: task,
+              selecting: _selected.isNotEmpty,
+              selected: _selected.contains(book.id),
+              onTap: () => _onTapBook(book),
+              onLongPress: () => _onLongPressBook(book),
+              onSecondaryTap: (at) => _onSecondaryTap(book, at, tasks),
+              onDownload: () => onDownloadBook(book),
+            );
+          },
+        ),
+      ),
+      // Room for the selection bar to sit below the last row.
+      const SliverToBoxAdapter(child: SizedBox(height: 96)),
+    ];
   }
 }
 
@@ -863,88 +907,46 @@ class _Stat extends StatelessWidget {
   }
 }
 
-class _BookList extends StatelessWidget {
-  final List<Book> books;
-  final Map<String, String> headers;
-  final List<DownloadTask> tasks;
-  final Set<String> selected;
-  final ValueChanged<Book> onTap;
-  final ValueChanged<Book> onLongPress;
-  final void Function(Book, Offset) onSecondaryTap;
+class _ChaptersHeaderRow extends StatelessWidget {
   final bool newestFirst;
   final VoidCallback onToggleSort;
-  final ValueChanged<Book> onDownloadBook;
 
-  const _BookList({
-    required this.books,
-    required this.headers,
-    required this.tasks,
-    required this.selected,
-    required this.onTap,
-    required this.onLongPress,
-    required this.onSecondaryTap,
+  const _ChaptersHeaderRow({
     required this.newestFirst,
     required this.onToggleSort,
-    required this.onDownloadBook,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Chapters', style: AppText.heading(size: 17)),
-              Material(
-                color: AppColors.accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(999),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: onToggleSort,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
-                    ),
-                    child: Text(
-                      newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST',
-                      style: AppText.mono(
-                        size: 10,
-                        color: AppColors.accentLink,
-                      ),
-                    ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Chapters', style: AppText.heading(size: 17)),
+          Material(
+            color: AppColors.accent.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(999),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: onToggleSort,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                child: Text(
+                  newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST',
+                  style: AppText.mono(
+                    size: 10,
+                    color: AppColors.accentLink,
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-        ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: books.length,
-          itemBuilder: (context, i) {
-            final book = books[i];
-            final task = tasks.where((t) => t.bookId == book.id).firstOrNull;
-            return _ChapterRow(
-              book: book,
-              headers: headers,
-              task: task,
-              selecting: selected.isNotEmpty,
-              selected: selected.contains(book.id),
-              onTap: () => onTap(book),
-              onLongPress: () => onLongPress(book),
-              onSecondaryTap: (at) => onSecondaryTap(book, at),
-              onDownload: () => onDownloadBook(book),
-            );
-          },
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1012,10 +1014,12 @@ class _ChapterRow extends StatelessWidget {
               duration: Motion.scaled(context, Motion.fast),
               curve: Motion.easeOut,
               width: selecting ? 32 : 0,
+              height: 24,
               child: ClipRect(
                 child: OverflowBox(
                   alignment: Alignment.centerLeft,
                   maxWidth: 32,
+                  maxHeight: 24,
                   child: Padding(
                     padding: const EdgeInsets.only(left: 2),
                     child: Icon(
