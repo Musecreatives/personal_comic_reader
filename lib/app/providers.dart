@@ -18,6 +18,7 @@ import '../core/downloads/download_models.dart';
 import '../core/downloads/download_store.dart';
 import '../core/kapowarr/kapowarr_config.dart';
 import '../core/kapowarr/kapowarr_config_store.dart';
+import '../core/media_pool/media_pool_config_store.dart';
 import '../core/reader/page_cache.dart';
 import '../core/reader/progress_sync.dart';
 import '../core/reader/reader_settings_store.dart';
@@ -142,6 +143,12 @@ final kapowarrConfigStoreProvider = Provider<KapowarrConfigStore>((ref) {
 
 /// Bump after saving/clearing the Kapowarr config so watchers refetch.
 final kapowarrConfigRevisionProvider = StateProvider<int>((ref) => 0);
+
+/// Set once in main() after MediaPoolConfigStore.init() completes.
+final mediaPoolConfigStoreProvider = Provider<MediaPoolConfigStore>((ref) {
+  throw UnimplementedError(
+      'mediaPoolConfigStoreProvider must be overridden in main()');
+});
 
 final kapowarrConfigProvider = FutureProvider<KapowarrConfig?>((ref) {
   ref.watch(kapowarrConfigRevisionProvider);

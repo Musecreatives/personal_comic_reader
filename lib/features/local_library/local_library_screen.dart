@@ -9,6 +9,7 @@ import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../backends/local/local_importer.dart';
 import '../../backends/local/local_library_store.dart';
+import '../../core/media_pool/webdav_client.dart';
 import '../shared/back_button.dart';
 import '../shared/series_cover.dart';
 
@@ -138,6 +139,172 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     context.push('/series/${Uri.encodeComponent(seriesId)}');
   }
 
+  Future<void> _renameSeries(LocalSeriesRecord series) async {
+    final controller = TextEditingController(text: series.title);
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('Rename'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: AppText.body(size: 14),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newTitle == null || newTitle.isEmpty || newTitle == series.title) return;
+    final store = ref.read(localLibraryStoreProvider);
+    await store.putSeries(LocalSeriesRecord(
+      id: series.id,
+      title: newTitle,
+      addedAt: series.addedAt,
+    ));
+    ref.read(localLibraryRevisionProvider.notifier).state++;
+  }
+
+  Future<void> _exportSeries(LocalSeriesRecord series) async {
+    final path = await FilePicker.getDirectoryPath();
+    if (path == null) return;
+    final store = ref.read(localLibraryStoreProvider);
+    try {
+      final count = await exportSeriesToFolder(
+        store: store,
+        seriesId: series.id,
+        folderPath: path,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Exported $count chapter${count == 1 ? '' : 's'}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Couldn't export: $e")));
+    }
+  }
+
+  Future<void> _uploadSeries(LocalSeriesRecord series) async {
+    final config = await ref.read(mediaPoolConfigStoreProvider).getWithPassword();
+    if (config == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Set up the media pool in Settings first'),
+        action: SnackBarAction(
+          label: 'Settings',
+          onPressed: () => context.push('/settings/media-pool'),
+        ),
+      ));
+      return;
+    }
+    final store = ref.read(localLibraryStoreProvider);
+    final books = store.listBooksForSeries(series.id);
+    final client = WebDavClient(config: config);
+    var ok = 0;
+    final errors = <String>[];
+    for (final book in books) {
+      try {
+        final bytes = exportBookToCbz(store, book);
+        await client.putFile(
+          '${sanitizeFileName(series.title)}/${sanitizeFileName(book.title)}.cbz',
+          bytes,
+        );
+        ok++;
+      } catch (e) {
+        errors.add('${book.title}: $e');
+      }
+    }
+    if (!mounted) return;
+    final message = errors.isEmpty
+        ? 'Uploaded $ok chapter${ok == 1 ? '' : 's'} to the media pool'
+        : '$ok uploaded, ${errors.length} failed: ${errors.first}';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
+    );
+  }
+
+  void _showSeriesActions(LocalSeriesRecord series) {
+    showModalBottomSheet<void>(
+      context: context,
+      sheetAnimationStyle: Motion.sheetStyle,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(top: 10, bottom: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.text30,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(series.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.heading(size: 18)),
+            ),
+            _SeriesAction(
+              icon: Icons.edit_outlined,
+              title: 'Rename',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _renameSeries(series);
+              },
+            ),
+            _SeriesAction(
+              icon: Icons.folder_open_outlined,
+              title: 'Export to folder',
+              hint: 'Saves every chapter here as a CBZ file',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _exportSeries(series);
+              },
+            ),
+            _SeriesAction(
+              icon: Icons.cloud_upload_outlined,
+              title: 'Upload to media pool',
+              hint: 'Backs it up to your configured WebDAV folder',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _uploadSeries(series);
+              },
+            ),
+            _SeriesAction(
+              icon: Icons.delete_outline_rounded,
+              title: 'Delete',
+              destructive: true,
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _deleteSeries(series);
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _deleteSeries(LocalSeriesRecord series) async {
     final store = ref.read(localLibraryStoreProvider);
     final confirmed = await showDialog<bool>(
@@ -218,7 +385,7 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
                           delay: Duration(milliseconds: 30 * (i % 12)),
                           child: GestureDetector(
                             onTap: () => _openSeries(s.id),
-                            onLongPress: () => _deleteSeries(s),
+                            onLongPress: () => _showSeriesActions(s),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -309,6 +476,51 @@ class _ImportMenuButton extends StatelessWidget {
             Icon(Icons.add_rounded, size: 18, color: Colors.white),
             SizedBox(width: 6),
             Text('Import', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SeriesAction extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? hint;
+  final bool destructive;
+  final VoidCallback onTap;
+  const _SeriesAction({
+    required this.icon,
+    required this.title,
+    this.hint,
+    this.destructive = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = destructive ? AppColors.dangerText : AppColors.text;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 22, color: color),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: AppText.body(size: 15, weight: FontWeight.w600, color: color)),
+                  if (hint != null) ...[
+                    const SizedBox(height: 3),
+                    Text(hint!, style: AppText.body(size: 12, color: AppColors.text45)),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),

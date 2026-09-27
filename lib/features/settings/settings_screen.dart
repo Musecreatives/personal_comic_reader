@@ -97,6 +97,12 @@ class SettingsScreen extends StatelessWidget {
                 title: 'On This Device',
                 subtitle: 'Import and read CBZ/ZIP files directly',
                 onTap: () => context.push('/local-library'),
+              ),
+              _SettingsRow(
+                icon: Icons.cloud_upload_outlined,
+                title: 'Media Pool',
+                subtitle: 'Back up locally-imported comics over WebDAV',
+                onTap: () => context.push('/settings/media-pool'),
                 isLast: true,
               ),
             ]),

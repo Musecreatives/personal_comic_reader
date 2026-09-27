@@ -20,6 +20,7 @@ import '../features/kapowarr/kapowarr_volume_detail_screen.dart';
 import '../features/kapowarr/kapowarr_volumes_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/local_library/local_library_screen.dart';
+import '../features/settings/media_pool_settings_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/reader/reader_screen.dart';
 import '../features/search/cross_server_search_screen.dart';
@@ -122,6 +123,10 @@ GoRouter buildRouter({
     GoRoute(
       path: '/local-library',
       builder: (context, state) => const LocalLibraryScreen(),
+    ),
+    GoRoute(
+      path: '/settings/media-pool',
+      builder: (context, state) => const MediaPoolSettingsScreen(),
     ),
     GoRoute(
       path: '/collections',

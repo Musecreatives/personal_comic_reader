@@ -102,6 +102,54 @@ void main() {
     );
   });
 
+  group('export', () {
+    test('exportBookToCbz round-trips a book\'s pages byte-for-byte',
+        () async {
+      final bytes = _fakeCbz(['1.jpg', '2.jpg', '3.jpg']);
+      final bookId = await importArchive(
+          store: store, fileName: 'Test.cbz', bytes: bytes);
+      final book = store.getBook(bookId)!;
+
+      final exported = exportBookToCbz(store, book);
+      final archive = ZipDecoder().decodeBytes(exported);
+
+      expect(archive.files, hasLength(3));
+      for (var i = 0; i < 3; i++) {
+        expect(store.getPage(bookId, i), archive.files[i].content);
+      }
+    });
+
+    test('exportSeriesToFolder writes one CBZ per chapter', () async {
+      final dir = Directory.systemTemp.createTempSync('local_export_test');
+      addTearDown(() => dir.deleteSync(recursive: true));
+
+      final book1 = await importArchive(
+        store: store,
+        fileName: 'One World Under Doom #1.cbz',
+        bytes: _fakeCbz(['1.jpg']),
+        seriesTitle: 'One World Under Doom',
+      );
+      await importArchive(
+        store: store,
+        fileName: 'One World Under Doom #2.cbz',
+        bytes: _fakeCbz(['1.jpg']),
+        seriesTitle: 'One World Under Doom',
+      );
+      final seriesId = store.getBook(book1)!.seriesId;
+
+      final count = await exportSeriesToFolder(
+        store: store,
+        seriesId: seriesId,
+        folderPath: dir.path,
+      );
+
+      expect(count, 2);
+      final seriesDir = Directory('${dir.path}/One World Under Doom');
+      expect(seriesDir.existsSync(), isTrue);
+      expect(seriesDir.listSync().whereType<File>(), hasLength(2));
+    });
+  });
+
   group('importFolder', () {
     late Directory dir;
     setUp(() => dir = Directory.systemTemp.createTempSync('local_import_test'));

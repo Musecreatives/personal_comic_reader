@@ -21,6 +21,7 @@ import 'core/history/history_store.dart';
 import 'core/history/stopped_series_store.dart';
 import 'core/downloads/download_store.dart';
 import 'core/kapowarr/kapowarr_config_store.dart';
+import 'core/media_pool/media_pool_config_store.dart';
 import 'core/reader/page_cache.dart';
 import 'core/reader/progress_sync.dart';
 import 'core/reader/reader_settings_store.dart';
@@ -63,6 +64,9 @@ Future<void> main() async {
 
   final kapowarrConfigStore = KapowarrConfigStore();
   await kapowarrConfigStore.init();
+
+  final mediaPoolConfigStore = MediaPoolConfigStore();
+  await mediaPoolConfigStore.init();
 
   final readingStatsStore = ReadingStatsStore();
   await readingStatsStore.init();
@@ -115,6 +119,7 @@ Future<void> main() async {
         progressSyncProvider.overrideWithValue(progressSync),
         pageCacheProvider.overrideWithValue(pageCache),
         kapowarrConfigStoreProvider.overrideWithValue(kapowarrConfigStore),
+        mediaPoolConfigStoreProvider.overrideWithValue(mediaPoolConfigStore),
         downloadStoreProvider.overrideWithValue(downloadStore),
         downloadManagerProvider.overrideWithValue(downloadManager),
         readingStatsStoreProvider.overrideWithValue(readingStatsStore),
