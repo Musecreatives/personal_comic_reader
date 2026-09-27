@@ -533,7 +533,18 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                   ),
                   VerticalDivider(width: 1, color: AppColors.border),
                   Expanded(
-                    child: CustomScrollView(slivers: chapterSlivers),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        // This screen sits outside GlassNavScaffold's shell
+                        // (a full-screen sibling route), so it doesn't
+                        // inherit the app's shared max-content-width - an
+                        // ultrawide monitor would otherwise stretch chapter
+                        // rows into unreadably long lines.
+                        constraints: const BoxConstraints(maxWidth: 820),
+                        child: CustomScrollView(slivers: chapterSlivers),
+                      ),
+                    ),
                   ),
                 ],
               );
