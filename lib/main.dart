@@ -21,6 +21,8 @@ import 'core/history/history_store.dart';
 import 'core/history/stopped_series_store.dart';
 import 'core/downloads/download_store.dart';
 import 'core/kapowarr/kapowarr_config_store.dart';
+import 'core/local_watch/watch_folder_service.dart';
+import 'core/local_watch/watch_folder_store.dart';
 import 'core/media_pool/media_pool_config_store.dart';
 import 'core/reader/page_cache.dart';
 import 'core/reader/progress_sync.dart';
@@ -31,6 +33,7 @@ import 'core/storage/server_store.dart';
 import 'core/sync/auth_store.dart';
 import 'core/sync/sync_client.dart';
 import 'core/sync/sync_queue.dart';
+import 'features/local_library/local_library_screen.dart' show localLibraryRevisionProvider;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,6 +91,9 @@ Future<void> main() async {
   final localLibraryStore = LocalLibraryStore();
   await localLibraryStore.init();
 
+  final watchFolderStore = WatchFolderStore();
+  await watchFolderStore.init();
+
   final authStore = AuthStore();
   final syncToken = await authStore.getToken();
   final syncUsername = await authStore.getUsername();
@@ -112,7 +118,18 @@ Future<void> main() async {
     onRouteChange: lastRouteStore.setLastRoute,
   );
 
-  final container = ProviderContainer(
+  // `container` isn't assigned until below, but this closure is only ever
+  // called later (on a filesystem event), by which point it will be - a
+  // plain forward reference, not a use-before-assignment.
+  late final ProviderContainer container;
+  final watchFolderService = WatchFolderService(
+    libraryStore: localLibraryStore,
+    watchStore: watchFolderStore,
+    onImported: () =>
+        container.read(localLibraryRevisionProvider.notifier).state++,
+  );
+
+  container = ProviderContainer(
       overrides: [
         serverStoreProvider.overrideWithValue(serverStore),
         readerSettingsStoreProvider.overrideWithValue(readerSettingsStore),
@@ -129,6 +146,8 @@ Future<void> main() async {
         collectionsStoreProvider.overrideWithValue(collectionsStore),
         stoppedSeriesStoreProvider.overrideWithValue(stoppedSeriesStore),
         localLibraryStoreProvider.overrideWithValue(localLibraryStore),
+        watchFolderStoreProvider.overrideWithValue(watchFolderStore),
+        watchFolderServiceProvider.overrideWithValue(watchFolderService),
         authStoreProvider.overrideWithValue(authStore),
         syncQueueProvider.overrideWithValue(syncQueue),
         syncClientProvider.overrideWithValue(syncClient),
@@ -141,6 +160,7 @@ Future<void> main() async {
   // the next successful sync (e.g. next app launch).
   if (syncToken != null) unawaited(startSync(container));
   unawaited(resumeDownloads(container));
+  unawaited(watchFolderService.start());
 
   runApp(UncontrolledProviderScope(
     container: container,
