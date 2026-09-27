@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backends/kavita/kavita_backend.dart';
 import '../backends/komga/komga_backend.dart';
+import '../backends/local/local_backend.dart';
+import '../backends/local/local_library_store.dart';
 import '../backends/opds/opds_backend.dart';
 import '../backends/suwayomi/suwayomi_backend.dart';
 import '../core/appearance/appearance_settings.dart';
@@ -34,9 +36,20 @@ final serverStoreProvider = Provider<ServerStore>((ref) {
 /// add/edit/delete so screens watching this refetch.
 final serverListRevisionProvider = StateProvider<int>((ref) => 0);
 
+/// The always-present pseudo-server for manually-imported comics/manga -
+/// never added or removed through Settings, just prepended to whatever the
+/// user has actually configured.
+const localLibraryServerConfig = ServerConfig(
+  id: 'local',
+  name: 'On This Device',
+  type: ServerType.local,
+  baseUrl: '',
+  username: '',
+);
+
 final serverListProvider = Provider<List<ServerConfig>>((ref) {
   ref.watch(serverListRevisionProvider);
-  return ref.watch(serverStoreProvider).listServers();
+  return [localLibraryServerConfig, ...ref.watch(serverStoreProvider).listServers()];
 });
 
 final activeServerIdProvider = StateProvider<String?>((ref) {
@@ -46,14 +59,25 @@ final activeServerIdProvider = StateProvider<String?>((ref) {
 final activeServerConfigProvider = Provider<ServerConfig?>((ref) {
   final id = ref.watch(activeServerIdProvider);
   if (id == null) return null;
-  ref.watch(serverListRevisionProvider);
-  return ref.watch(serverStoreProvider).getServer(id);
+  // serverListProvider (not serverStoreProvider.getServer) since it's the
+  // one that also knows about the local pseudo-server.
+  return ref.watch(serverListProvider).where((s) => s.id == id).firstOrNull;
+});
+
+/// Set once in main() after LocalLibraryStore.init() completes.
+final localLibraryStoreProvider = Provider<LocalLibraryStore>((ref) {
+  throw UnimplementedError(
+      'localLibraryStoreProvider must be overridden in main()');
 });
 
 /// Builds the right [ReaderBackend] implementation for [config]. UI code
 /// should never call this directly - go through [activeBackendProvider] or
 /// [allBackendsProvider] instead.
-ReaderBackend buildBackend(ServerConfig config, String password) {
+ReaderBackend buildBackend(
+  ServerConfig config,
+  String password, {
+  required LocalLibraryStore localStore,
+}) {
   switch (config.type) {
     case ServerType.komga:
       return KomgaBackend(config: config, password: password);
@@ -63,6 +87,8 @@ ReaderBackend buildBackend(ServerConfig config, String password) {
       return SuwayomiBackend(config: config, password: password);
     case ServerType.opds:
       return OpdsBackend(config: config, password: password);
+    case ServerType.local:
+      return LocalBackend(config: config, store: localStore);
   }
 }
 
@@ -73,8 +99,9 @@ final activeBackendProvider = FutureProvider<ReaderBackend?>((ref) async {
   if (config == null) return null;
 
   final store = ref.watch(serverStoreProvider);
+  final localStore = ref.watch(localLibraryStoreProvider);
   final password = await store.getPassword(config.id) ?? '';
-  return buildBackend(config, password);
+  return buildBackend(config, password, localStore: localStore);
 });
 
 /// One backend per configured server (not just the active one) - used by
@@ -82,9 +109,10 @@ final activeBackendProvider = FutureProvider<ReaderBackend?>((ref) async {
 final allBackendsProvider = FutureProvider<List<ReaderBackend>>((ref) async {
   final servers = ref.watch(serverListProvider);
   final store = ref.watch(serverStoreProvider);
+  final localStore = ref.watch(localLibraryStoreProvider);
   return Future.wait(servers.map((config) async {
     final password = await store.getPassword(config.id) ?? '';
-    return buildBackend(config, password);
+    return buildBackend(config, password, localStore: localStore);
   }));
 });
 

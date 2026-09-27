@@ -1,22 +1,37 @@
+import 'dart:typed_data';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 /// Cover art for a series/book, with a graceful placeholder while loading
 /// and a fallback icon when there's no image or it fails to load.
+///
+/// [imageBytes] takes priority when set - used for locally-imported comics,
+/// which have no server to fetch a thumbnail URL from.
 class SeriesCover extends StatelessWidget {
   final String? imageUrl;
+  final Uint8List? imageBytes;
   final Map<String, String> headers;
   final BoxFit fit;
 
   const SeriesCover({
     super.key,
     required this.imageUrl,
+    this.imageBytes,
     this.headers = const {},
     this.fit = BoxFit.cover,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bytes = imageBytes;
+    if (bytes != null) {
+      return Image.memory(
+        bytes,
+        fit: fit,
+        errorBuilder: (context, error, stack) => const _CoverFallback(),
+      );
+    }
     final url = imageUrl;
     if (url == null || url.isEmpty) {
       return const _CoverFallback();

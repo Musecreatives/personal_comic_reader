@@ -91,6 +91,12 @@ class SettingsScreen extends StatelessWidget {
                 title: 'Storage',
                 subtitle: 'Downloaded size per series, clear cache',
                 onTap: () => context.push('/settings/storage'),
+              ),
+              _SettingsRow(
+                icon: Icons.folder_zip_outlined,
+                title: 'On This Device',
+                subtitle: 'Import and read CBZ/ZIP files directly',
+                onTap: () => context.push('/local-library'),
                 isLast: true,
               ),
             ]),
