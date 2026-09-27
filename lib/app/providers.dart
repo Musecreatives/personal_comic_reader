@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../backends/kavita/kavita_backend.dart';
 import '../backends/komga/komga_backend.dart';
 import '../backends/local/local_backend.dart';
 import '../backends/local/local_library_store.dart';
@@ -104,8 +103,6 @@ ReaderBackend buildBackend(
   switch (config.type) {
     case ServerType.komga:
       return KomgaBackend(config: config, password: password);
-    case ServerType.kavita:
-      return KavitaBackend(config: config, password: password);
     case ServerType.suwayomi:
       return SuwayomiBackend(config: config, password: password);
     case ServerType.opds:

@@ -37,7 +37,7 @@ class OnboardingScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Everything you read stays on hardware you own. Point it at your '
-                'Komga, Kavita, Suwayomi, or OPDS server to get started.',
+                'Komga, Suwayomi, or OPDS server to get started.',
                 style: AppText.body(size: 14, color: AppColors.text60),
               ),
               const SizedBox(height: 28),
@@ -52,11 +52,6 @@ class OnboardingScreen extends StatelessWidget {
                       type: ServerType.komga,
                       subtitle: 'MANGA + COMICS',
                       onTap: () => _addServer(context, ServerType.komga),
-                    ),
-                    _SourceCard(
-                      type: ServerType.kavita,
-                      subtitle: 'COMICS + EPUB',
-                      onTap: () => _addServer(context, ServerType.kavita),
                     ),
                     _SourceCard(
                       type: ServerType.suwayomi,
@@ -102,7 +97,6 @@ class _SourceCard extends StatelessWidget {
     final color = AppColors.sourceColor(type.name);
     final label = switch (type) {
       ServerType.komga => 'Komga',
-      ServerType.kavita => 'Kavita',
       ServerType.suwayomi => 'Suwayomi',
       ServerType.opds => 'OPDS',
       // Never offered as an onboarding source card - it's always present.

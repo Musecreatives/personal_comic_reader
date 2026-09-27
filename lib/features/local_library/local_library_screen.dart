@@ -210,6 +210,28 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     }
   }
 
+  /// Which top-level media-pool folder a series' upload goes into. Asked
+  /// once per series (there's no reliable way to guess from the file) and
+  /// remembered on the record so re-uploads (new chapters) don't ask again.
+  Future<String?> _askContentKind(String seriesTitle) {
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('Comic or manga/manhwa?'),
+        content: Text('"$seriesTitle" - which media pool folder should this go in?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, 'comic'),
+              child: const Text('Comic')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, 'manga'),
+              child: const Text('Manga/Manhwa')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _uploadSeries(LocalSeriesRecord series) async {
     final config = await ref.read(mediaPoolConfigStoreProvider).getWithPassword();
     if (config == null) {
@@ -224,6 +246,14 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
       return;
     }
     final store = ref.read(localLibraryStoreProvider);
+    var kind = series.contentKind;
+    if (kind == null) {
+      kind = await _askContentKind(series.title);
+      if (kind == null) return; // dismissed
+      await store.putSeries(series.copyWith(contentKind: kind));
+    }
+    final folder = kind == 'comic' ? 'Comics' : 'Manga';
+
     final books = store.listBooksForSeries(series.id);
     final client = WebDavClient(config: config);
     var ok = 0;
@@ -232,7 +262,7 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
       try {
         final bytes = exportBookToCbz(store, book);
         await client.putFile(
-          '${sanitizeFileName(series.title)}/${sanitizeFileName(book.title)}.cbz',
+          '$folder/${sanitizeFileName(series.title)}/${sanitizeFileName(book.title)}.cbz',
           bytes,
         );
         ok++;
@@ -242,7 +272,7 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     }
     if (!mounted) return;
     final message = errors.isEmpty
-        ? 'Uploaded $ok chapter${ok == 1 ? '' : 's'} to the media pool'
+        ? 'Uploaded $ok chapter${ok == 1 ? '' : 's'} to $folder'
         : '$ok uploaded, ${errors.length} failed: ${errors.first}';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 4)),

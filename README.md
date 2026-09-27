@@ -2,15 +2,15 @@
 
 A Flutter comic/manga reader modeled on the iOS app Panels, targeting
 Flutter web (PWA) first and iOS later from the same codebase. Talks to
-self-hosted Komga, Kavita, Suwayomi, and generic OPDS 1.2 servers, plus
+self-hosted Komga, Suwayomi, and generic OPDS 1.2 servers, plus
 a read-only Kapowarr status view.
 
 ## Status
 
 **All 5 phases complete**: full reader (single/double/vertical modes,
 zoom, offline-first downloads, a Wi-Fi-only download queue, an
-experimental smart panel view), four working reader backends (Komga,
-Kavita, Suwayomi, OPDS 1.2+PSE), local reading stats, an iPad/wide
+experimental smart panel view), working reader backends (Komga,
+Suwayomi, OPDS 1.2+PSE), local reading stats, an iPad/wide
 two-column library layout, Caddy-based same-origin PWA hosting, and iOS
 build configuration (bundle ID, Info.plist, Codemagic). See
 `CHANGELOG.md` for what shipped in each phase, including two real bugs
@@ -25,7 +25,7 @@ flutter run -d chrome
 ```
 
 On first launch you'll land on an empty state prompting you to add a
-server (Komga, Kavita, Suwayomi, or OPDS) pointed at your instance, e.g.
+server (Komga, Suwayomi, or OPDS) pointed at your instance, e.g.
 `http://100.108.109.63:8081`.
 
 ## Building for web
@@ -64,10 +64,10 @@ flutter test
 - `lib/core/backend/` — the `ReaderBackend` interface and shared models.
   UI code only ever depends on this interface, never on a concrete
   backend or an HTTP client directly.
-- `lib/backends/komga/`, `lib/backends/kavita/`, `lib/backends/suwayomi/`,
+- `lib/backends/komga/`, `lib/backends/suwayomi/`,
   `lib/backends/opds/` — one implementation per server type. Entity IDs
-  are opaque strings as far as the UI is concerned - Komga/Kavita/
-  Suwayomi use plain IDs, OPDS uses full feed URLs, which is why every
+  are opaque strings as far as the UI is concerned - Komga/Suwayomi use
+  plain IDs, OPDS uses full feed URLs, which is why every
   navigation call site `Uri.encodeComponent`s the ID before putting it
   in a route path (see CHANGELOG Phase 5 for the bug this fixed).
 - `lib/core/downloads/` — the download queue (`DownloadManager`,
@@ -89,9 +89,9 @@ flutter test
 
 ## Deploying (same-origin PWA hosting via Caddy)
 
-Serving the app from its own hostname, same-origin with Komga/Kavita
+Serving the app from its own hostname, same-origin with Komga
 behind a reverse proxy, avoids the CORS block a browser hits when
-talking directly to a bare server IP (Komga/Kavita don't send
+talking directly to a bare server IP (Komga doesn't send
 `Access-Control-Allow-Origin`).
 
 1. **Build and copy the release bundle to the server:**
@@ -116,22 +116,20 @@ talking directly to a bare server IP (Komga/Kavita don't send
      `100.108.109.63`.
 
 3. **On iPhone**: open `https://reader.shaddai.home` in Safari, then
-   Share → Add to Home Screen. The app defaults new Komga/Kavita server
-   URLs to `/komga` and `/kavita` (same-origin) automatically when it
+   Share → Add to Home Screen. The app defaults new Komga server
+   URLs to `/komga` (same-origin) automatically when it
    detects it's being served from that hostname - direct-IP entry still
    works fine for local dev, both from `flutter run -d chrome` and when
    opening the deployed site directly by IP.
 
 ## Known gaps
 
-- Kavita backend's field mapping for populated series/chapter data, and
-  the OPDS backend's PSE/CBZ page streaming, are both verified for
+- The OPDS backend's PSE/CBZ page streaming is verified for
   routing/auth/parsing against live servers but not against real
-  populated content end-to-end (Kavita: zero indexed series at the time
-  of testing; OPDS: verified through Komga's real navigation/library
-  feeds, but no populated OPDS-PSE book was available to exercise page
-  streaming against). Worth re-checking once real content exists. See
-  CHANGELOG Phases 3 and 5.
+  populated content end-to-end (verified through Komga's real
+  navigation/library feeds, but no populated OPDS-PSE book was
+  available to exercise page streaming against). Worth re-checking once
+  real content exists. See CHANGELOG Phases 3 and 5.
 - No collections/read-lists screens yet (data-layer support exists on
   every backend that has the concept).
 - Smart panel view is a simple gutter-variance heuristic - it will get
