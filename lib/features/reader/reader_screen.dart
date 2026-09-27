@@ -992,42 +992,76 @@ class _EndOfBookCard extends StatelessWidget {
     return Container(
       color: Colors.black54,
       alignment: Alignment.center,
-      child: Card(
-        margin: const EdgeInsets.all(32),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.check_circle, size: 40),
-              const SizedBox(height: 12),
-              Text(
-                'Finished this book',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 16),
-              if (nextBook != null) ...[
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Container(
+            margin: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.borderStrong),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle_rounded, size: 40, color: AppColors.accent),
+                const SizedBox(height: 14),
                 Text(
-                  'Next: ${nextBook!.title}',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  'Finished this book',
+                  style: AppText.heading(size: 18),
                 ),
                 const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => onNext(nextBook!.id),
-                  child: const Text('Continue to next'),
+                if (nextBook != null) ...[
+                  Text(
+                    'Next: ${nextBook!.title}',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body(size: 13.5, color: AppColors.text60),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                      ),
+                      onPressed: () => onNext(nextBook!.id),
+                      child: Text('Continue to next',
+                          style: AppText.body(size: 14.5, weight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: AppColors.borderStrong),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                    onPressed: onBackToSeries,
+                    child: Text('Back to series',
+                        style: AppText.body(size: 14, color: AppColors.text)),
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: onDismiss,
+                  child: Text('Keep reading',
+                      style: AppText.body(size: 13.5, color: AppColors.text45)),
+                ),
               ],
-              OutlinedButton(
-                onPressed: onBackToSeries,
-                child: const Text('Back to series'),
-              ),
-              TextButton(
-                onPressed: onDismiss,
-                child: const Text('Keep reading'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
