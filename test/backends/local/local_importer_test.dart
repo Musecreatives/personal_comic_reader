@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -99,5 +100,68 @@ void main() {
         contains('CBR'),
       )),
     );
+  });
+
+  group('importFolder', () {
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('local_import_test'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    test('imports every image file in natural order, ignoring non-images',
+        () async {
+      File('${dir.path}/page2.jpg').writeAsBytesSync([1, 2, 3]);
+      File('${dir.path}/page10.jpg').writeAsBytesSync([4, 5, 6]);
+      File('${dir.path}/page1.jpg').writeAsBytesSync([7, 8, 9]);
+      File('${dir.path}/notes.txt').writeAsStringSync('hi');
+
+      final bookId = await importFolder(store: store, folderPath: dir.path);
+
+      final book = store.getBook(bookId)!;
+      expect(book.pageCount, 3);
+      expect(store.getPage(bookId, 0), [7, 8, 9]); // page1
+      expect(store.getPage(bookId, 1), [1, 2, 3]); // page2
+      expect(store.getPage(bookId, 2), [4, 5, 6]); // page10
+    });
+
+    test('rejects a folder with no image files', () async {
+      File('${dir.path}/notes.txt').writeAsStringSync('hi');
+      expect(
+        () => importFolder(store: store, folderPath: dir.path),
+        throwsA(isA<ImportException>()),
+      );
+    });
+
+    test('rejects a missing folder', () async {
+      expect(
+        () => importFolder(store: store, folderPath: '${dir.path}/nope'),
+        throwsA(isA<ImportException>()),
+      );
+    });
+  });
+
+  group('importLooseFiles', () {
+    test('imports selected images in natural order under the given title',
+        () async {
+      final bookId = await importLooseFiles(
+        store: store,
+        chapterTitle: 'Some Chapter',
+        files: [
+          PickedImageFile('page2.jpg', Uint8List.fromList([1])),
+          PickedImageFile('page1.jpg', Uint8List.fromList([2])),
+        ],
+      );
+
+      final book = store.getBook(bookId)!;
+      expect(book.pageCount, 2);
+      expect(store.getPage(bookId, 0), [2]); // page1
+      expect(store.getPage(bookId, 1), [1]); // page2
+    });
+
+    test('rejects an empty selection', () async {
+      expect(
+        () => importLooseFiles(store: store, chapterTitle: 'x', files: []),
+        throwsA(isA<ImportException>()),
+      );
+    });
   });
 }

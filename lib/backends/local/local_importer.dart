@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -50,9 +51,56 @@ String titleFromFileName(String fileName) {
   return name.isEmpty ? fileName : name;
 }
 
-/// Unzips [bytes] (a CBZ/ZIP/CBC file) and stores each image page plus a
-/// book record, filed under a series matching [seriesTitle] (reusing an
+/// Writes one chapter (a sorted, already-resolved set of page bytes) plus
+/// its book record, filed under a series matching [seriesTitle] (reusing an
 /// existing one with the same title, case-insensitively, or creating one).
+/// Shared by every import path - a ZIP's internal files, a folder's files
+/// on disk, and loose files the user multi-selected all end up here.
+Future<String> _finishImport({
+  required LocalLibraryStore store,
+  required String chapterTitle,
+  required List<Uint8List> pages,
+  String? seriesTitle,
+  String? chapterNumber,
+}) async {
+  if (pages.isEmpty) {
+    throw const ImportException('No image pages found.');
+  }
+
+  const uuid = Uuid();
+  final title = titleFromFileName(seriesTitle ?? chapterTitle);
+
+  final existing = store
+      .listSeries()
+      .where((s) => s.title.toLowerCase() == title.toLowerCase());
+  final seriesId = existing.isNotEmpty ? existing.first.id : uuid.v4();
+  if (existing.isEmpty) {
+    await store.putSeries(LocalSeriesRecord(
+      id: seriesId,
+      title: title,
+      addedAt: DateTime.now(),
+    ));
+  }
+
+  final bookId = uuid.v4();
+  for (var i = 0; i < pages.length; i++) {
+    await store.putPage(bookId, i, pages[i]);
+  }
+
+  final existingBooks = store.listBooksForSeries(seriesId);
+  await store.putBook(LocalBookRecord(
+    id: bookId,
+    seriesId: seriesId,
+    title: titleFromFileName(chapterTitle),
+    number: chapterNumber ?? '${existingBooks.length + 1}',
+    pageCount: pages.length,
+    addedAt: DateTime.now(),
+  ));
+
+  return bookId;
+}
+
+/// Unzips [bytes] (a CBZ/ZIP/CBC file) and stores each image page.
 ///
 /// True CBR (RAR-compressed) files aren't supported - there's no
 /// actively-maintained pure-Dart RAR decoder - so this throws
@@ -93,35 +141,82 @@ Future<String> importArchive({
     throw const ImportException('No image pages found inside this file.');
   }
 
-  const uuid = Uuid();
-  final title = titleFromFileName(seriesTitle ?? fileName);
+  return _finishImport(
+    store: store,
+    chapterTitle: fileName,
+    pages: imageFiles
+        .map((f) => Uint8List.fromList(f.content as List<int>))
+        .toList(),
+    seriesTitle: seriesTitle,
+    chapterNumber: chapterNumber,
+  );
+}
 
-  final existing = store.listSeries().where(
-      (s) => s.title.toLowerCase() == title.toLowerCase());
-  final seriesId = existing.isNotEmpty ? existing.first.id : uuid.v4();
-  if (existing.isEmpty) {
-    await store.putSeries(LocalSeriesRecord(
-      id: seriesId,
-      title: title,
-      addedAt: DateTime.now(),
-    ));
+/// Reads every image file directly inside (or nested under) [folderPath] on
+/// disk and imports them as one chapter - the folder-of-loose-pages layout
+/// some scanlation/download tools use instead of a zip. Desktop/mobile only
+/// (there's no real filesystem path to read from in a browser); the caller
+/// is expected to route web users to [importLooseFiles] instead.
+Future<String> importFolder({
+  required LocalLibraryStore store,
+  required String folderPath,
+  String? seriesTitle,
+  String? chapterNumber,
+}) async {
+  final dir = Directory(folderPath);
+  if (!await dir.exists()) {
+    throw const ImportException("That folder couldn't be found.");
   }
 
-  final bookId = uuid.v4();
-  for (var i = 0; i < imageFiles.length; i++) {
-    final content = imageFiles[i].content;
-    await store.putPage(bookId, i, Uint8List.fromList(content as List<int>));
+  final entries = await dir
+      .list(recursive: true)
+      .where((e) => e is File && _isImage(e.path))
+      .cast<File>()
+      .toList();
+  entries.sort((a, b) => _compareNames(a.path, b.path));
+  if (entries.isEmpty) {
+    throw const ImportException('No image files found in that folder.');
   }
 
-  final existingBooks = store.listBooksForSeries(seriesId);
-  await store.putBook(LocalBookRecord(
-    id: bookId,
-    seriesId: seriesId,
-    title: titleFromFileName(fileName),
-    number: chapterNumber ?? '${existingBooks.length + 1}',
-    pageCount: imageFiles.length,
-    addedAt: DateTime.now(),
-  ));
+  final pages = await Future.wait(entries.map((f) => f.readAsBytes()));
+  final folderName = folderPath.split(RegExp(r'[/\\]')).where((s) => s.isNotEmpty).last;
+  return _finishImport(
+    store: store,
+    chapterTitle: folderName,
+    pages: pages.map(Uint8List.fromList).toList(),
+    seriesTitle: seriesTitle,
+    chapterNumber: chapterNumber,
+  );
+}
 
-  return bookId;
+/// One entry from a multi-file picker: a filename (for sort order and the
+/// guessed title) plus its already-read bytes. Used for loose image files
+/// the user selects directly - the one folder-of-images path that also
+/// works on web, since it goes through the file picker rather than a real
+/// filesystem path.
+class PickedImageFile {
+  final String name;
+  final Uint8List bytes;
+  const PickedImageFile(this.name, this.bytes);
+}
+
+Future<String> importLooseFiles({
+  required LocalLibraryStore store,
+  required List<PickedImageFile> files,
+  required String chapterTitle,
+  String? seriesTitle,
+  String? chapterNumber,
+}) async {
+  final images = files.where((f) => _isImage(f.name)).toList()
+    ..sort((a, b) => _compareNames(a.name, b.name));
+  if (images.isEmpty) {
+    throw const ImportException('No image files were selected.');
+  }
+  return _finishImport(
+    store: store,
+    chapterTitle: chapterTitle,
+    pages: images.map((f) => f.bytes).toList(),
+    seriesTitle: seriesTitle,
+    chapterNumber: chapterNumber,
+  );
 }

@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -72,6 +73,65 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     }
   }
 
+  Future<void> _importFolder() async {
+    setState(() => _importing = true);
+    try {
+      final path = await FilePicker.getDirectoryPath();
+      if (path == null) return;
+
+      final store = ref.read(localLibraryStoreProvider);
+      await importFolder(store: store, folderPath: path);
+
+      ref.read(localLibraryRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Imported 1 chapter')));
+    } on ImportException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Couldn't import: $e")));
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
+  Future<void> _importLooseImages() async {
+    setState(() => _importing = true);
+    try {
+      final files = await FilePicker.pickFiles(
+        type: FileType.image,
+        allowMultiple: true,
+      );
+      if (files.isEmpty) return;
+
+      final picked = await Future.wait(files.map(
+          (f) async => PickedImageFile(f.name, await f.readAsBytes())));
+      final store = ref.read(localLibraryStoreProvider);
+      await importLooseFiles(
+        store: store,
+        files: picked,
+        chapterTitle: 'Imported pages',
+      );
+
+      ref.read(localLibraryRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Imported 1 chapter')));
+    } on ImportException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Couldn't import: $e")));
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
   Future<void> _openSeries(String seriesId) async {
     await activateServer(ref, 'local');
     if (!mounted) return;
@@ -119,22 +179,19 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
           children: [
             AppScreenHeader(
               title: 'On This Device',
-              trailing: FilledButton.icon(
-                onPressed: _importing ? null : _import,
-                icon: _importing
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Import'),
+              trailing: _ImportMenuButton(
+                importing: _importing,
+                onImportArchive: _import,
+                onImportFolder: kIsWeb ? null : _importFolder,
+                onImportLooseImages: _importLooseImages,
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
               child: Text(
-                "CBZ/ZIP files. Real RAR-based CBR isn't supported yet - "
-                'convert those to CBZ first.',
+                "CBZ/ZIP archives, whole folders of page images, or loose image "
+                "files. Real RAR-based CBR isn't supported yet - convert those "
+                'to CBZ first.',
                 style: AppText.body(size: 12, color: AppColors.text45),
               ),
             ),
@@ -189,6 +246,69 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
                       },
                     ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImportMenuButton extends StatelessWidget {
+  final bool importing;
+  final VoidCallback onImportArchive;
+  final VoidCallback? onImportFolder;
+  final VoidCallback onImportLooseImages;
+
+  const _ImportMenuButton({
+    required this.importing,
+    required this.onImportArchive,
+    required this.onImportFolder,
+    required this.onImportLooseImages,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (importing) {
+      return const Padding(
+        padding: EdgeInsets.all(8),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return PopupMenuButton<VoidCallback>(
+      onSelected: (action) => action(),
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: onImportArchive,
+          child: const Text('Comic archive (CBZ/ZIP)'),
+        ),
+        PopupMenuItem(
+          value: onImportFolder,
+          enabled: onImportFolder != null,
+          child: Text(onImportFolder == null
+              ? 'Folder of images (not on web)'
+              : 'Folder of images'),
+        ),
+        PopupMenuItem(
+          value: onImportLooseImages,
+          child: const Text('Loose image files'),
+        ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.accent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add_rounded, size: 18, color: Colors.white),
+            SizedBox(width: 6),
+            Text('Import', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
