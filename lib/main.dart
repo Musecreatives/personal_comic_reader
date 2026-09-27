@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'app/connectivity_banner.dart';
 import 'app/design_tokens.dart';
@@ -31,7 +33,17 @@ import 'core/sync/sync_queue.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
+  if (kIsWeb) {
+    // path_provider has no web implementation; Hive uses IndexedDB on web
+    // regardless of the path passed in, so the default is fine there.
+    await Hive.initFlutter();
+  } else {
+    // Use the OS app-data directory (not the user's visible Documents
+    // folder, which on Windows is usually OneDrive-synced) so box files
+    // don't clutter it or get cloud-synced as loose, meaningless filenames.
+    final supportDir = await getApplicationSupportDirectory();
+    Hive.init(supportDir.path);
+  }
 
   final serverStore = ServerStore();
   await serverStore.init();
