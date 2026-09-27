@@ -31,6 +31,23 @@ class LocalLibraryScreen extends ConsumerStatefulWidget {
 class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
   bool _importing = false;
 
+  String? get _watchedFolder =>
+      kIsWeb ? null : ref.read(watchFolderStoreProvider).path;
+
+  Future<void> _chooseWatchFolder() async {
+    final path = await FilePicker.getDirectoryPath();
+    if (path == null) return;
+    await ref.read(watchFolderStoreProvider).setPath(path);
+    await ref.read(watchFolderServiceProvider).start();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _stopWatching() async {
+    await ref.read(watchFolderServiceProvider).stop();
+    await ref.read(watchFolderStoreProvider).setPath(null);
+    if (mounted) setState(() {});
+  }
+
   Future<void> _import() async {
     setState(() => _importing = true);
     try {
@@ -362,6 +379,15 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
                 style: AppText.body(size: 12, color: AppColors.text45),
               ),
             ),
+            if (!kIsWeb)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: _WatchFolderRow(
+                  path: _watchedFolder,
+                  onChoose: _chooseWatchFolder,
+                  onStop: _stopWatching,
+                ),
+              ),
             Expanded(
               child: series.isEmpty
                   ? _EmptyState(importing: _importing, onImport: _import)
@@ -478,6 +504,46 @@ class _ImportMenuButton extends StatelessWidget {
             Text('Import', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WatchFolderRow extends StatelessWidget {
+  final String? path;
+  final VoidCallback onChoose;
+  final VoidCallback onStop;
+  const _WatchFolderRow({required this.path, required this.onChoose, required this.onStop});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.visibility_outlined, size: 16, color: AppColors.text45),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              path == null
+                  ? 'Not watching a folder'
+                  : 'Watching: $path',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.body(size: 12, color: AppColors.text60),
+            ),
+          ),
+          TextButton(
+            onPressed: path == null ? onChoose : onStop,
+            child: Text(path == null ? 'Choose folder' : 'Stop',
+                style: AppText.body(size: 12.5, weight: FontWeight.w600, color: AppColors.accentLink)),
+          ),
+        ],
       ),
     );
   }

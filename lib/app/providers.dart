@@ -19,6 +19,8 @@ import '../core/downloads/download_store.dart';
 import '../core/kapowarr/kapowarr_config.dart';
 import '../core/kapowarr/kapowarr_config_store.dart';
 import '../core/media_pool/media_pool_config_store.dart';
+import '../core/local_watch/watch_folder_service.dart';
+import '../core/local_watch/watch_folder_store.dart';
 import '../core/reader/page_cache.dart';
 import '../core/reader/progress_sync.dart';
 import '../core/reader/reader_settings_store.dart';
@@ -69,6 +71,19 @@ final activeServerConfigProvider = Provider<ServerConfig?>((ref) {
 final localLibraryStoreProvider = Provider<LocalLibraryStore>((ref) {
   throw UnimplementedError(
       'localLibraryStoreProvider must be overridden in main()');
+});
+
+/// Set once in main() after WatchFolderStore.init() completes.
+final watchFolderStoreProvider = Provider<WatchFolderStore>((ref) {
+  throw UnimplementedError(
+      'watchFolderStoreProvider must be overridden in main()');
+});
+
+/// Set once in main(), after the ProviderContainer exists (its onImported
+/// callback needs to read back into that same container).
+final watchFolderServiceProvider = Provider<WatchFolderService>((ref) {
+  throw UnimplementedError(
+      'watchFolderServiceProvider must be overridden in main()');
 });
 
 /// Builds the right [ReaderBackend] implementation for [config]. UI code
