@@ -21,6 +21,7 @@ import '../core/kapowarr/kapowarr_config_store.dart';
 import '../core/media_pool/media_pool_config_store.dart';
 import '../core/local_watch/watch_folder_service.dart';
 import '../core/local_watch/watch_folder_store.dart';
+import '../core/notifications/chapter_watch_store.dart';
 import '../core/reader/page_cache.dart';
 import '../core/reader/progress_sync.dart';
 import '../core/reader/reader_settings_store.dart';
@@ -84,6 +85,12 @@ final watchFolderStoreProvider = Provider<WatchFolderStore>((ref) {
 final watchFolderServiceProvider = Provider<WatchFolderService>((ref) {
   throw UnimplementedError(
       'watchFolderServiceProvider must be overridden in main()');
+});
+
+/// Set once in main() after ChapterWatchStore.init() completes.
+final chapterWatchStoreProvider = Provider<ChapterWatchStore>((ref) {
+  throw UnimplementedError(
+      'chapterWatchStoreProvider must be overridden in main()');
 });
 
 /// Builds the right [ReaderBackend] implementation for [config]. UI code

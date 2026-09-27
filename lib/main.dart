@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'app/chapter_notification_scheduler.dart';
 import 'app/connectivity_banner.dart';
 import 'app/design_tokens.dart';
 import 'app/providers.dart';
@@ -24,6 +25,7 @@ import 'core/kapowarr/kapowarr_config_store.dart';
 import 'core/local_watch/watch_folder_service.dart';
 import 'core/local_watch/watch_folder_store.dart';
 import 'core/media_pool/media_pool_config_store.dart';
+import 'core/notifications/chapter_watch_store.dart';
 import 'core/reader/page_cache.dart';
 import 'core/reader/progress_sync.dart';
 import 'core/reader/reader_settings_store.dart';
@@ -94,6 +96,10 @@ Future<void> main() async {
   final watchFolderStore = WatchFolderStore();
   await watchFolderStore.init();
 
+  final chapterWatchStore = ChapterWatchStore();
+  await chapterWatchStore.init();
+  await setUpChapterNotifications();
+
   final authStore = AuthStore();
   final syncToken = await authStore.getToken();
   final syncUsername = await authStore.getUsername();
@@ -148,6 +154,7 @@ Future<void> main() async {
         localLibraryStoreProvider.overrideWithValue(localLibraryStore),
         watchFolderStoreProvider.overrideWithValue(watchFolderStore),
         watchFolderServiceProvider.overrideWithValue(watchFolderService),
+        chapterWatchStoreProvider.overrideWithValue(chapterWatchStore),
         authStoreProvider.overrideWithValue(authStore),
         syncQueueProvider.overrideWithValue(syncQueue),
         syncClientProvider.overrideWithValue(syncClient),
@@ -188,7 +195,9 @@ class ShaddaiReaderApp extends ConsumerWidget {
       routerConfig: router,
       debugShowCheckedModeBanner: false,
       builder: (context, child) => SyncScheduler(
-        child: ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+        child: ChapterNotificationScheduler(
+          child: ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+        ),
       ),
     );
   }
