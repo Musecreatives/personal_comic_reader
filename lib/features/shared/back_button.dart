@@ -3,9 +3,24 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
 
+extension PopOrHome on BuildContext {
+  /// Leaves the current screen. The app reopens on whatever screen was last
+  /// open, so that screen can be the only one in the stack - a plain pop()
+  /// then does nothing. In that case go where it's normally reached from.
+  void popOrHome({String? fallback}) {
+    if (canPop()) {
+      pop();
+      return;
+    }
+    final path = GoRouterState.of(this).uri.path;
+    final fromSettings = path.startsWith('/settings') ||
+        const ['/local-library', '/collections', '/stats'].contains(path);
+    go(fallback ?? (fromSettings ? '/settings' : '/home'));
+  }
+}
+
 /// The circular glass back button used throughout the design package.
-/// Defaults to `context.pop()`; pass [onTap] to override (e.g. a screen
-/// that can also be reached as a route root with nothing to pop to).
+/// Defaults to [PopOrHome.popOrHome]; pass [onTap] to override.
 class AppBackButton extends StatelessWidget {
   final VoidCallback? onTap;
   const AppBackButton({super.key, this.onTap});
@@ -17,7 +32,7 @@ class AppBackButton extends StatelessWidget {
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
-        onTap: onTap ?? () => context.pop(),
+        onTap: onTap ?? () => context.popOrHome(),
         child: SizedBox(
           width: 34,
           height: 34,

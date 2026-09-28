@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:hive_flutter/hive_flutter.dart';
@@ -108,27 +109,41 @@ class LocalBookRecord {
       );
 }
 
-/// Backing store for manually-imported comics/manga (CBZ/ZIP archives, or a
-/// folder of loose image files). Every page is decoded once at import time
-/// and its bytes kept in Hive - there's no remote server to stream pages
-/// from, so an imported book is always fully "on device".
+/// Backing store for manually-imported comics/manga. Every page is unpacked
+/// once at import time - there's no remote server to stream pages from, so
+/// an imported book is always fully "on device".
 ///
-/// Three boxes: series metadata, book metadata (both JSON strings), and page
-/// bytes keyed `<bookId>|<pageIndex>`.
+/// Series and book metadata are JSON strings in two Hive boxes. Page images
+/// are plain files under [pagesDir] (`<bookId>/<pageIndex>`) on desktop and
+/// mobile: a Hive box is read fully into memory when it opens, and a single
+/// omnibus can be gigabytes. Web has no filesystem, so there (and when
+/// [pagesDir] is null) pages go in a Hive box keyed `<bookId>|<pageIndex>`.
 class LocalLibraryStore {
   static const _seriesBoxName = 'local_library_series';
   static const _booksBoxName = 'local_library_books';
   static const _pagesBoxName = 'local_library_pages';
 
+  final Directory? pagesDir;
+
   late final Box<String> _seriesBox;
   late final Box<String> _booksBox;
-  late final Box<Uint8List> _pagesBox;
+  Box<Uint8List>? _pagesBox;
+
+  LocalLibraryStore({this.pagesDir});
 
   Future<void> init() async {
     _seriesBox = await Hive.openBox<String>(_seriesBoxName);
     _booksBox = await Hive.openBox<String>(_booksBoxName);
-    _pagesBox = await Hive.openBox<Uint8List>(_pagesBoxName);
+    if (pagesDir == null) {
+      _pagesBox = await Hive.openBox<Uint8List>(_pagesBoxName);
+    } else {
+      await pagesDir!.create(recursive: true);
+    }
   }
+
+  File _pagePath(String bookId, int pageIndex) =>
+      File('${pagesDir!.path}${Platform.pathSeparator}$bookId'
+          '${Platform.pathSeparator}$pageIndex');
 
   List<LocalSeriesRecord> listSeries() => _seriesBox.values
       .map((raw) =>
@@ -150,7 +165,14 @@ class LocalLibraryStore {
           LocalBookRecord.fromJson(jsonDecode(raw) as Map<String, dynamic>))
       .where((b) => b.seriesId == seriesId)
       .toList()
-    ..sort((a, b) => a.number.compareTo(b.number));
+    ..sort(_byNumber);
+
+  // Numeric where possible, so chapter "10" sorts after "2".
+  static int _byNumber(LocalBookRecord a, LocalBookRecord b) {
+    final an = double.tryParse(a.number), bn = double.tryParse(b.number);
+    if (an != null && bn != null) return an.compareTo(bn);
+    return a.number.compareTo(b.number);
+  }
 
   List<LocalBookRecord> listAllBooks() => _booksBox.values
       .map((raw) =>
@@ -166,20 +188,72 @@ class LocalLibraryStore {
   Future<void> putBook(LocalBookRecord book) =>
       _booksBox.put(book.id, jsonEncode(book.toJson()));
 
-  Future<void> putPage(String bookId, int pageIndex, Uint8List bytes) =>
-      _pagesBox.put('$bookId|$pageIndex', bytes);
+  Future<void> putPage(String bookId, int pageIndex, Uint8List bytes) async {
+    if (pagesDir == null) {
+      return _pagesBox!.put('$bookId|$pageIndex', bytes);
+    }
+    final file = _pagePath(bookId, pageIndex);
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(bytes);
+  }
 
-  Uint8List? getPage(String bookId, int pageIndex) =>
-      _pagesBox.get('$bookId|$pageIndex');
+  /// Stores an image that's already on disk without reading it into memory.
+  /// Copies [source] unless [move] is set (for temp files the caller owns),
+  /// in which case it's renamed into place - instant on the same drive.
+  Future<void> putPageFromFile(
+    String bookId,
+    int pageIndex,
+    File source, {
+    bool move = false,
+  }) async {
+    if (pagesDir == null) {
+      return putPage(bookId, pageIndex, await source.readAsBytes());
+    }
+    final file = _pagePath(bookId, pageIndex);
+    await file.parent.create(recursive: true);
+    if (move) {
+      try {
+        await source.rename(file.path);
+        return;
+      } on FileSystemException {
+        // Different drive/volume - fall through to a copy.
+      }
+    }
+    await source.copy(file.path);
+  }
+
+  Future<Uint8List?> getPage(String bookId, int pageIndex) async {
+    if (pagesDir == null) return _pagesBox!.get('$bookId|$pageIndex');
+    final file = _pagePath(bookId, pageIndex);
+    return await file.exists() ? file.readAsBytes() : null;
+  }
+
+  /// The page's file, for callers that can use it directly (e.g. to decode
+  /// a thumbnail without holding the full image). Null on web.
+  File? pageFile(String bookId, int pageIndex) {
+    if (pagesDir == null) return null;
+    final file = _pagePath(bookId, pageIndex);
+    return file.existsSync() ? file : null;
+  }
+
+  /// Removes every stored page of [bookId] - also used to clean up an
+  /// import that failed part-way through.
+  Future<void> deletePages(String bookId, int pageCount) async {
+    if (pagesDir == null) {
+      await _pagesBox!
+          .deleteAll([for (var i = 0; i < pageCount; i++) '$bookId|$i']);
+      return;
+    }
+    final dir = Directory('${pagesDir!.path}${Platform.pathSeparator}$bookId');
+    if (await dir.exists()) await dir.delete(recursive: true);
+  }
 
   /// Removes a book, its pages, and (if it was the series' last book) the
   /// series entry too.
   Future<void> deleteBook(String bookId) async {
     final book = getBook(bookId);
     if (book == null) return;
-    for (var i = 0; i < book.pageCount; i++) {
-      await _pagesBox.delete('$bookId|$i');
-    }
+    await deletePages(bookId, book.pageCount);
     await _booksBox.delete(bookId);
     if (listBooksForSeries(book.seriesId).isEmpty) {
       await _seriesBox.delete(book.seriesId);

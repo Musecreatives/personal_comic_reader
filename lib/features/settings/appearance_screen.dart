@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import '../shared/back_button.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
@@ -28,7 +28,7 @@ class AppearanceScreen extends ConsumerWidget {
           children: [
             Row(
               children: [
-                _BackButton(onTap: () => context.pop()),
+                _BackButton(onTap: () => context.popOrHome()),
                 const SizedBox(width: 12),
                 Text('Appearance', style: AppText.largeTitle(size: 24)),
               ],

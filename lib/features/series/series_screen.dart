@@ -15,6 +15,7 @@ import '../home/home_feed.dart';
 import 'chapter_actions.dart';
 import 'download_sheet.dart';
 import 'series_actions_sheet.dart';
+import '../shared/back_button.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 
@@ -322,7 +323,7 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
         }
         ref.invalidate(homeFeedProvider);
         if (!mounted) return;
-        context.pop();
+        context.popOrHome();
         _snack('Removed from library');
       },
     );
@@ -703,7 +704,7 @@ class _SeriesHeader extends StatelessWidget {
               Positioned(
                 top: MediaQuery.of(context).padding.top + 8,
                 left: 16,
-                child: _BackButton(onTap: () => context.pop()),
+                child: _BackButton(onTap: () => context.popOrHome()),
               ),
               Positioned(
                 left: 20,

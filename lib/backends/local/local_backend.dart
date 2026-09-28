@@ -106,7 +106,7 @@ class LocalBackend implements ReaderBackend {
 
   @override
   Future<Uint8List> fetchPage(String bookId, int pageIndex) async {
-    final bytes = store.getPage(bookId, pageIndex);
+    final bytes = await store.getPage(bookId, pageIndex);
     if (bytes == null) {
       throw StateError('Page $pageIndex missing for imported book "$bookId"');
     }

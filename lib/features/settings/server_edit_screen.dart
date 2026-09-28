@@ -194,7 +194,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
       if (widget.isOnboarding) {
         context.go('/home');
       } else {
-        context.pop();
+        context.popOrHome();
       }
     } catch (e) {
       if (!mounted) return;

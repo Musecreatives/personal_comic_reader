@@ -63,9 +63,14 @@ class PageCache {
 
     final bytes = await backend.fetchPage(bookId, pageIndex);
     _store(key, bytes);
-    unawaited(_box.put(key, bytes));
+    if (_persist(backend)) unawaited(_box.put(key, bytes));
     return bytes;
   }
+
+  /// Local books are already on disk - copying their pages into this cache
+  /// would just duplicate them (and a single omnibus can be gigabytes).
+  bool _persist(ReaderBackend backend) =>
+      backend.config.type != ServerType.local;
 
   /// Fire-and-forget prefetch of [count] pages starting at [fromIndex] and
   /// moving in [step] (+1 forward, -1 backward). Errors are swallowed - a
@@ -90,7 +95,7 @@ class PageCache {
         _inFlight.add(key);
         backend.fetchPage(bookId, index).then((bytes) {
           _store(key, bytes);
-          unawaited(_box.put(key, bytes));
+          if (_persist(backend)) unawaited(_box.put(key, bytes));
         }).catchError((_) {}).whenComplete(() => _inFlight.remove(key));
       }
       index += step;
