@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -12,11 +14,30 @@ final suwayomiBackendProvider = FutureProvider<SuwayomiBackend?>((ref) async {
   return all.whereType<SuwayomiBackend>().firstOrNull;
 });
 
-/// What was recommended last time, straight from the cache (no network).
-/// Home uses this; the Recommended screen refreshes it.
+/// Recommendations for Home's shelf. Served from the cache when it's under a
+/// day old. Otherwise they're rebuilt here - a fresh install or a new device
+/// has no cache, and waiting for someone to open the Recommended screen
+/// meant the shelf just never appeared. A day-old cache is shown right away
+/// while the rebuild runs, then swapped for the fresh set.
 final cachedRecommendationsProvider = FutureProvider<List<Recommendation>>((ref) async {
   final cached = await DiscoveryCache().load();
-  return cached?.items ?? const [];
+  if (cached != null &&
+      DateTime.now().toUtc().difference(cached.at) < const Duration(days: 1)) {
+    return cached.items;
+  }
+  final backend = await ref.watch(suwayomiBackendProvider.future);
+  if (backend == null) return cached?.items ?? const [];
+  if (cached != null) {
+    unawaited(computeRecommendations(backend)
+        .then((_) => ref.invalidateSelf())
+        .catchError((_) {}));
+    return cached.items;
+  }
+  try {
+    return await computeRecommendations(backend);
+  } catch (_) {
+    return const [];
+  }
 });
 
 /// Builds fresh recommendations: read the library's taste, pull popular
