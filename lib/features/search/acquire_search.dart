@@ -10,6 +10,7 @@ import '../../core/discovery/recommender.dart';
 import '../../core/kapowarr/kapowarr_client.dart';
 import '../discovery/discovery_providers.dart';
 import '../shared/series_cover.dart';
+import 'source_showcase.dart';
 
 // ---------------------------------------------------------------------------
 // Shared preview sheet
@@ -270,6 +271,7 @@ class _MangaSourceSearchState extends ConsumerState<MangaSourceSearch> {
   bool _hasNext = false;
   int _page = 1;
   String? _error;
+  SourceListingCache? _listings;
 
   @override
   void initState() {
@@ -354,23 +356,52 @@ class _MangaSourceSearchState extends ConsumerState<MangaSourceSearch> {
     _search(reset: true);
   }
 
-  void _preview(_Hit hit) {
-    final backend = _backend!;
-    showAcquireSheet(
-      context,
-      coverUrl: hit.thumbnailUrl,
-      title: hit.title,
-      subtitle: _sourceName(hit.sourceId).toUpperCase(),
-      details: _MangaDetails(backend: backend, id: hit.id),
-      actionLabel: 'Add to library',
-      onAction: () => backend.addToLibraryWithCategories(hit.id, const []),
-      doneLabel: 'Open',
-      onDone: () async {
-        await activateServer(ref, backend.config.id);
-        if (mounted) context.push('/series/${hit.id}');
-      },
+  /// Nothing typed yet: show what the sources have - a Popular/Latest shelf
+  /// per source (the ones your library comes from first), or one source's
+  /// full listing when its chip is picked.
+  Widget _browse() {
+    final backend = _backend;
+    if (backend == null) return const Center(child: CircularProgressIndicator());
+    final listings = _listings ??= SourceListingCache(backend);
+    void open(SourceInfo s, SourceManga m) => showMangaPreview(
+          context,
+          ref,
+          backend: backend,
+          id: m.id,
+          title: m.title,
+          coverUrl: m.thumbnailUrl,
+          sourceName: s.name,
+        );
+
+    final selected = _sources.where((s) => s.id == _selected).firstOrNull;
+    if (selected != null) {
+      return SourceCatalogGrid(
+        key: ValueKey(selected.id),
+        source: selected,
+        cache: listings,
+        onOpen: (m) => open(selected, m),
+      );
+    }
+    return SourceShelves(
+      sources: [
+        ..._sources.where((s) => _yours.contains(s.id)),
+        ..._sources.where((s) => !_yours.contains(s.id)),
+      ],
+      cache: listings,
+      onOpen: open,
+      onSeeAll: (s) => _pick(s.id),
     );
   }
+
+  void _preview(_Hit hit) => showMangaPreview(
+        context,
+        ref,
+        backend: _backend!,
+        id: hit.id,
+        title: hit.title,
+        coverUrl: hit.thumbnailUrl,
+        sourceName: _sourceName(hit.sourceId),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -410,12 +441,7 @@ class _MangaSourceSearchState extends ConsumerState<MangaSourceSearch> {
   }
 
   Widget _results() {
-    if (widget.query.trim().isEmpty) {
-      return Center(
-        child: Text('Search your sources for something new to read.',
-            style: AppText.body(color: AppColors.text45)),
-      );
-    }
+    if (widget.query.trim().isEmpty) return _browse();
     if (_hits.isEmpty) {
       return Center(
         child: _loading
@@ -455,6 +481,34 @@ class _MangaSourceSearchState extends ConsumerState<MangaSourceSearch> {
       ],
     );
   }
+}
+
+/// Opens the review sheet for a title on one of Suwayomi's sources: cover,
+/// status/author, genres, description and chapter count, with Add to
+/// library (then Open once added).
+void showMangaPreview(
+  BuildContext context,
+  WidgetRef ref, {
+  required SuwayomiBackend backend,
+  required int id,
+  required String title,
+  required String coverUrl,
+  required String sourceName,
+}) {
+  showAcquireSheet(
+    context,
+    coverUrl: coverUrl,
+    title: title,
+    subtitle: sourceName.toUpperCase(),
+    details: _MangaDetails(backend: backend, id: id),
+    actionLabel: 'Add to library',
+    onAction: () => backend.addToLibraryWithCategories(id, const []),
+    doneLabel: 'Open',
+    onDone: () async {
+      await activateServer(ref, backend.config.id);
+      if (context.mounted) context.push('/series/$id');
+    },
+  );
 }
 
 /// The preview's body for a manga: author/status, genres, description and,

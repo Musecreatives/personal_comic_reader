@@ -355,14 +355,17 @@ class SuwayomiBackend implements ReaderBackend {
   }
 
   /// Browses one source's catalog for discovery (5g) - popular titles when
-  /// [query] is empty, a search within the source otherwise. Covers reuse
-  /// the same deterministic REST thumbnail path as library series
-  /// ([thumbnailUrlForSeries]), so no extra GraphQL fields are needed.
+  /// [query] is empty (or its latest updates with [latest]), a search within
+  /// the source otherwise. Covers reuse the same deterministic REST thumbnail
+  /// path as library series ([thumbnailUrlForSeries]), so no extra GraphQL
+  /// fields are needed.
   Future<({List<({int id, String title, String thumbnailUrl})> mangas, bool hasNext})>
-      browseSource(String sourceId, {String query = '', int page = 1}) async {
+      browseSource(String sourceId,
+          {String query = '', int page = 1, bool latest = false}) async {
+    final type = query.isNotEmpty ? 'SEARCH' : (latest ? 'LATEST' : 'POPULAR');
     final data = await _gql(
       'mutation(\$source: LongString!, \$query: String!, \$page: Int!) { '
-      'fetchSourceManga(input: {source: \$source, type: ${query.isEmpty ? 'POPULAR' : 'SEARCH'}, '
+      'fetchSourceManga(input: {source: \$source, type: $type, '
       'query: \$query, page: \$page, filters: []}) { mangas { id title } hasNextPage } }',
       {'source': sourceId, 'query': query, 'page': page},
     );
