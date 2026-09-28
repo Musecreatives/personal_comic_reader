@@ -278,7 +278,9 @@ final backendForServerKeyProvider =
 Future<void> activateServer(WidgetRef ref, String? serverId) async {
   if (serverId == null || serverId == ref.read(activeServerIdProvider)) return;
   final store = ref.read(serverStoreProvider);
-  if (store.getServer(serverId) == null) return;
+  // serverListProvider, not store.getServer: the store doesn't hold the
+  // local pseudo-server, so 'local' would silently never activate.
+  if (!ref.read(serverListProvider).any((s) => s.id == serverId)) return;
   await store.setActiveServerId(serverId);
   ref.read(activeServerIdProvider.notifier).state = serverId;
 }
