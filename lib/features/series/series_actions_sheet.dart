@@ -4,7 +4,8 @@ import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 
 /// Things you can do to a series beyond reading it: stop following it, clear
-/// its downloads from this device, or (Suwayomi) drop it from the library.
+/// its downloads from this device, (Suwayomi) drop it from the library, or
+/// (imported comics) edit its details.
 /// Anything that destroys something asks first, and says exactly what goes.
 class SeriesActionsSheet {
   static Future<void> show(
@@ -15,6 +16,7 @@ class SeriesActionsSheet {
     required Future<void> Function() onStopReading,
     required Future<void> Function() onDeleteDownloads,
     required Future<void> Function() onRemoveFromLibrary,
+    Future<void> Function()? onEditDetails,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -82,6 +84,16 @@ class SeriesActionsSheet {
                   style: AppText.heading(size: 18),
                 ),
               ),
+              if (onEditDetails != null)
+                _Action(
+                  icon: Icons.edit_outlined,
+                  title: 'Edit details',
+                  hint: 'Title, summary, credits, publisher, year, genres',
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    await onEditDetails();
+                  },
+                ),
               _Action(
                 icon: Icons.visibility_off_outlined,
                 title: 'Stop reading',

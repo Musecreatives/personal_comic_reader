@@ -16,14 +16,14 @@ class LocalSeriesRecord {
   /// upload this series; there's no reliable way to infer it from the file.
   final String? contentKind;
 
-  /// From the archive's ComicInfo.xml, when it had one.
+  /// From the archive's ComicInfo.xml when it had one, or edited by hand
+  /// ("Edit details" on the series screen).
   final String? summary;
-
-  /// "Writer · Artist".
-  final String? credits;
-
-  /// Year, publisher and genres, shown as pills.
-  final List<String> tags;
+  final String? writer;
+  final String? artist;
+  final String? publisher;
+  final String? year;
+  final List<String> genres;
 
   const LocalSeriesRecord({
     required this.id,
@@ -31,16 +31,23 @@ class LocalSeriesRecord {
     required this.addedAt,
     this.contentKind,
     this.summary,
-    this.credits,
-    this.tags = const [],
+    this.writer,
+    this.artist,
+    this.publisher,
+    this.year,
+    this.genres = const [],
   });
 
+  /// Null arguments keep the current value - use [withDetails] to clear one.
   LocalSeriesRecord copyWith({
     String? title,
     String? contentKind,
     String? summary,
-    String? credits,
-    List<String>? tags,
+    String? writer,
+    String? artist,
+    String? publisher,
+    String? year,
+    List<String>? genres,
   }) =>
       LocalSeriesRecord(
         id: id,
@@ -48,8 +55,35 @@ class LocalSeriesRecord {
         addedAt: addedAt,
         contentKind: contentKind ?? this.contentKind,
         summary: summary ?? this.summary,
-        credits: credits ?? this.credits,
-        tags: tags ?? this.tags,
+        writer: writer ?? this.writer,
+        artist: artist ?? this.artist,
+        publisher: publisher ?? this.publisher,
+        year: year ?? this.year,
+        genres: genres ?? this.genres,
+      );
+
+  /// Replaces every editable detail at once, so a field left blank in the
+  /// Edit details form really is cleared. Keeps id, addedAt and contentKind.
+  LocalSeriesRecord withDetails({
+    required String title,
+    String? summary,
+    String? writer,
+    String? artist,
+    String? publisher,
+    String? year,
+    List<String> genres = const [],
+  }) =>
+      LocalSeriesRecord(
+        id: id,
+        title: title,
+        addedAt: addedAt,
+        contentKind: contentKind,
+        summary: summary,
+        writer: writer,
+        artist: artist,
+        publisher: publisher,
+        year: year,
+        genres: genres,
       );
 
   Map<String, dynamic> toJson() => {
@@ -58,20 +92,50 @@ class LocalSeriesRecord {
         'addedAt': addedAt.toIso8601String(),
         if (contentKind != null) 'contentKind': contentKind,
         if (summary != null) 'summary': summary,
-        if (credits != null) 'credits': credits,
-        if (tags.isNotEmpty) 'tags': tags,
+        if (writer != null) 'writer': writer,
+        if (artist != null) 'artist': artist,
+        if (publisher != null) 'publisher': publisher,
+        if (year != null) 'year': year,
+        if (genres.isNotEmpty) 'genres': genres,
       };
 
-  factory LocalSeriesRecord.fromJson(Map<String, dynamic> json) =>
-      LocalSeriesRecord(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        addedAt: DateTime.parse(json['addedAt'] as String),
-        contentKind: json['contentKind'] as String?,
-        summary: json['summary'] as String?,
-        credits: json['credits'] as String?,
-        tags: (json['tags'] as List?)?.cast<String>() ?? const [],
-      );
+  factory LocalSeriesRecord.fromJson(Map<String, dynamic> json) {
+    // Records written before the fields were split kept only the display
+    // forms: 'credits' ("Writer · Artist") and 'tags' ([year, publisher,
+    // ...genres], each part optional). Split them back as best we can; the
+    // header renders the same either way, and the next save drops them.
+    final credits = (json['credits'] as String?)?.split(' · ');
+    final tags = [...?(json['tags'] as List?)?.cast<String>()];
+    String? legacyYear, legacyPublisher;
+    if (tags.isNotEmpty && RegExp(r'^\d{4}$').hasMatch(tags.first)) {
+      legacyYear = tags.removeAt(0);
+    }
+    // ponytail: a book with genres but no publisher gets its first genre
+    // read as the publisher; fixable in Edit details.
+    if (tags.isNotEmpty) legacyPublisher = tags.removeAt(0);
+    return LocalSeriesRecord(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      addedAt: DateTime.parse(json['addedAt'] as String),
+      contentKind: json['contentKind'] as String?,
+      summary: json['summary'] as String?,
+      writer: json['writer'] as String? ?? credits?.first,
+      artist: json['artist'] as String? ??
+          (credits != null && credits.length > 1 ? credits[1] : null),
+      publisher: json['publisher'] as String? ?? legacyPublisher,
+      year: json['year'] as String? ?? legacyYear,
+      genres: (json['genres'] as List?)?.cast<String>() ?? tags,
+    );
+  }
+
+  /// "Writer · Artist", skipping whichever is missing or a repeat.
+  String? get credits {
+    final names = {?writer, ?artist};
+    return names.isEmpty ? null : names.join(' · ');
+  }
+
+  /// Year, publisher and genres, shown as pills.
+  List<String> get tags => [?year, ?publisher, ...genres];
 }
 
 class LocalBookRecord {
