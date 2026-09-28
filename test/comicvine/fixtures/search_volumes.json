@@ -1,0 +1,35 @@
+{
+  "error": "OK",
+  "limit": 20,
+  "offset": 0,
+  "number_of_page_results": 2,
+  "number_of_total_results": 2,
+  "status_code": 1,
+  "results": [
+    {
+      "count_of_issues": 25,
+      "id": 106705,
+      "image": {
+        "icon_url": "https://comicvine.gamespot.com/a/uploads/square_avatar/6/67663/6238341-01.jpg",
+        "thumb_url": "https://comicvine.gamespot.com/a/uploads/scale_avatar/6/67663/6238341-01.jpg"
+      },
+      "name": "Black Panther",
+      "publisher": {
+        "api_detail_url": "https://comicvine.gamespot.com/api/publisher/4010-31/",
+        "id": 31,
+        "name": "Marvel"
+      },
+      "start_year": "2018",
+      "resource_type": "volume"
+    },
+    {
+      "count_of_issues": 3,
+      "id": 999,
+      "image": null,
+      "name": "Black Panther: Tales",
+      "publisher": null,
+      "start_year": null,
+      "resource_type": "volume"
+    }
+  ]
+}

@@ -103,6 +103,12 @@ class SettingsScreen extends StatelessWidget {
                 title: 'Media Pool',
                 subtitle: 'Back up locally-imported comics over WebDAV',
                 onTap: () => context.push('/settings/media-pool'),
+              ),
+              _SettingsRow(
+                icon: Icons.travel_explore_outlined,
+                title: 'ComicVine',
+                subtitle: 'API key for looking up imported comics',
+                onTap: () => context.push('/settings/comicvine'),
                 isLast: true,
               ),
             ]),
