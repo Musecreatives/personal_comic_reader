@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../debug/debug_log.dart';
+
 import 'media_pool_config.dart';
 
 class WebDavException implements Exception {
@@ -21,7 +23,7 @@ class WebDavClient {
 
   WebDavClient({required MediaPoolConfig config, Dio? dio})
       : _dio = dio ??
-            Dio(BaseOptions(
+            trackedDio(BaseOptions(
               baseUrl: config.baseUrl.endsWith('/')
                   ? config.baseUrl
                   : '${config.baseUrl}/',

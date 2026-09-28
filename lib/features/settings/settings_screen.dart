@@ -134,6 +134,16 @@ class SettingsScreen extends StatelessWidget {
                 isLast: true,
               ),
             ]),
+            _SectionLabel('HELP'),
+            _SettingsGroup(children: [
+              _SettingsRow(
+                icon: Icons.bug_report_outlined,
+                title: 'Diagnostics & reports',
+                subtitle: 'Network and logs, report a problem, debug mode',
+                onTap: () => context.push('/debug'),
+                isLast: true,
+              ),
+            ]),
           ],
         ),
       ),

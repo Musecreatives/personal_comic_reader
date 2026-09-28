@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/design_tokens.dart';
+import '../debug/report_sheet.dart';
 
 /// Consistent "something went wrong" state used across screens: a short,
 /// human-readable cause plus a retry action. Raw exception text goes in the
@@ -61,6 +62,11 @@ class AppErrorState extends StatelessWidget {
                 child: const Text('Retry'),
               ),
             ],
+            TextButton(
+              onPressed: () => showReportSheet(context, error: error),
+              child: Text('Report this',
+                  style: AppText.body(size: 12.5, color: AppColors.text45)),
+            ),
           ],
         ),
       ),

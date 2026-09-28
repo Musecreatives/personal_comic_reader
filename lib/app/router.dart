@@ -4,6 +4,7 @@ import '../core/backend/reader_backend.dart';
 import '../features/auth/login_screen.dart';
 import '../features/collections/collection_detail_screen.dart';
 import '../features/collections/collections_screen.dart';
+import '../features/debug/diagnostics_screen.dart';
 import '../features/downloads/downloads_screen.dart';
 import '../features/discovery/recommendations_screen.dart';
 import '../features/home/in_progress_screen.dart';
@@ -97,6 +98,10 @@ GoRouter buildRouter({
       path: '/library/:id',
       builder: (context, state) =>
           LibraryScreen(libraryId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/debug',
+      builder: (context, state) => const DiagnosticsScreen(),
     ),
     GoRoute(
       path: '/series/:id',

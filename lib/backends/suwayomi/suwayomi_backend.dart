@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../../core/debug/debug_log.dart';
+
 import '../../core/backend/models.dart';
 import '../../core/discovery/recommender.dart';
 import '../../core/backend/reader_backend.dart';
@@ -36,7 +38,7 @@ class SuwayomiBackend implements ReaderBackend {
 
   SuwayomiBackend({required this.config, required String password, Dio? dio})
       : _dio = dio ??
-            Dio(BaseOptions(
+            trackedDio(BaseOptions(
               baseUrl: config.baseUrl,
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 20),
@@ -521,10 +523,58 @@ class SuwayomiBackend implements ReaderBackend {
     } catch (_) {}
   }
 
-  Future<void> _fetchChaptersFromSource(int mangaId) => _gql(
-        'mutation(\$id: Int!) { fetchChapters(input: {mangaId: \$id}) { chapters { id } } }',
-        {'id': mangaId},
-      );
+  Future<List<dynamic>> _fetchChaptersFromSource(int mangaId) async {
+    final data = await _gql(
+      'mutation(\$id: Int!) { fetchChapters(input: {mangaId: \$id}) { chapters { id chapterNumber } } }',
+      {'id': mangaId},
+    );
+    return data['fetchChapters']['chapters'] as List;
+  }
+
+  /// Asks the source for [seriesId]'s current chapter list (new chapters
+  /// included) and returns how many it has.
+  Future<int> refreshChapters(String seriesId) async =>
+      (await _fetchChaptersFromSource(int.parse(seriesId))).length;
+
+  /// The source (extension) id a library title comes from.
+  Future<String> sourceIdOf(String seriesId) async {
+    final data = await _gql(
+      'query(\$id: Int!) { manga(id: \$id) { sourceId } }',
+      {'id': int.parse(seriesId)},
+    );
+    return '${data['manga']['sourceId']}';
+  }
+
+  /// Moves a library title to the same title on another source ([toId], from
+  /// [searchSourceCatalog]): adds it with the old one's categories, marks the
+  /// chapters read that were read before (matched by chapter number), then
+  /// takes the old one out of the library. The old one isn't deleted, so it
+  /// can be added back from its source.
+  Future<void> migrate(String fromId, int toId) async {
+    final data = await _gql(
+      'query(\$id: Int!) { manga(id: \$id) { categories { nodes { id } } '
+      'chapters { nodes { chapterNumber isRead } } } }',
+      {'id': int.parse(fromId)},
+    );
+    final manga = data['manga'] as Map<String, dynamic>;
+    final categories = [
+      for (final c in manga['categories']['nodes'] as List) c['id'] as int,
+    ];
+    final read = {
+      for (final c in manga['chapters']['nodes'] as List)
+        if (c['isRead'] == true) (c['chapterNumber'] as num).toDouble(),
+    };
+
+    await addToLibraryWithCategories(toId, categories);
+    if (read.isNotEmpty) {
+      final chapters = await _fetchChaptersFromSource(toId);
+      await markChaptersRead([
+        for (final c in chapters)
+          if (read.contains((c['chapterNumber'] as num).toDouble())) c['id'] as int,
+      ]);
+    }
+    await removeFromLibrary(fromId);
+  }
 
   /// Fetches the real chapter list for [mangaId] from its source (not the
   /// local cache) and returns id-by-chapter-number, so a caller can map

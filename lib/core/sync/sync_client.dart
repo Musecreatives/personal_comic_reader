@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../debug/debug_log.dart';
+
 /// One record as the sync service stores/returns it - a JSON blob plus
 /// the bookkeeping fields the server uses for last-write-wins merging.
 class SyncRecord {
@@ -48,7 +50,7 @@ class SyncClient {
   SyncClient({required String baseUrl, String? token, Dio? dio})
       : _token = token, // ignore: prefer_initializing_formals
         _dio = dio ??
-            Dio(BaseOptions(
+            trackedDio(BaseOptions(
               baseUrl: baseUrl,
               connectTimeout: const Duration(seconds: 8),
               receiveTimeout: const Duration(seconds: 15),

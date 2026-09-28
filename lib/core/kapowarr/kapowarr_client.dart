@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../debug/debug_log.dart';
+
 import 'kapowarr_config.dart';
 
 class KapowarrStats {
@@ -200,7 +202,7 @@ class KapowarrClient {
   KapowarrClient({required KapowarrConfig config, Dio? dio})
       : _apiKey = config.apiKey,
         _dio = dio ??
-            Dio(BaseOptions(
+            trackedDio(BaseOptions(
               baseUrl: config.baseUrl,
               connectTimeout: const Duration(seconds: 8),
               receiveTimeout: const Duration(seconds: 15),
