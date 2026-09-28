@@ -756,6 +756,12 @@ class _SeriesHeader extends StatelessWidget {
                                     ? AppColors.suwayomi.withValues(alpha: 0.16)
                                     : AppColors.accent.withValues(alpha: 0.16),
                               ),
+                              if (series.sourceName != null)
+                                _Pill(
+                                  label: series.sourceName!.toUpperCase(),
+                                  color: AppColors.text60,
+                                  bg: AppColors.fillSubtle,
+                                ),
                             ],
                           ),
                         ],

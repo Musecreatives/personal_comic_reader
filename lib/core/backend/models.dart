@@ -39,6 +39,10 @@ class Series {
   final int booksUnreadCount;
   final String? thumbnailUrl;
 
+  /// Where the title comes from on servers that aggregate several - the
+  /// Suwayomi extension, e.g. "Read Comics Online (EN)". Null elsewhere.
+  final String? sourceName;
+
   const Series({
     required this.id,
     required this.libraryId,
@@ -48,6 +52,7 @@ class Series {
     required this.booksReadCount,
     required this.booksUnreadCount,
     this.thumbnailUrl,
+    this.sourceName,
   });
 
   bool get isFullyRead => booksCount > 0 && booksUnreadCount == 0;
