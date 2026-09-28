@@ -59,12 +59,6 @@ class ComicInfo {
           .toList(),
     );
   }
-
-  /// "Writer · Artist", skipping whichever is missing or a repeat.
-  String? get credits {
-    final names = {?writer, ?artist};
-    return names.isEmpty ? null : names.join(' · ');
-  }
 }
 
 bool isComicInfoPath(String path) =>
