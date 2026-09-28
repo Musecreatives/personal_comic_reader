@@ -262,6 +262,16 @@ final backendForServerProvider =
   return all.where((b) => b.config.id == serverId).firstOrNull;
 });
 
+/// Like [backendForServerProvider], but by [ServerConfig.portableKey] - what
+/// synced data (collections) records, since server ids differ per device.
+/// A null key means the active server.
+final backendForServerKeyProvider =
+    FutureProvider.family<ReaderBackend?, String?>((ref, serverKey) async {
+  if (serverKey == null) return ref.watch(activeBackendProvider.future);
+  final all = await ref.watch(allBackendsProvider.future);
+  return all.where((b) => b.config.portableKey == serverKey).firstOrNull;
+});
+
 /// Makes [serverId] the active server (if it still exists) so screens that
 /// read [activeBackendProvider] - series, reader - talk to the right one
 /// after tapping something that lives on another server.

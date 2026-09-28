@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/backend/reader_backend.dart';
 import '../features/auth/login_screen.dart';
+import '../features/collections/collection_detail_screen.dart';
 import '../features/collections/collections_screen.dart';
 import '../features/downloads/downloads_screen.dart';
 import '../features/discovery/recommendations_screen.dart';
@@ -131,6 +132,11 @@ GoRouter buildRouter({
     GoRoute(
       path: '/collections',
       builder: (context, state) => const CollectionsScreen(),
+    ),
+    GoRoute(
+      path: '/collections/:id',
+      builder: (context, state) =>
+          CollectionDetailScreen(collectionId: state.pathParameters['id']!),
     ),
     GoRoute(
       path: '/settings/servers',

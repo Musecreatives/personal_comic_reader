@@ -601,6 +601,33 @@ class _LibraryHeader extends StatelessWidget {
                         const SizedBox(width: 7),
                       ],
                     ],
+                    // Your own collections (they span servers, so they open
+                    // on their own page rather than filtering this one).
+                    Consumer(builder: (context, ref, _) {
+                      ref.watch(collectionsRevisionProvider);
+                      final mine = ref.watch(collectionsStoreProvider).list();
+                      return Row(children: [
+                        Container(
+                          width: 1,
+                          height: 18,
+                          margin: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                          color: AppColors.border,
+                        ),
+                        for (final c in mine) ...[
+                          _FilterChip(
+                            label: c.name,
+                            selected: false,
+                            onTap: () => context.push('/collections/${c.id}'),
+                          ),
+                          const SizedBox(width: 7),
+                        ],
+                        _FilterChip(
+                          label: mine.isEmpty ? '+ Collections' : 'All collections',
+                          selected: false,
+                          onTap: () => context.push('/collections'),
+                        ),
+                      ]);
+                    }),
                   ],
                 );
               },

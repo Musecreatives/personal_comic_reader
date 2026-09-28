@@ -15,6 +15,8 @@ import '../home/home_feed.dart';
 import 'chapter_actions.dart';
 import 'download_sheet.dart';
 import 'series_actions_sheet.dart';
+import '../../core/collections/collection.dart';
+import '../collections/collections_screen.dart' show createCollection;
 import '../shared/back_button.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
@@ -387,6 +389,10 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
           builder: (sheetContext, setSheetState) {
             final store = ref.read(collectionsStoreProvider);
             final collections = store.list();
+            // Recorded with its server, so a collection can mix servers and
+            // still open the right series on every synced device.
+            final entry =
+                collectionEntry(widget.backend.config.portableKey, seriesId);
             return SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -394,16 +400,33 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Add to collection',
-                      style: AppText.body(size: 16, weight: FontWeight.w600),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Add to collection',
+                            style: AppText.body(size: 16, weight: FontWeight.w600),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            final id = await createCollection(context, ref);
+                            if (id == null) return;
+                            await store.addSeries(id, entry);
+                            ref.read(collectionsRevisionProvider.notifier).state++;
+                            setSheetState(() {});
+                          },
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('New'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     if (collections.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Text(
-                          'No collections yet - make one from Collections in Settings.',
+                          'No collections yet - tap New to make one.',
                           style: AppText.body(
                             size: 12.5,
                             color: AppColors.text45,
@@ -414,11 +437,15 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                       CheckboxListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(c.name, style: AppText.body(size: 14)),
-                        value: c.seriesIds.contains(seriesId),
+                        // Entries saved before servers were recorded are a
+                        // bare series id - count those too.
+                        value: c.seriesIds.contains(entry) ||
+                            c.seriesIds.contains(seriesId),
                         onChanged: (checked) async {
                           if (checked == true) {
-                            await store.addSeries(c.id, seriesId);
+                            await store.addSeries(c.id, entry);
                           } else {
+                            await store.removeSeries(c.id, entry);
                             await store.removeSeries(c.id, seriesId);
                           }
                           ref
