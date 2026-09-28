@@ -133,13 +133,14 @@ class SuwayomiBackend implements ReaderBackend {
       booksReadCount: total - unread,
       booksUnreadCount: unread,
       thumbnailUrl: thumbnailUrlForSeries(id),
+      sourceName: e['source']?['displayName'] as String?,
     );
   }
 
   @override
   Future<Series> getSeries(String id) async {
     final data = await _gql(
-      'query(\$id: Int!) { manga(id: \$id) { id title description thumbnailUrl unreadCount chapters { totalCount } } }',
+      'query(\$id: Int!) { manga(id: \$id) { id title description thumbnailUrl unreadCount chapters { totalCount } source { displayName } } }',
       {'id': int.parse(id)},
     );
     return _seriesFromJson(data['manga'] as Map<String, dynamic>);
@@ -147,11 +148,25 @@ class SuwayomiBackend implements ReaderBackend {
 
   @override
   Future<List<Book>> listBooks(String seriesId) async {
-    final data = await _gql(
-      'query(\$id: Int!) { manga(id: \$id) { chapters { nodes { id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder } } } }',
-      {'id': int.parse(seriesId)},
-    );
-    final nodes = data['manga']['chapters']['nodes'] as List;
+    const query =
+        'query(\$id: Int!) { manga(id: \$id) { chapters { nodes { id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder } } } }';
+    final id = int.parse(seriesId);
+    var nodes =
+        (await _gql(query, {'id': id}))['manga']['chapters']['nodes'] as List;
+    if (nodes.isEmpty) {
+      // Adding a title to the library doesn't make Suwayomi fetch its
+      // chapter list - it only stores what a library update or the web UI
+      // fetched. A title with nothing stored would show no chapters at all,
+      // so ask its source now (this also saves them in Suwayomi).
+      try {
+        await _fetchChaptersFromSource(id);
+      } catch (_) {
+        // The source has none (removed/licensed) or is unreachable - an
+        // empty list, not an error screen.
+        return const [];
+      }
+      nodes = (await _gql(query, {'id': id}))['manga']['chapters']['nodes'] as List;
+    }
     final books = nodes.map((e) => _bookFromJson(e)).toList();
     books.sort((a, b) =>
         (double.tryParse(a.number) ?? 0).compareTo(double.tryParse(b.number) ?? 0));
@@ -492,13 +507,24 @@ class SuwayomiBackend implements ReaderBackend {
       'mutation(\$id: Int!) { updateManga(input: {id: \$id, patch: {inLibrary: true}}) { manga { id } } }',
       {'id': mangaId},
     );
-    if (categoryIds.isEmpty) return;
-    await _gql(
-      'mutation(\$id: Int!, \$cats: [Int!]!) { '
-      'updateMangaCategories(input: {id: \$id, patch: {addToCategories: \$cats}}) { manga { id } } }',
-      {'id': mangaId, 'cats': categoryIds},
-    );
+    if (categoryIds.isNotEmpty) {
+      await _gql(
+        'mutation(\$id: Int!, \$cats: [Int!]!) { '
+        'updateMangaCategories(input: {id: \$id, patch: {addToCategories: \$cats}}) { manga { id } } }',
+        {'id': mangaId, 'cats': categoryIds},
+      );
+    }
+    // Otherwise it sits in the library with no chapters until Suwayomi's
+    // next library update. Best effort - opening it retries (listBooks).
+    try {
+      await _fetchChaptersFromSource(mangaId);
+    } catch (_) {}
   }
+
+  Future<void> _fetchChaptersFromSource(int mangaId) => _gql(
+        'mutation(\$id: Int!) { fetchChapters(input: {mangaId: \$id}) { chapters { id } } }',
+        {'id': mangaId},
+      );
 
   /// Fetches the real chapter list for [mangaId] from its source (not the
   /// local cache) and returns id-by-chapter-number, so a caller can map
