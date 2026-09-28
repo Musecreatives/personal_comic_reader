@@ -14,6 +14,7 @@ class ReaderSettingsSheet extends StatefulWidget {
   final bool rememberForSeries;
   final ValueChanged<ReaderSettings> onChanged;
   final ValueChanged<bool> onRememberChanged;
+  final ScrollController? scrollController;
 
   const ReaderSettingsSheet({
     super.key,
@@ -21,6 +22,7 @@ class ReaderSettingsSheet extends StatefulWidget {
     required this.rememberForSeries,
     required this.onChanged,
     required this.onRememberChanged,
+    this.scrollController,
   });
 
   static Future<void> show(
@@ -33,12 +35,26 @@ class ReaderSettingsSheet extends StatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => ReaderSettingsSheet(
-        settings: settings,
-        rememberForSeries: rememberForSeries,
-        onChanged: onChanged,
-        onRememberChanged: onRememberChanged,
+      // Desktop/tablet: a centred panel, not a full-window-width slab.
+      constraints: const BoxConstraints(maxWidth: 560),
+      // The content is taller than a phone screen. A draggable sheet keeps a
+      // strip of dimmed reader above it to tap, and dragging the list down
+      // from its top closes it - otherwise the inner scroll view swallows
+      // every downward drag and there's no way out.
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.72,
+        minChildSize: 0.3,
+        maxChildSize: 0.92,
+        builder: (context, controller) => ReaderSettingsSheet(
+          settings: settings,
+          rememberForSeries: rememberForSeries,
+          onChanged: onChanged,
+          onRememberChanged: onRememberChanged,
+          scrollController: controller,
+        ),
       ),
     );
   }
@@ -104,6 +120,7 @@ class _ReaderSettingsSheetState extends State<ReaderSettingsSheet> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(0, 12, 0, 20),
           child: SingleChildScrollView(
+            controller: widget.scrollController,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -120,10 +137,25 @@ class _ReaderSettingsSheetState extends State<ReaderSettingsSheet> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text('Reader settings', style: AppText.body(size: 19, weight: FontWeight.w600)),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text('Reader settings',
+                            style: AppText.body(size: 19, weight: FontWeight.w600)),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('Done',
+                            style: AppText.body(
+                                size: 15,
+                                weight: FontWeight.w600,
+                                color: AppColors.accentLink)),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 _GroupLabel('LAYOUT'),
                 _Group(children: [
                   _ValueRow(
@@ -335,10 +367,18 @@ class _ValueRow extends StatelessWidget {
           border: isLast ? null : Border(bottom: BorderSide(color: AppColors.border)),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: AppText.body(size: 14)),
-            Text('$value ▾', style: AppText.mono(size: 12, color: AppColors.accentLink)),
+            Expanded(child: Text(label, style: AppText.body(size: 14))),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                '$value ▾',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: AppText.mono(size: 12, color: AppColors.accentLink),
+              ),
+            ),
           ],
         ),
       ),
@@ -420,9 +460,9 @@ class _SliderRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: AppText.body(size: 14)),
+              Expanded(child: Text(label, style: AppText.body(size: 14))),
+              const SizedBox(width: 12),
               Text(display, style: AppText.mono(size: 12, color: AppColors.accentLink)),
             ],
           ),
