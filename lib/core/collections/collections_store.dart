@@ -65,6 +65,19 @@ class CollectionsStore {
     await _save(c.copyWith(seriesIds: [...c.seriesIds, seriesId]));
   }
 
+  /// Swaps [oldEntry] for [newEntry] in every collection holding it - after a
+  /// title moves to another source, it stays on the same shelves.
+  Future<void> replaceEverywhere(String oldEntry, String newEntry) async {
+    for (final c in list()) {
+      if (!c.seriesIds.contains(oldEntry)) continue;
+      final ids = [
+        for (final id in c.seriesIds)
+          if (id != newEntry) id == oldEntry ? newEntry : id,
+      ];
+      await _save(c.copyWith(seriesIds: ids));
+    }
+  }
+
   Future<void> removeSeries(String collectionId, String seriesId) async {
     final raw = _box.get(collectionId);
     if (raw == null) return;

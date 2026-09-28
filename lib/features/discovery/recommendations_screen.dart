@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
+import '../../app/providers.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
+import '../../core/discovery/comic_recommender.dart';
 import '../../core/discovery/discovery_cache.dart';
+import '../../core/kapowarr/kapowarr_client.dart';
 import '../../core/discovery/recommender.dart';
 import '../shared/back_button.dart';
 import '../shared/series_cover.dart';
@@ -29,10 +32,63 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen> {
   final _adding = <int>{};
   final _added = <int>{};
 
+  late final bool _hasKapowarr = ref.read(kapowarrConfigStoreProvider).hasConfig;
+  var _comicsMode = false;
+  List<ComicRec>? _comics;
+  bool _comicsBusy = false;
+  String? _comicsError;
+  KapowarrClient? _kapowarr;
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  Future<void> _loadComics({bool force = false}) async {
+    setState(() {
+      _comicsBusy = true;
+      _comicsError = null;
+    });
+    try {
+      final config = await ref.read(kapowarrConfigStoreProvider).getWithApiKey();
+      if (config == null) {
+        setState(() => _comicsError = 'Comic recommendations need Kapowarr.');
+        return;
+      }
+      final client = _kapowarr = KapowarrClient(config: config);
+      if (!force) {
+        final cached = await ComicRecCache.load();
+        if (cached != null) {
+          if (mounted) setState(() => _comics = cached);
+          return;
+        }
+      }
+      final recs = await computeComicRecommendations(client);
+      if (mounted) setState(() => _comics = recs);
+    } catch (e) {
+      if (mounted) setState(() => _comicsError = '$e');
+    } finally {
+      if (mounted) setState(() => _comicsBusy = false);
+    }
+  }
+
+  Future<void> _addComic(ComicRec r) async {
+    final client = _kapowarr;
+    if (client == null) return;
+    final id = r.volume.comicvineId;
+    setState(() => _adding.add(id));
+    try {
+      await client.addVolume(id);
+      if (mounted) setState(() => _added.add(id));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Couldn't add it to Kapowarr: $e")));
+      }
+    } finally {
+      if (mounted) setState(() => _adding.remove(id));
+    }
   }
 
   Future<void> _load({bool force = false}) async {
@@ -101,23 +157,43 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen> {
                   ),
                   IconButton(
                     tooltip: 'Find new recommendations',
-                    onPressed: _busy ? null : () => _load(force: true),
+                    onPressed: _comicsMode
+                        ? (_comicsBusy ? null : () => _loadComics(force: true))
+                        : (_busy ? null : () => _load(force: true)),
                     icon: Icon(Icons.refresh_rounded, color: AppColors.text60),
                   ),
                 ],
               ),
             ),
+            if (_hasKapowarr)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                child: SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Manga')),
+                    ButtonSegment(value: true, label: Text('Comics')),
+                  ],
+                  selected: {_comicsMode},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (s) {
+                    setState(() => _comicsMode = s.first);
+                    if (_comicsMode && _comics == null && !_comicsBusy) _loadComics();
+                  },
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Text(
-                'Popular on the sources you read from, matched to the genres in your library.',
+                _comicsMode
+                    ? 'Recent runs of the characters and series in your Kapowarr library.'
+                    : 'Popular on the sources you read from, matched to the genres in your library.',
                 style: AppText.body(size: 12.5, color: AppColors.text60),
               ),
             ),
             Expanded(
               child: AnimatedSwitcher(
                 duration: Motion.scaled(context, Motion.base),
-                child: _body(backend, recs),
+                child: _comicsMode ? _comicsBody() : _body(backend, recs),
               ),
             ),
           ],
@@ -178,7 +254,9 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen> {
         return FadeSlideIn(
           delay: Duration(milliseconds: 30 * math.min(i, 8)),
           child: _RecTile(
-            rec: r,
+            title: c.title,
+            imageUrl: c.thumbnailUrl,
+            caption: r.because.map(_cap).join(', '),
             adding: _adding.contains(c.id),
             added: _added.contains(c.id),
             onAdd: backend == null ? null : () => _add(backend, c),
@@ -187,25 +265,93 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen> {
       },
     );
   }
+
+  static String _cap(String g) => g.isEmpty ? g : g[0].toUpperCase() + g.substring(1);
+
+  Widget _comicsBody() {
+    final comics = _comics;
+    if (_comicsError != null && comics == null) {
+      return Center(
+        key: const ValueKey('comics-error'),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Text(_comicsError!,
+              textAlign: TextAlign.center,
+              style: AppText.body(color: AppColors.text60)),
+        ),
+      );
+    }
+    if (comics == null) {
+      return Center(
+        key: const ValueKey('comics-busy'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 18),
+            Text('Searching ComicVine for your characters and series',
+                style: AppText.body(size: 13, color: AppColors.text60)),
+            const SizedBox(height: 4),
+            Text('This can take a minute the first time',
+                style: AppText.body(size: 11.5, color: AppColors.text45)),
+          ],
+        ),
+      );
+    }
+    if (comics.isEmpty) {
+      return Center(
+        key: const ValueKey('comics-empty'),
+        child: Text('Nothing new matches your comics right now.',
+            style: AppText.body(color: AppColors.text60)),
+      );
+    }
+    return GridView.builder(
+      key: const ValueKey('comics-grid'),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 150,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 13,
+        childAspectRatio: 0.46,
+      ),
+      itemCount: comics.length,
+      itemBuilder: (context, i) {
+        final r = comics[i];
+        final v = r.volume;
+        return FadeSlideIn(
+          delay: Duration(milliseconds: 30 * math.min(i, 8)),
+          child: _RecTile(
+            title: v.year > 0 ? '${v.title} (${v.year})' : v.title,
+            imageUrl: v.coverUrl.isEmpty ? null : v.coverUrl,
+            caption: 'Because of ${_cap(r.because)}',
+            adding: _adding.contains(v.comicvineId),
+            added: _added.contains(v.comicvineId),
+            onAdd: () => _addComic(r),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _RecTile extends StatelessWidget {
-  final Recommendation rec;
+  final String title;
+  final String? imageUrl;
+  final String caption;
   final bool adding;
   final bool added;
   final VoidCallback? onAdd;
   const _RecTile({
-    required this.rec,
+    required this.title,
+    required this.imageUrl,
+    required this.caption,
     required this.adding,
     required this.added,
     required this.onAdd,
   });
 
-  String _cap(String g) => g.isEmpty ? g : g[0].toUpperCase() + g.substring(1);
-
   @override
   Widget build(BuildContext context) {
-    final c = rec.candidate;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -215,7 +361,7 @@ class _RecTile extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                SeriesCover(imageUrl: c.thumbnailUrl),
+                SeriesCover(imageUrl: imageUrl),
                 Positioned(
                   right: 8,
                   bottom: 8,
@@ -247,12 +393,12 @@ class _RecTile extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Text(c.title,
+        Text(title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppText.body(size: 12, weight: FontWeight.w600)),
         const SizedBox(height: 3),
-        Text(rec.because.map(_cap).join(', '),
+        Text(caption,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppText.mono(size: 9.5, color: AppColors.accentLink)),

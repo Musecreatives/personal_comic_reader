@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../../core/debug/debug_log.dart';
+
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/network/retry_interceptor.dart';
@@ -48,7 +50,7 @@ class KomgaBackend implements ReaderBackend {
   KomgaBackend({required this.config, required String password, Dio? dio})
       : _password = password, // ignore: prefer_initializing_formals
         _dio = dio ??
-            Dio(BaseOptions(
+            trackedDio(BaseOptions(
               baseUrl: config.baseUrl,
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 20),

@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:dio/dio.dart';
 
+import '../../core/debug/debug_log.dart';
+
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/network/retry_interceptor.dart';
@@ -61,7 +63,7 @@ class OpdsBackend implements ReaderBackend {
   OpdsBackend({required this.config, required String password, Dio? dio})
       : _password = password, // ignore: prefer_initializing_formals
         _dio = dio ??
-            Dio(BaseOptions(
+            trackedDio(BaseOptions(
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 30),
             )) {

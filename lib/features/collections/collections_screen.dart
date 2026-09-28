@@ -9,6 +9,7 @@ import '../../core/backend/models.dart';
 import '../../core/collections/collection.dart';
 import '../shared/back_button.dart';
 import '../shared/series_cover.dart';
+import 'collection_detail_screen.dart';
 import 'collection_entry.dart';
 
 /// How many series are in progress across every server.
@@ -176,8 +177,21 @@ class _CollectionCard extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        Icon(Icons.chevron_right_rounded,
-                            size: 20, color: AppColors.text30),
+                        PopupMenuButton<String>(
+                          tooltip: 'Manage',
+                          icon: Icon(Icons.more_horiz_rounded,
+                              size: 20, color: AppColors.text45),
+                          color: AppColors.card,
+                          onSelected: (v) => v == 'rename'
+                              ? renameCollection(
+                                  context, ref, collection.id, collection.name)
+                              : deleteCollection(
+                                  context, ref, collection.id, collection.name),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'rename', child: Text('Rename')),
+                            PopupMenuItem(value: 'delete', child: Text('Delete')),
+                          ],
+                        ),
                       ],
                     ),
                   ),

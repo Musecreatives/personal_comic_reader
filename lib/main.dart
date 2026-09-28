@@ -19,6 +19,7 @@ import 'app/theme.dart';
 import 'backends/local/local_library_store.dart';
 import 'core/appearance/appearance_store.dart';
 import 'core/collections/collections_store.dart';
+import 'core/debug/debug_log.dart';
 import 'core/downloads/download_manager.dart';
 import 'core/history/history_store.dart';
 import 'core/history/stopped_series_store.dart';
@@ -41,6 +42,7 @@ import 'features/local_library/local_library_screen.dart' show localLibraryRevis
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await DebugLog.instance.install();
   Directory? supportDir;
   if (kIsWeb) {
     // path_provider has no web implementation; Hive uses IndexedDB on web
@@ -203,6 +205,7 @@ String? _tabFor(String route) {
   if (path.startsWith('/settings') ||
       path.startsWith('/collections') ||
       path == '/local-library' ||
+      path == '/debug' ||
       path == '/stats') {
     return '/settings';
   }
@@ -243,9 +246,56 @@ class ShaddaiReaderApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       builder: (context, child) => SyncScheduler(
         child: ChapterNotificationScheduler(
-          child: ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+          child: ConnectivityBanner(
+            child: _DebugButton(
+              router: router,
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// In debug mode, a bug button over every screen that opens Diagnostics,
+/// with a count of errors and failed calls so far.
+class _DebugButton extends StatelessWidget {
+  final GoRouter router;
+  final Widget child;
+  const _DebugButton({required this.router, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final log = DebugLog.instance;
+    return ValueListenableBuilder(
+      valueListenable: log.debugMode,
+      builder: (context, on, _) => !on
+          ? child
+          : Stack(
+              children: [
+                child,
+                Positioned(
+                  right: 14,
+                  bottom: 110 + MediaQuery.paddingOf(context).bottom,
+                  child: ListenableBuilder(
+                    listenable: log,
+                    builder: (context, _) => Badge(
+                      isLabelVisible: log.errorCount > 0,
+                      label: Text('${log.errorCount}'),
+                      child: FloatingActionButton.small(
+                        heroTag: 'debug',
+                        tooltip: 'Diagnostics',
+                        backgroundColor: AppColors.card,
+                        foregroundColor: AppColors.text,
+                        onPressed: () => router.push('/debug'),
+                        child: const Icon(Icons.bug_report_outlined),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
