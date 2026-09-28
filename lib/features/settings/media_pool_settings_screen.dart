@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
@@ -106,7 +105,7 @@ class _MediaPoolSettingsScreenState
     setState(() => _saving = true);
     try {
       await ref.read(mediaPoolConfigStoreProvider).save(_config);
-      if (mounted) context.pop();
+      if (mounted) context.popOrHome();
     } catch (e) {
       if (!mounted) return;
       setState(() {

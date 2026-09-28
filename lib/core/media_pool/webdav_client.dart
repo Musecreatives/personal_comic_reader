@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -26,7 +27,9 @@ class WebDavClient {
                   : '${config.baseUrl}/',
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 30),
-              sendTimeout: const Duration(seconds: 60),
+              // Big books take a while to upload - bound the connection, not
+              // the whole transfer.
+              sendTimeout: const Duration(minutes: 30),
               headers: {
                 'Authorization':
                     'Basic ${base64Encode(utf8.encode('${config.username}:${config.password}'))}',
@@ -49,6 +52,17 @@ class WebDavClient {
   /// folders first (WebDAV servers 409 a PUT into a folder that doesn't
   /// exist yet).
   Future<void> putFile(String path, Uint8List bytes) async {
+    await _makeParents(path);
+    await _put(path, bytes, bytes.length);
+  }
+
+  /// Streams [file] up to `<baseUrl>/<path>` without reading it into memory.
+  Future<void> putFileFromDisk(String path, File file) async {
+    await _makeParents(path);
+    await _put(path, file.openRead(), await file.length());
+  }
+
+  Future<void> _makeParents(String path) async {
     final segments = path.split('/').where((s) => s.isNotEmpty).toList();
     var built = '';
     for (final segment in segments.sublist(0, segments.length - 1)) {
@@ -63,12 +77,14 @@ class WebDavClient {
             "Couldn't create folder \"$built\" (${res.statusCode}).");
       }
     }
+  }
 
+  Future<void> _put(String path, Object data, int length) async {
     final res = await _dio.put(
       Uri.encodeFull(path),
-      data: bytes,
+      data: data,
       options: Options(
-        headers: {'Content-Length': bytes.length},
+        headers: {'Content-Length': length},
         contentType: 'application/octet-stream',
       ),
     );

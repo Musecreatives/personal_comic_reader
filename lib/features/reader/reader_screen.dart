@@ -20,6 +20,7 @@ import '../../core/reader/reader_settings.dart';
 import '../../core/reader/reader_settings_store.dart';
 import '../../core/panels/panel_detector.dart';
 import '../../core/stats/reading_stats_store.dart';
+import '../shared/back_button.dart';
 import '../shared/error_state.dart';
 import 'widgets/chapter_panel.dart';
 import 'widgets/double_page_view.dart';
@@ -322,6 +323,11 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
 
   void _togglePanel() => setState(() => _panelOpen = !_panelOpen);
 
+  // Falls back to this book's series when the reader was the screen the app
+  // reopened on, so there's nothing underneath to pop back to.
+  void _close() => context.popOrHome(
+      fallback: '/series/${Uri.encodeComponent(widget.book.seriesId)}');
+
   Future<void> _openContextMenu(Offset at) async {
     final size = MediaQuery.sizeOf(context);
     PopupMenuItem<VoidCallback> item(
@@ -385,7 +391,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
         item(Icons.swap_horiz_rounded, 'Flip direction', 'D', _toggleDirection),
         item(Icons.tune_rounded, 'Reader settings', '', _openSettingsSheet),
         const PopupMenuDivider(height: 8),
-        item(Icons.close_rounded, 'Close reader', 'Esc', () => context.pop()),
+        item(Icons.close_rounded, 'Close reader', 'Esc', _close),
       ],
     );
     if (mounted) run?.call();
@@ -775,7 +781,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
         _hoverShown = false;
         setState(() => _overlayVisible = false);
       } else {
-        context.pop();
+        _close();
       }
     } else if (event.logicalKey == LogicalKeyboardKey.space ||
         event.logicalKey == LogicalKeyboardKey.pageDown) {
@@ -906,7 +912,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                   pageCount: widget.book.pageCount,
                   settings: _settings,
                   onSeek: _seek,
-                  onClose: () => context.pop(),
+                  onClose: _close,
                   onOpenSettings: _openSettingsSheet,
                   onToggleDirection: _toggleDirection,
                   onCycleMode: _cycleMode,

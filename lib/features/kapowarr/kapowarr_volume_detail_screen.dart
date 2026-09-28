@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import '../shared/back_button.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
@@ -55,7 +55,7 @@ class _KapowarrVolumeDetailScreenState extends ConsumerState<KapowarrVolumeDetai
               children: [
                 Row(
                   children: [
-                    _BackButton(onTap: () => context.pop()),
+                    _BackButton(onTap: () => context.popOrHome()),
                     const SizedBox(width: 12),
                     Text('KAPOWARR · VOLUME', style: AppText.mono(size: 9, color: AppColors.text45)),
                   ],

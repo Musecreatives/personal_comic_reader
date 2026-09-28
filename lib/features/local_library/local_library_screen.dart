@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -53,7 +56,7 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['cbz', 'zip', 'cbr', 'rar'],
+        allowedExtensions: importableArchiveExtensions,
         allowMultiple: true,
       );
       if (files.isEmpty) return;
@@ -63,8 +66,15 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
       final errors = <String>[];
       for (final f in files) {
         try {
-          final bytes = await f.readAsBytes();
-          await importArchive(store: store, fileName: f.name, bytes: bytes);
+          final path = f.path;
+          if (path != null) {
+            // Straight from disk: handles RAR/7z too, and never loads the
+            // whole archive into memory.
+            await importArchiveFile(store: store, path: path);
+          } else {
+            await importArchive(
+                store: store, fileName: f.name, bytes: await f.readAsBytes());
+          }
           ok++;
         } on ImportException catch (e) {
           errors.add('${f.name}: $e');
@@ -259,12 +269,23 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     var ok = 0;
     final errors = <String>[];
     for (final book in books) {
+      final remote =
+          '$folder/${sanitizeFileName(series.title)}/${sanitizeFileName(book.title)}.cbz';
       try {
-        final bytes = exportBookToCbz(store, book);
-        await client.putFile(
-          '$folder/${sanitizeFileName(series.title)}/${sanitizeFileName(book.title)}.cbz',
-          bytes,
-        );
+        if (kIsWeb) {
+          await client.putFile(remote, await exportBookToCbz(store, book));
+        } else {
+          // Build the CBZ on disk and stream it up - a big book never has to
+          // fit in memory.
+          final temp = await Directory.systemTemp.createTemp('shaddai_upload_');
+          try {
+            final cbz = File('${temp.path}${Platform.pathSeparator}book.cbz');
+            await exportBookToCbzFile(store, book, cbz.path);
+            await client.putFileFromDisk(remote, cbz);
+          } finally {
+            await temp.delete(recursive: true);
+          }
+        }
         ok++;
       } catch (e) {
         errors.add('${book.title}: $e');
@@ -403,9 +424,11 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
               child: Text(
-                "CBZ/ZIP archives, whole folders of page images, or loose image "
-                "files. Real RAR-based CBR isn't supported yet - convert those "
-                'to CBZ first.',
+                canUnpackNonZipArchives
+                    ? 'CBZ, CBR, CB7 and ZIP/RAR/7z archives, whole folders of '
+                        'page images, or loose image files.'
+                    : 'CBZ/ZIP archives, or loose image files. RAR-based CBR '
+                        'files can be imported from the desktop app.',
                 style: AppText.body(size: 12, color: AppColors.text45),
               ),
             ),
@@ -434,9 +457,6 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
                         final s = series[i];
                         final books = store.listBooksForSeries(s.id);
                         final coverBook = books.isEmpty ? null : books.last;
-                        final cover = coverBook == null
-                            ? null
-                            : store.getPage(coverBook.id, 0);
                         return FadeSlideIn(
                           delay: Duration(milliseconds: 30 * (i % 12)),
                           child: GestureDetector(
@@ -448,7 +468,10 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
                                 Expanded(
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(10),
-                                    child: SeriesCover(imageUrl: null, imageBytes: cover),
+                                    child: coverBook == null
+                                        ? const SeriesCover(imageUrl: null)
+                                        : LocalPageThumbnail(
+                                            store: store, bookId: coverBook.id),
                                   ),
                                 ),
                                 const SizedBox(height: 6),
@@ -535,6 +558,48 @@ class _ImportMenuButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// First page of a locally-imported book as a cover. On desktop/mobile it's
+/// decoded straight from the page file at thumbnail size (an omnibus page
+/// can be a 4 MB, 2000x3000 image - no point holding that for a grid tile).
+class LocalPageThumbnail extends StatefulWidget {
+  final LocalLibraryStore store;
+  final String bookId;
+  const LocalPageThumbnail({super.key, required this.store, required this.bookId});
+
+  @override
+  State<LocalPageThumbnail> createState() => _LocalPageThumbnailState();
+}
+
+class _LocalPageThumbnailState extends State<LocalPageThumbnail> {
+  late Future<Uint8List?> _bytes = widget.store.getPage(widget.bookId, 0);
+
+  @override
+  void didUpdateWidget(LocalPageThumbnail old) {
+    super.didUpdateWidget(old);
+    if (old.bookId != widget.bookId) {
+      _bytes = widget.store.getPage(widget.bookId, 0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final file = widget.store.pageFile(widget.bookId, 0);
+    if (file != null) {
+      return Image.file(
+        file,
+        fit: BoxFit.cover,
+        cacheWidth: 360,
+        errorBuilder: (_, _, _) => const SeriesCover(imageUrl: null),
+      );
+    }
+    return FutureBuilder<Uint8List?>(
+      future: _bytes,
+      builder: (context, snap) =>
+          SeriesCover(imageUrl: null, imageBytes: snap.data),
     );
   }
 }

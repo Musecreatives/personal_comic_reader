@@ -1,7 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import '../shared/back_button.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
@@ -119,7 +119,7 @@ class _BackupImportScreenState extends ConsumerState<BackupImportScreen> {
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
               child: Row(
                 children: [
-                  _BackButton(onTap: () => context.pop()),
+                  _BackButton(onTap: () => context.popOrHome()),
                   const SizedBox(width: 12),
                   Text('Import backup', style: AppText.largeTitle(size: 24)),
                 ],
@@ -151,7 +151,7 @@ class _BackupImportScreenState extends ConsumerState<BackupImportScreen> {
           applied: _applyDone,
           total: _applyTotal,
           errors: _applyErrors,
-          onFinish: () => context.pop(),
+          onFinish: () => context.popOrHome(),
         );
     }
   }

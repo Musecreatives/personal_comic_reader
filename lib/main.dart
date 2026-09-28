@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -39,6 +40,7 @@ import 'features/local_library/local_library_screen.dart' show localLibraryRevis
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  Directory? supportDir;
   if (kIsWeb) {
     // path_provider has no web implementation; Hive uses IndexedDB on web
     // regardless of the path passed in, so the default is fine there.
@@ -47,7 +49,7 @@ Future<void> main() async {
     // Use the OS app-data directory (not the user's visible Documents
     // folder, which on Windows is usually OneDrive-synced) so box files
     // don't clutter it or get cloud-synced as loose, meaningless filenames.
-    final supportDir = await getApplicationSupportDirectory();
+    supportDir = await getApplicationSupportDirectory();
     Hive.init(supportDir.path);
   }
 
@@ -90,7 +92,11 @@ Future<void> main() async {
   final stoppedSeriesStore = StoppedSeriesStore();
   await stoppedSeriesStore.init();
 
-  final localLibraryStore = LocalLibraryStore();
+  final localLibraryStore = LocalLibraryStore(
+    pagesDir: supportDir == null
+        ? null
+        : Directory('${supportDir.path}${Platform.pathSeparator}local_library_pages'),
+  );
   await localLibraryStore.init();
 
   final watchFolderStore = WatchFolderStore();

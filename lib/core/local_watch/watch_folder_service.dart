@@ -5,8 +5,6 @@ import '../../backends/local/local_importer.dart';
 import '../../backends/local/local_library_store.dart';
 import 'watch_folder_store.dart';
 
-const _archiveExtensions = ['.cbz', '.zip'];
-
 /// Watches a chosen folder (while the app is running - there's no true
 /// background service here) and auto-imports anything new dropped into it:
 /// a loose CBZ/ZIP file becomes one chapter, a subfolder of images becomes
@@ -64,13 +62,10 @@ class WatchFolderService {
       final type = await FileSystemEntity.type(entryPath);
       if (type == FileSystemEntityType.file) {
         final lower = entryPath.toLowerCase();
-        if (!_archiveExtensions.any(lower.endsWith)) return;
-        final name = entryPath
-            .split(RegExp(r'[/\\]'))
-            .where((s) => s.isNotEmpty)
-            .last;
-        final bytes = await File(entryPath).readAsBytes();
-        await importArchive(store: libraryStore, fileName: name, bytes: bytes);
+        if (!importableArchiveExtensions.any((e) => lower.endsWith('.$e'))) {
+          return;
+        }
+        await importArchiveFile(store: libraryStore, path: entryPath);
       } else if (type == FileSystemEntityType.directory) {
         await importFolder(store: libraryStore, folderPath: entryPath);
       } else {
