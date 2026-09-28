@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:hive_test/hive_test.dart';
 import 'package:shaddai_reader/app/providers.dart';
+import 'package:shaddai_reader/core/collections/collections_store.dart';
 import 'package:shaddai_reader/core/backend/models.dart';
 import 'package:shaddai_reader/core/backend/reader_backend.dart';
 import 'package:shaddai_reader/features/library/library_screen.dart';
@@ -87,6 +89,14 @@ class _FakeBackend implements ReaderBackend {
 }
 
 void main() {
+  late CollectionsStore collections;
+  setUp(() async {
+    await setUpTestHive();
+    collections = CollectionsStore();
+    await collections.init();
+  });
+  tearDown(() async => await tearDownTestHive());
+
   testWidgets('LibraryScreen renders a grid tile per series', (tester) async {
     final fakeBackend = _FakeBackend([
       const Series(
@@ -111,6 +121,7 @@ void main() {
       ProviderScope(
         overrides: [
           activeBackendProvider.overrideWith((ref) async => fakeBackend),
+          collectionsStoreProvider.overrideWithValue(collections),
         ],
         child: const MaterialApp(
           home: LibraryScreen(libraryId: 'lib1'),
@@ -150,6 +161,7 @@ void main() {
       ProviderScope(
         overrides: [
           activeBackendProvider.overrideWith((ref) async => fakeBackend),
+          collectionsStoreProvider.overrideWithValue(collections),
         ],
         child: const MaterialApp(
           home: LibraryScreen(libraryId: 'lib1'),

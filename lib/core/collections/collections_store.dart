@@ -46,6 +46,17 @@ class CollectionsStore {
 
   Future<void> delete(String id) => sync.remove(_box, id);
 
+  LocalCollection? get(String id) {
+    final raw = _box.get(id);
+    if (raw == null) return null;
+    return LocalCollection.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+  }
+
+  Future<void> rename(String id, String name) async {
+    final c = get(id);
+    if (c != null) await _save(c.copyWith(name: name));
+  }
+
   Future<void> addSeries(String collectionId, String seriesId) async {
     final raw = _box.get(collectionId);
     if (raw == null) return;

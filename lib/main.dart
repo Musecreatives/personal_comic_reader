@@ -124,12 +124,22 @@ Future<void> main() async {
   if (lastRoute == '/login') lastRoute = null;
   final defaultLocation =
       serverStore.listServers().isEmpty ? '/onboarding' : '/home';
-  final initialLocation =
-      syncToken == null ? '/login' : (lastRoute ?? defaultLocation);
+  // Reopen on the last screen - but a screen deeper than a tab is opened on
+  // top of its tab rather than on its own. Alone in the stack it had
+  // nothing to go back to: back buttons did nothing and iOS swipe-back had
+  // nowhere to swipe to.
+  final restore = syncToken == null ? null : lastRoute;
+  final tab = restore == null ? null : _tabFor(restore);
+  final initialLocation = syncToken == null
+      ? '/login'
+      : (tab ?? restore ?? defaultLocation);
   final router = buildRouter(
     initialLocation: initialLocation,
     onRouteChange: lastRouteStore.setLastRoute,
   );
+  if (tab != null && restore != tab) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => router.push(restore!));
+  }
 
   // `container` isn't assigned until below, but this closure is only ever
   // called later (on a filesystem event), by which point it will be - a
@@ -180,6 +190,24 @@ Future<void> main() async {
     container: container,
     child: ShaddaiReaderApp(router: router),
   ));
+}
+
+const _tabs = ['/home', '/search', '/library', '/history', '/settings'];
+
+/// The tab a saved route lives under (the tab itself for a tab root), or
+/// null for routes outside the tabs (login, onboarding).
+String? _tabFor(String route) {
+  final path = Uri.parse(route).path;
+  if (_tabs.contains(path)) return path;
+  if (path.startsWith('/onboarding') || path == '/login') return null;
+  if (path.startsWith('/settings') ||
+      path.startsWith('/collections') ||
+      path == '/local-library' ||
+      path == '/stats') {
+    return '/settings';
+  }
+  if (path.startsWith('/library/')) return '/library';
+  return '/home';
 }
 
 /// Flutter only drag-scrolls with touch and trackpads by default, so on
