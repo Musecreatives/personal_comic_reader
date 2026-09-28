@@ -8,6 +8,7 @@ import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/history/history_entry.dart';
+import 'goofy_avatar.dart';
 
 /// Below this width the 5 root tabs sit in a floating glass bar at the
 /// bottom (phone); at or above it they move to a side rail (tablet/desktop).
@@ -241,20 +242,7 @@ class _SideRail extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 18),
           child: Column(
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.24),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Text('SR',
-                    style: AppText.mono(
-                        size: 12,
-                        weight: FontWeight.w700,
-                        color: AppColors.accentSoft)),
-              ),
+              const GoofyAvatar(size: 44),
               const SizedBox(height: 26),
               SizedBox(
                 height: tabs.length * _itemH + (tabs.length - 1) * _gap,

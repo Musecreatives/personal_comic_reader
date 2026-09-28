@@ -119,7 +119,8 @@ Future<void> main() async {
   final syncClient =
       SyncClient(baseUrl: SyncClient.defaultBaseUrl(), token: syncToken);
 
-  final lastRouteStore = LastRouteStore();
+  final lastRouteStore =
+      LastRouteStore(activeServerId: serverStore.getActiveServerId);
   var lastRoute = await lastRouteStore.getLastRoute();
   // A saved route from a previous signed-in session (or /login itself)
   // shouldn't override the auth gate below in either direction.

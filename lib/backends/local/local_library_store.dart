@@ -16,19 +16,40 @@ class LocalSeriesRecord {
   /// upload this series; there's no reliable way to infer it from the file.
   final String? contentKind;
 
+  /// From the archive's ComicInfo.xml, when it had one.
+  final String? summary;
+
+  /// "Writer · Artist".
+  final String? credits;
+
+  /// Year, publisher and genres, shown as pills.
+  final List<String> tags;
+
   const LocalSeriesRecord({
     required this.id,
     required this.title,
     required this.addedAt,
     this.contentKind,
+    this.summary,
+    this.credits,
+    this.tags = const [],
   });
 
-  LocalSeriesRecord copyWith({String? title, String? contentKind}) =>
+  LocalSeriesRecord copyWith({
+    String? title,
+    String? contentKind,
+    String? summary,
+    String? credits,
+    List<String>? tags,
+  }) =>
       LocalSeriesRecord(
         id: id,
         title: title ?? this.title,
         addedAt: addedAt,
         contentKind: contentKind ?? this.contentKind,
+        summary: summary ?? this.summary,
+        credits: credits ?? this.credits,
+        tags: tags ?? this.tags,
       );
 
   Map<String, dynamic> toJson() => {
@@ -36,6 +57,9 @@ class LocalSeriesRecord {
         'title': title,
         'addedAt': addedAt.toIso8601String(),
         if (contentKind != null) 'contentKind': contentKind,
+        if (summary != null) 'summary': summary,
+        if (credits != null) 'credits': credits,
+        if (tags.isNotEmpty) 'tags': tags,
       };
 
   factory LocalSeriesRecord.fromJson(Map<String, dynamic> json) =>
@@ -44,6 +68,9 @@ class LocalSeriesRecord {
         title: json['title'] as String,
         addedAt: DateTime.parse(json['addedAt'] as String),
         contentKind: json['contentKind'] as String?,
+        summary: json['summary'] as String?,
+        credits: json['credits'] as String?,
+        tags: (json['tags'] as List?)?.cast<String>() ?? const [],
       );
 }
 

@@ -767,6 +767,19 @@ class _SeriesHeader extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: AppText.largeTitle(size: 26),
                           ),
+                          if (series.credits != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              series.credits!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.body(
+                                size: 13,
+                                color: AppColors.text60,
+                                weight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 6,
@@ -786,6 +799,12 @@ class _SeriesHeader extends StatelessWidget {
                               if (series.sourceName != null)
                                 _Pill(
                                   label: series.sourceName!.toUpperCase(),
+                                  color: AppColors.text60,
+                                  bg: AppColors.fillSubtle,
+                                ),
+                              for (final tag in series.tags)
+                                _Pill(
+                                  label: tag.toUpperCase(),
                                   color: AppColors.text60,
                                   bg: AppColors.fillSubtle,
                                 ),

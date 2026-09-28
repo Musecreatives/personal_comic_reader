@@ -176,16 +176,26 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   final Set<int> _seenPages = {};
   late DateTime _sessionStart;
 
-  ReaderSettingsStore get _settingsStore =>
+  // Read once up front: dispose() checkpoints the session, and Riverpod
+  // forbids touching ref once the widget is being disposed.
+  late final ReaderSettingsStore _settingsStore =
       ref.read(readerSettingsStoreProvider);
-  ProgressSync get _progressSync => ref.read(progressSyncProvider);
-  PageCache get _pageCache => ref.read(pageCacheProvider);
-  ReadingStatsStore get _statsStore => ref.read(readingStatsStoreProvider);
-  HistoryStore get _historyStore => ref.read(historyStoreProvider);
+  late final ProgressSync _progressSync = ref.read(progressSyncProvider);
+  late final PageCache _pageCache = ref.read(pageCacheProvider);
+  late final ReadingStatsStore _statsStore =
+      ref.read(readingStatsStoreProvider);
+  late final HistoryStore _historyStore = ref.read(historyStoreProvider);
+  late final StateController<int> _historyRevision =
+      ref.read(historyRevisionProvider.notifier);
 
   @override
   void initState() {
     super.initState();
+    // Force the lazy fields while ref is still usable.
+    _progressSync;
+    _statsStore;
+    _historyStore;
+    _historyRevision;
     WidgetsBinding.instance.addObserver(this);
     _settings = _settingsStore.effective(widget.book.seriesId);
     _remember = _settingsStore.hasOverride(widget.book.seriesId);
@@ -264,7 +274,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
           timestamp: DateTime.now(),
         ),
       );
-      ref.read(historyRevisionProvider.notifier).state++;
+      // Deferred: bumping it during dispose would rebuild listeners while
+      // the widget tree is locked.
+      scheduleMicrotask(() => _historyRevision.state++);
     }
   }
 
