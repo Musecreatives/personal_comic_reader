@@ -5,7 +5,7 @@ import '../../app/motion.dart';
 
 /// Things you can do to a series beyond reading it: stop following it, clear
 /// its downloads from this device, (Suwayomi) drop it from the library, or
-/// (imported comics) edit its details.
+/// (imported comics) edit its details or look them up on ComicVine.
 /// Anything that destroys something asks first, and says exactly what goes.
 class SeriesActionsSheet {
   static Future<void> show(
@@ -17,6 +17,7 @@ class SeriesActionsSheet {
     required Future<void> Function() onDeleteDownloads,
     required Future<void> Function() onRemoveFromLibrary,
     Future<void> Function()? onEditDetails,
+    Future<void> Function()? onFindOnComicVine,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -92,6 +93,16 @@ class SeriesActionsSheet {
                   onTap: () async {
                     Navigator.pop(sheetContext);
                     await onEditDetails();
+                  },
+                ),
+              if (onFindOnComicVine != null)
+                _Action(
+                  icon: Icons.travel_explore_outlined,
+                  title: 'Find on ComicVine',
+                  hint: 'Look up the summary, credits, publisher and year',
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    await onFindOnComicVine();
                   },
                 ),
               _Action(

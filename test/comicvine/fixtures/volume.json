@@ -1,0 +1,30 @@
+{
+  "error": "OK",
+  "limit": 1,
+  "offset": 0,
+  "number_of_page_results": 1,
+  "number_of_total_results": 1,
+  "status_code": 1,
+  "results": {
+    "count_of_issues": 25,
+    "deck": "Short deck",
+    "description": "<p>T'Challa takes the fight to the <em>Intergalactic Empire of Wakanda</em>.</p><p>Written by Ta-Nehisi Coates &amp; friends.</p>",
+    "first_issue": {
+      "api_detail_url": "https://comicvine.gamespot.com/api/issue/4000-659431/",
+      "id": 659431,
+      "name": "The Intergalactic Empire of Wakanda Part One",
+      "issue_number": "1"
+    },
+    "id": 106705,
+    "image": {
+      "thumb_url": "https://comicvine.gamespot.com/a/uploads/scale_avatar/6/67663/6238341-01.jpg"
+    },
+    "name": "Black Panther",
+    "publisher": {
+      "id": 31,
+      "name": "Marvel"
+    },
+    "start_year": "2018"
+  },
+  "version": "1.0"
+}

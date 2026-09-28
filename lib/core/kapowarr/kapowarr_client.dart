@@ -141,6 +141,20 @@ class KapowarrVolume {
 }
 
 /// One ComicVine match from Kapowarr's search: a volume you could add.
+/// ComicVine descriptions (via Kapowarr or direct) are HTML; the app shows
+/// them as one plain paragraph.
+String plainText(String html) => html
+    // Block ends become spaces; inline tags (<em>) vanish, so no stray
+    // space lands before the punctuation that follows them.
+    .replaceAll(RegExp(r'<(br|/p|/h\d|/li|/div|/td)\b[^>]*>'), ' ')
+    .replaceAll(RegExp(r'<[^>]*>'), '')
+    .replaceAll('&amp;', '&')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&nbsp;', ' ')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
 class KapowarrSearchResult {
   final int comicvineId;
   final String title;
@@ -170,22 +184,13 @@ class KapowarrSearchResult {
 
   static int _int(dynamic v) => v is int ? v : int.tryParse('$v') ?? 0;
 
-  static String _plain(String html) => html
-      .replaceAll(RegExp(r'<[^>]*>'), ' ')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#39;', "'")
-      .replaceAll('&nbsp;', ' ')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
-
   factory KapowarrSearchResult.fromJson(Map<String, dynamic> j) => KapowarrSearchResult(
         comicvineId: _int(j['comicvine_id']),
         title: j['title'] as String? ?? 'Untitled',
         year: _int(j['year']),
         volumeNumber: _int(j['volume_number']),
         coverUrl: j['cover_link'] as String? ?? '',
-        description: _plain(j['description'] as String? ?? ''),
+        description: plainText(j['description'] as String? ?? ''),
         publisher: j['publisher'] as String? ?? '',
         issueCount: _int(j['issue_count']),
         alreadyAdded: j['already_added'] == true || '${j['already_added']}' == '1',
