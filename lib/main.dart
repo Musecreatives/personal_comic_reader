@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -181,6 +182,17 @@ Future<void> main() async {
   ));
 }
 
+/// Flutter only drag-scrolls with touch and trackpads by default, so on
+/// desktop a mouse couldn't move horizontal shelves at all (a vertical wheel
+/// doesn't scroll them). Let a mouse click-and-drag too.
+class _AppScrollBehavior extends MaterialScrollBehavior {
+  const _AppScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices =>
+      {...super.dragDevices, PointerDeviceKind.mouse};
+}
+
 class ShaddaiReaderApp extends ConsumerWidget {
   final GoRouter router;
   const ShaddaiReaderApp({super.key, required this.router});
@@ -197,6 +209,7 @@ class ShaddaiReaderApp extends ConsumerWidget {
     return MaterialApp.router(
       key: ValueKey(appearance),
       title: 'Shaddai Reader',
+      scrollBehavior: const _AppScrollBehavior(),
       theme: buildAppTheme(appearance),
       routerConfig: router,
       debugShowCheckedModeBanner: false,

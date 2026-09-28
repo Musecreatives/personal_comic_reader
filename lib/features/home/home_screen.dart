@@ -1096,6 +1096,7 @@ class _JustAdded extends StatelessWidget {
           Text('Just added', style: AppText.heading(size: 17)),
           const SizedBox(height: 14),
           LayoutBuilder(builder: (context, c) {
+            if (c.maxWidth >= 700) return _wideMosaic(c.maxWidth);
             // Cap the mosaic on wide screens so covers stay cover-sized.
             final w = math.min(c.maxWidth, 620.0);
             final cw = (w - 2 * _gap) / 3;
@@ -1152,6 +1153,68 @@ class _JustAdded extends StatelessWidget {
           }),
         ],
       ),
+    );
+  }
+
+  /// Desktop/tablet: the same mosaic idea sized to the window - one 2x2
+  /// feature tile, the columns beside it filled two-high, then full rows -
+  /// with as many ~150px columns as fit, instead of a phone-width block
+  /// leaving the rest of the window empty.
+  Widget _wideMosaic(double width) {
+    final cols = (width / 150).floor().clamp(4, 9);
+    // Floored so rounding can never push a row a fraction of a pixel wide.
+    final cw = ((width - (cols - 1) * _gap) / cols).floorToDouble();
+    final th = cw * 1.5;
+    var n = 0;
+
+    Widget tile(FeedRecent r, {bool big = false}) {
+      final i = n++;
+      return _BentoTile(
+        row: r,
+        width: big ? 2 * cw + _gap : cw,
+        height: big ? 2 * th + _gap : th,
+        big: big,
+        index: i,
+        onTap: () => onOpen(r.backend.config.id, r.seriesId),
+      );
+    }
+
+    Widget row(Iterable<FeedRecent> items) => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final (j, r) in items.indexed) ...[
+              if (j > 0) const SizedBox(width: _gap),
+              tile(r),
+            ],
+          ],
+        );
+
+    final beside = cols - 2;
+    final featureBlock = math.min(rows.length, 1 + beside * 2);
+    final rest = rows.sublist(featureBlock);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            tile(rows.first, big: true),
+            const SizedBox(width: _gap),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                row(rows.skip(1).take(beside)),
+                const SizedBox(height: _gap),
+                row(rows.skip(1 + beside).take(beside)),
+              ],
+            ),
+          ],
+        ),
+        for (var i = 0; i < rest.length; i += cols) ...[
+          const SizedBox(height: _gap),
+          row(rest.skip(i).take(cols)),
+        ],
+      ],
     );
   }
 }
