@@ -4,13 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
-import '../../core/backend/reader_backend.dart';
+import '../../core/backend/models.dart';
 import '../../core/history/history_entry.dart';
-import '../shared/error_state.dart';
+import '../../core/history/history_groups.dart';
+import '../shared/series_cover.dart';
 
-/// Local-only reading history (6e), grouped by day. Series titles are
-/// resolved lazily per unique seriesId since [HistoryEntry] only stores
-/// what the reader has on hand at session-close time.
+/// Reading history, grouped by series: each series is a heading with the
+/// chapters read under it. Above that, "New chapters" lists series that
+/// have chapters out past the furthest one read.
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
@@ -21,7 +22,6 @@ class HistoryScreen extends ConsumerStatefulWidget {
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
-    final backendAsync = ref.watch(activeBackendProvider);
     ref.watch(historyRevisionProvider);
     final entries = ref.watch(historyStoreProvider).list();
 
@@ -41,26 +41,20 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       onPressed: () => _confirmClear(context),
                       child: Text('Clear',
                           style: AppText.body(
-                              size: 12.5, weight: FontWeight.w600, color: AppColors.dangerText)),
+                              size: 12.5,
+                              weight: FontWeight.w600,
+                              color: AppColors.dangerText)),
                     ),
                 ],
               ),
             ),
             Expanded(
-              child: backendAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, st) => AppErrorState(
-                    error: e, onRetry: () => ref.invalidate(activeBackendProvider)),
-                data: (backend) {
-                  if (entries.isEmpty) {
-                    return Center(
+              child: entries.isEmpty
+                  ? Center(
                       child: Text('Nothing read yet.',
                           style: AppText.body(color: AppColors.text45)),
-                    );
-                  }
-                  return _HistoryList(entries: entries, backend: backend);
-                },
-              ),
+                    )
+                  : _HistoryBody(entries: entries),
             ),
           ],
         ),
@@ -71,20 +65,22 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   void _confirmClear(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.card,
-        title: Text('Clear history?', style: AppText.body(size: 16, weight: FontWeight.w600)),
-        content: Text('This only clears the local log on this device - it does not touch progress already saved on your servers.',
+        title: Text('Clear history?',
+            style: AppText.body(size: 16, weight: FontWeight.w600)),
+        content: Text(
+            'This only clears the local log on this device - it does not touch progress already saved on your servers.',
             style: AppText.body(size: 13, color: AppColors.text60)),
         actions: [
-          TextButton(onPressed: () => context.pop(), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () async {
               await ref.read(historyStoreProvider).clear();
-              if (context.mounted) {
-                context.pop();
-                setState(() {});
-              }
+              ref.read(historyRevisionProvider.notifier).state++;
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
             },
             child: Text('Clear', style: TextStyle(color: AppColors.dangerText)),
           ),
@@ -94,152 +90,378 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 }
 
-class _HistoryList extends StatefulWidget {
-  final List<HistoryEntry> entries;
-  final ReaderBackend? backend;
-  const _HistoryList({required this.entries, required this.backend});
-
-  @override
-  State<_HistoryList> createState() => _HistoryListState();
+/// What the series' own server says about it - fetched per series, since
+/// history only records what the reader had on hand when a session ended.
+class _SeriesInfo {
+  final String title;
+  final String? thumbnailUrl;
+  final Map<String, String> headers;
+  final List<Book> newChapters;
+  const _SeriesInfo({
+    required this.title,
+    required this.thumbnailUrl,
+    required this.headers,
+    required this.newChapters,
+  });
 }
 
-class _HistoryListState extends State<_HistoryList> {
-  final Map<String, String> _titleCache = {};
-  late Future<void> _resolveFuture;
+class _HistoryBody extends ConsumerStatefulWidget {
+  final List<HistoryEntry> entries;
+  const _HistoryBody({required this.entries});
+
+  @override
+  ConsumerState<_HistoryBody> createState() => _HistoryBodyState();
+}
+
+class _HistoryBodyState extends ConsumerState<_HistoryBody> {
+  // Checking every series ever read would hammer the servers; the recent
+  // ones are the ones worth checking for new chapters.
+  static const _resolveLimit = 40;
+
+  late List<HistorySeriesGroup> _groups;
+  final Map<String, _SeriesInfo> _info = {};
 
   @override
   void initState() {
     super.initState();
-    _resolveFuture = _resolveTitles();
+    _groups = groupHistoryBySeries(widget.entries);
+    _resolve();
   }
 
-  // Series ids are only unique within one server, so only entries read on
-  // the active server (or old ones with no server recorded) can be looked
-  // up here without risking another server's series with the same id.
-  bool _onActiveServer(HistoryEntry e) =>
-      e.serverId == null || e.serverId == widget.backend?.config.id;
+  @override
+  void didUpdateWidget(_HistoryBody old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.entries, widget.entries)) {
+      _groups = groupHistoryBySeries(widget.entries);
+      _resolve();
+    }
+  }
 
-  Future<void> _resolveTitles() async {
-    final backend = widget.backend;
-    if (backend == null) return;
-    final ids = widget.entries.where(_onActiveServer).map((e) => e.seriesId).toSet();
-    await Future.wait(ids.map((id) async {
+  Future<void> _resolve() async {
+    final pending = _groups.take(_resolveLimit).toList();
+    // A few at a time: each is a series lookup plus a chapter list.
+    for (var i = 0; i < pending.length; i += 6) {
+      await Future.wait(pending.skip(i).take(6).map(_resolveOne));
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _resolveOne(HistorySeriesGroup g) async {
+    try {
+      final backend =
+          await ref.read(backendForServerProvider(g.serverId).future);
+      if (backend == null) return;
+      final series = await backend.getSeries(g.seriesId);
+      var fresh = const <Book>[];
       try {
-        final series = await backend.getSeries(id);
-        _titleCache[id] = series.title;
+        final books = await backend.listBooks(g.seriesId);
+        fresh = newChaptersSince(books, g.entries.map((e) => e.bookId));
       } catch (_) {
-        // Leave unresolved - row falls back to the chapter title.
+        // Title still shows; just no "new chapters" for this one.
       }
-    }));
-    if (mounted) setState(() {});
+      _info[g.key] = _SeriesInfo(
+        title: series.title,
+        thumbnailUrl: series.thumbnailUrl,
+        headers: backend.imageHeaders,
+        newChapters: fresh,
+      );
+    } catch (_) {
+      // Server unreachable or series gone - row falls back to what history
+      // recorded.
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final groups = <String, List<HistoryEntry>>{};
-    for (final e in widget.entries) {
-      final key = _dayLabel(e.timestamp);
-      groups.putIfAbsent(key, () => []).add(e);
-    }
+    final updated = _groups
+        .where((g) => _info[g.key]?.newChapters.isNotEmpty ?? false)
+        .toList();
 
-    return FutureBuilder<void>(
-      future: _resolveFuture,
-      builder: (context, snapshot) {
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 820),
+        child: ListView(
+          // Bottom room for the phone's floating nav bar.
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 120),
           children: [
-            for (final key in groups.keys) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(0, 14, 0, 8),
-                child: Text(key, style: AppText.body(size: 12, weight: FontWeight.w600, color: AppColors.text.withValues(alpha: 0.8))),
-              ),
-              for (final entry in groups[key]!)
-                _HistoryRow(
-                  entry: entry,
-                  seriesTitle: _onActiveServer(entry) ? _titleCache[entry.seriesId] : null,
-                ),
+            if (updated.isNotEmpty) ...[
+              const _SectionLabel('NEW CHAPTERS'),
+              for (final g in updated)
+                _NewChaptersRow(group: g, info: _info[g.key]!),
             ],
+            const _SectionLabel('RECENTLY READ'),
+            for (final g in _groups)
+              _SeriesHistoryCard(group: g, info: _info[g.key]),
           ],
-        );
-      },
+        ),
+      ),
     );
-  }
-
-  String _dayLabel(DateTime dt) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final that = DateTime(dt.year, dt.month, dt.day);
-    final diff = today.difference(that).inDays;
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Yesterday';
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 }
 
-class _HistoryRow extends ConsumerWidget {
-  final HistoryEntry entry;
-  final String? seriesTitle;
-  const _HistoryRow({required this.entry, required this.seriesTitle});
-
-  /// The series screen resolves its backend from the *active* server, so an
-  /// entry read on a different server has to switch to it first or the id
-  /// would be looked up on the wrong one. A synced entry can name a server
-  /// this device never configured - then there's nothing to switch to and
-  /// it opens on whatever is active, as before.
-  Future<void> _openSeries(BuildContext context, WidgetRef ref) async {
-    final id = entry.serverId;
-    if (id != null && id != ref.read(activeServerIdProvider)) {
-      final store = ref.read(serverStoreProvider);
-      if (store.getServer(id) != null) {
-        await store.setActiveServerId(id);
-        ref.read(activeServerIdProvider.notifier).state = id;
-      }
-    }
-    if (context.mounted) {
-      context.push('/series/${Uri.encodeComponent(entry.seriesId)}');
-    }
+Future<void> _openSeries(
+    BuildContext context, WidgetRef ref, HistorySeriesGroup g) async {
+  await activateServer(ref, g.serverId);
+  if (context.mounted) {
+    context.push('/series/${Uri.encodeComponent(g.seriesId)}');
   }
+}
+
+Future<void> _openChapter(BuildContext context, WidgetRef ref, String? serverId,
+    String bookId, {int? page}) async {
+  await activateServer(ref, serverId);
+  if (context.mounted) {
+    context.push('/read/${Uri.encodeComponent(bookId)}'
+        '${page == null ? '' : '?page=$page'}');
+  }
+}
+
+String _whenLabel(DateTime t) {
+  final now = DateTime.now();
+  final days = DateTime(now.year, now.month, now.day)
+      .difference(DateTime(t.year, t.month, t.day))
+      .inDays;
+  if (days == 0) return 'Today';
+  if (days == 1) return 'Yesterday';
+  if (days < 7) {
+    return const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][t.weekday - 1];
+  }
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
+      'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${months[t.month - 1]} ${t.day}${t.year == now.year ? '' : ', ${t.year}'}';
+}
+
+String _chapterNumber(String n) => n.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(2, 18, 0, 10),
+        child: Text(text, style: AppText.sectionLabel()),
+      );
+}
+
+class _Cover extends StatelessWidget {
+  final _SeriesInfo? info;
+  const _Cover(this.info);
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 44,
+        height: 62,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SeriesCover(
+            imageUrl: info?.thumbnailUrl,
+            headers: info?.headers ?? const {},
+          ),
+        ),
+      );
+}
+
+class _NewChaptersRow extends ConsumerWidget {
+  final HistorySeriesGroup group;
+  final _SeriesInfo info;
+  const _NewChaptersRow({required this.group, required this.info});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final title = seriesTitle ?? entry.bookTitle;
-    final time = TimeOfDay.fromDateTime(entry.timestamp).format(context);
-    return InkWell(
-      onTap: () => _openSeries(context, ref),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.body(size: 14, weight: FontWeight.w500)),
-                  const SizedBox(height: 4),
-                  Text(
-                    entry.completed
-                        ? 'Ch. ${entry.bookNumber} · finished'
-                        : 'Ch. ${entry.bookNumber} · page ${entry.lastPage + 1} of ${entry.pageCount}',
-                    style: AppText.body(size: 11, color: AppColors.text45),
+    final next = info.newChapters.first;
+    final n = info.newChapters.length;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppColors.accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          hoverColor: AppColors.fillHover,
+          onTap: () => _openChapter(context, ref, group.serverId, next.id),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.accent.withValues(alpha: 0.28)),
+            ),
+            child: Row(
+              children: [
+                _Cover(info),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(info.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.body(size: 14.5, weight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Up next: Ch. ${_chapterNumber(next.number)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.body(size: 12, color: AppColors.text60),
+                      ),
+                    ],
                   ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text('$n NEW',
+                      style: AppText.mono(size: 9.5, color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One series: its title as the heading, the chapters read underneath.
+class _SeriesHistoryCard extends ConsumerStatefulWidget {
+  final HistorySeriesGroup group;
+  final _SeriesInfo? info;
+  const _SeriesHistoryCard({required this.group, required this.info});
+
+  @override
+  ConsumerState<_SeriesHistoryCard> createState() => _SeriesHistoryCardState();
+}
+
+class _SeriesHistoryCardState extends ConsumerState<_SeriesHistoryCard> {
+  static const _collapsedCount = 3;
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final g = widget.group;
+    final info = widget.info;
+    final count = g.entries.length;
+    final shown =
+        _expanded ? g.entries : g.entries.take(_collapsedCount).toList();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            hoverColor: AppColors.fillHover,
+            onTap: () => _openSeries(context, ref, g),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
+              child: Row(
+                children: [
+                  _Cover(info),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          // Until the server answers, the chapter title is
+                          // the best name history has.
+                          info?.title ?? g.entries.first.bookTitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.body(size: 15, weight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_whenLabel(g.lastRead)} · '
+                          '$count chapter${count == 1 ? '' : 's'} read',
+                          style: AppText.mono(size: 10, color: AppColors.text45),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      size: 20, color: AppColors.text30),
                 ],
               ),
             ),
-            if (entry.completed)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+          ),
+          for (final e in shown) _ChapterRow(entry: e),
+          if (count > _collapsedCount)
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.suwayomi.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(999),
+                  border: Border(top: BorderSide(color: AppColors.border)),
                 ),
-                child: Text('DONE', style: AppText.mono(size: 9, color: AppColors.suwayomiText)),
-              )
+                alignment: Alignment.center,
+                child: Text(
+                  _expanded
+                      ? 'Show less'
+                      : 'Show ${count - _collapsedCount} more',
+                  style: AppText.body(
+                      size: 12.5,
+                      weight: FontWeight.w600,
+                      color: AppColors.accentLink),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChapterRow extends ConsumerWidget {
+  final HistoryEntry entry;
+  const _ChapterRow({required this.entry});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final e = entry;
+    return InkWell(
+      hoverColor: AppColors.fillHover,
+      onTap: () => _openChapter(context, ref, e.serverId, e.bookId,
+          page: e.completed ? null : e.lastPage),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 58,
+              child: Text('CH ${_chapterNumber(e.bookNumber)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.mono(size: 10, color: AppColors.accentLink)),
+            ),
+            Expanded(
+              child: Text(
+                e.completed
+                    ? 'Finished'
+                    : 'Page ${e.lastPage + 1} of ${e.pageCount}',
+                style: AppText.body(size: 13, color: AppColors.text60),
+              ),
+            ),
+            if (e.completed)
+              Icon(Icons.check_rounded, size: 16, color: AppColors.suwayomiText)
             else
-              Text(time, style: AppText.mono(size: 10)),
+              Text(TimeOfDay.fromDateTime(e.timestamp).format(context),
+                  style: AppText.mono(size: 10)),
           ],
         ),
       ),
