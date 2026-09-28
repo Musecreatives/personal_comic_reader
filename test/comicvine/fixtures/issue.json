@@ -1,0 +1,17 @@
+{
+  "error": "OK",
+  "limit": 1,
+  "offset": 0,
+  "number_of_page_results": 1,
+  "number_of_total_results": 1,
+  "status_code": 1,
+  "results": {
+    "person_credits": [
+      { "id": 1, "name": "Daniel Acuña", "role": "artist, colorist, cover" },
+      { "id": 2, "name": "Joe Sabino", "role": "letterer" },
+      { "id": 3, "name": "Ta-Nehisi Coates", "role": "writer" },
+      { "id": 4, "name": "Someone Else", "role": "penciler, inker" }
+    ]
+  },
+  "version": "1.0"
+}
