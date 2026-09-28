@@ -8,6 +8,10 @@ import 'local_library_store.dart';
 /// manual import has no server-side folder structure to mirror.
 const localLibraryId = 'local';
 
+/// Cover URL scheme for an imported book whose pages have no file to point
+/// at: `local-page:<bookId>` means that book's first page, from the store.
+const localPageScheme = 'local-page';
+
 /// [ReaderBackend] for manually-imported comics/manga. Every book is fully
 /// on-device already (imported and unzipped up front), so [fetchPage] just
 /// reads bytes back out of [LocalLibraryStore] - there's nothing to stream.
@@ -25,11 +29,20 @@ class LocalBackend implements ReaderBackend {
       id: s.id,
       libraryId: localLibraryId,
       title: s.title,
+      summary: s.summary,
+      credits: s.credits,
+      tags: s.tags,
       booksCount: books.length,
       booksReadCount: read,
       booksUnreadCount: books.length - read,
+      thumbnailUrl: books.isEmpty ? null : _coverUri(books.first.id),
     );
   }
+
+  /// Page 0 as a file:// URI where pages are files (desktop, mobile), else
+  /// a local-page: one that [SeriesCover] reads from the Hive box (web).
+  String _coverUri(String bookId) =>
+      store.pageFile(bookId, 0)?.uri.toString() ?? '$localPageScheme:$bookId';
 
   Book _toBook(LocalBookRecord b) => Book(
         id: b.id,
@@ -39,6 +52,7 @@ class LocalBackend implements ReaderBackend {
         pageCount: b.pageCount,
         readProgressPage: b.readProgressPage,
         completed: b.completed,
+        thumbnailUrl: _coverUri(b.id),
       );
 
   @override
@@ -152,10 +166,13 @@ class LocalBackend implements ReaderBackend {
   Future<List<ReadList>> listReadLists() async => const [];
 
   @override
-  String thumbnailUrlForSeries(String seriesId) => '';
+  String thumbnailUrlForSeries(String seriesId) {
+    final books = store.listBooksForSeries(seriesId);
+    return books.isEmpty ? '' : _coverUri(books.first.id);
+  }
 
   @override
-  String thumbnailUrlForBook(String bookId) => '';
+  String thumbnailUrlForBook(String bookId) => _coverUri(bookId);
 
   @override
   Map<String, String> get imageHeaders => const {};

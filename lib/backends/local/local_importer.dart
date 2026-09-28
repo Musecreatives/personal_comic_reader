@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -5,6 +6,7 @@ import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:uuid/uuid.dart';
 
+import 'comic_info.dart';
 import 'local_library_store.dart';
 
 /// Thrown when a picked file can't be imported - message is written to be
@@ -80,6 +82,9 @@ typedef _PageWriter = Future<void> Function(String bookId, int pageIndex);
 /// never sits in memory whole) plus its book record, filed under a series
 /// matching [seriesTitle] (reusing an existing one with the same title,
 /// case-insensitively, or creating one). Every import path ends up here.
+///
+/// [info] (the archive's ComicInfo.xml) supplies the series title and issue
+/// number when the user didn't, and fills in the series' metadata.
 Future<String> _finishImport({
   required LocalLibraryStore store,
   required String chapterTitle,
@@ -87,7 +92,10 @@ Future<String> _finishImport({
   required _PageWriter writePage,
   String? seriesTitle,
   String? chapterNumber,
+  ComicInfo? info,
 }) async {
+  seriesTitle ??= info?.series;
+  chapterNumber ??= info?.number;
   if (pageCount == 0) {
     throw const ImportException('No image pages found.');
   }
@@ -110,13 +118,17 @@ Future<String> _finishImport({
       .listSeries()
       .where((s) => s.title.toLowerCase() == title.toLowerCase());
   final seriesId = existing.isNotEmpty ? existing.first.id : uuid.v4();
-  if (existing.isEmpty) {
-    await store.putSeries(LocalSeriesRecord(
-      id: seriesId,
-      title: title,
-      addedAt: DateTime.now(),
-    ));
-  }
+  final record = existing.isNotEmpty
+      ? existing.first
+      : LocalSeriesRecord(id: seriesId, title: title, addedAt: DateTime.now());
+  final tags = [?info?.year, ?info?.publisher, ...?info?.genres];
+  // Only fill gaps: a later issue shouldn't overwrite an earlier summary.
+  final withInfo = record.copyWith(
+    summary: record.summary ?? info?.summary,
+    credits: record.credits ?? info?.credits,
+    tags: record.tags.isEmpty && tags.isNotEmpty ? tags : null,
+  );
+  if (existing.isEmpty || info != null) await store.putSeries(withInfo);
 
   final existingBooks = store.listBooksForSeries(seriesId);
   await store.putBook(LocalBookRecord(
@@ -143,6 +155,9 @@ Future<String> _importArchiveEntries(
   if (images.isEmpty) {
     throw const ImportException('No image pages found inside this file.');
   }
+  final infoEntry = archive.files
+      .where((f) => f.isFile && isComicInfoPath(f.name))
+      .firstOrNull;
   return _finishImport(
     store: store,
     chapterTitle: fileName,
@@ -150,6 +165,9 @@ Future<String> _importArchiveEntries(
     writePage: (bookId, i) => store.putPage(bookId, i, images[i].content),
     seriesTitle: seriesTitle,
     chapterNumber: chapterNumber,
+    info: infoEntry == null
+        ? null
+        : ComicInfo.parse(utf8.decode(infoEntry.content, allowMalformed: true)),
   );
 }
 
@@ -300,13 +318,16 @@ Future<String> _importImagesIn(
   bool move = false,
   String emptyMessage = 'No image files found in that folder.',
 }) async {
-  final entries = await dir
-      .list(recursive: true)
-      .where((e) => e is File && _isImage(e.path))
-      .cast<File>()
-      .toList();
-  entries.sort((a, b) => _compareNames(a.path, b.path));
+  final files =
+      (await dir.list(recursive: true).toList()).whereType<File>().toList();
+  final entries = files.where((f) => _isImage(f.path)).toList()
+    ..sort((a, b) => _compareNames(a.path, b.path));
   if (entries.isEmpty) throw ImportException(emptyMessage);
+  final infoFile = files.where((f) => isComicInfoPath(f.path)).firstOrNull;
+  final info = infoFile == null
+      ? null
+      : ComicInfo.parse(utf8.decode(await infoFile.readAsBytes(),
+          allowMalformed: true));
 
   return _finishImport(
     store: store,
@@ -316,6 +337,7 @@ Future<String> _importImagesIn(
         store.putPageFromFile(bookId, i, entries[i], move: move),
     seriesTitle: seriesTitle,
     chapterNumber: chapterNumber,
+    info: info,
   );
 }
 

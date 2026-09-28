@@ -43,6 +43,12 @@ class Series {
   /// Suwayomi extension, e.g. "Read Comics Online (EN)". Null elsewhere.
   final String? sourceName;
 
+  /// "Writer · Artist" - only imported comics with a ComicInfo.xml so far.
+  final String? credits;
+
+  /// Short facts shown as pills (year, publisher, genres).
+  final List<String> tags;
+
   const Series({
     required this.id,
     required this.libraryId,
@@ -53,6 +59,8 @@ class Series {
     required this.booksUnreadCount,
     this.thumbnailUrl,
     this.sourceName,
+    this.credits,
+    this.tags = const [],
   });
 
   bool get isFullyRead => booksCount > 0 && booksUnreadCount == 0;

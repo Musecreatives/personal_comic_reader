@@ -22,7 +22,11 @@ class SourceListingCache {
     final key = '$sourceId|$latest|$page';
     return _cache.putIfAbsent(key, () {
       final future = backend.browseSource(sourceId, page: page, latest: latest);
-      future.then((_) {}, onError: (_) => _cache.remove(key));
+      // Block body: an arrow would return the removed Future, which isn't
+      // this chain's Null type, and throw from inside the error handler.
+      future.then((_) {}, onError: (_) {
+        _cache.remove(key);
+      });
       return future;
     });
   }

@@ -63,6 +63,46 @@ void main() {
         }
       });
 
+      test('reads ComicInfo.xml into the series and book', () async {
+        final archive = Archive()
+          ..addFile(ArchiveFile.string('001.jpg', 'x' * 10))
+          ..addFile(ArchiveFile.string('ComicInfo.xml', """<?xml version="1.0"?>
+<ComicInfo>
+  <Series>Black Panther</Series>
+  <Number>7</Number>
+  <Summary>Wakanda, in space.</Summary>
+  <Writer>Ta-Nehisi Coates</Writer>
+  <Penciller>Daniel Acuña</Penciller>
+  <Publisher>Marvel</Publisher>
+  <Year>2018</Year>
+  <Genre>Superhero, Sci-Fi</Genre>
+</ComicInfo>"""));
+        final bookId = await importArchive(
+          store: store,
+          fileName: 'bp-007.cbz',
+          bytes: Uint8List.fromList(ZipEncoder().encode(archive)),
+        );
+
+        final book = store.getBook(bookId)!;
+        expect(book.pageCount, 1); // the xml isn't a page
+        expect(book.number, '7');
+        final series = store.getSeries(book.seriesId)!;
+        expect(series.title, 'Black Panther');
+        expect(series.summary, 'Wakanda, in space.');
+        expect(series.credits, 'Ta-Nehisi Coates · Daniel Acuña');
+        expect(series.tags, ['2018', 'Marvel', 'Superhero', 'Sci-Fi']);
+
+        // A later issue without a summary keeps the first one's.
+        final next = await importArchive(
+          store: store,
+          fileName: 'Black Panther 008.cbz',
+          bytes: _fakeCbz(['1.jpg']),
+          seriesTitle: 'Black Panther',
+        );
+        expect(store.getBook(next)!.seriesId, book.seriesId);
+        expect(store.getSeries(book.seriesId)!.summary, 'Wakanda, in space.');
+      });
+
       test('skips macOS resource-fork shadows', () async {
         final bytes = _fakeCbz(['1.jpg', '__MACOSX/._1.jpg', '._2.jpg']);
         final bookId =
