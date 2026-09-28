@@ -8,12 +8,17 @@ import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import '../../core/comicvine/comicvine_client.dart';
 import '../../core/downloads/download_models.dart';
 import '../../backends/local/local_backend.dart';
+import '../../backends/local/local_library_store.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../home/home_feed.dart';
+import '../local_library/local_library_screen.dart' show localLibraryRevisionProvider;
 import 'chapter_actions.dart';
+import 'comicvine_match_sheet.dart';
 import 'download_sheet.dart';
+import 'edit_details_sheet.dart';
 import 'series_actions_sheet.dart';
 import '../../core/collections/collection.dart';
 import '../collections/collections_screen.dart' show createCollection;
@@ -328,7 +333,65 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
         context.popOrHome();
         _snack('Removed from library');
       },
+      onEditDetails: backend is LocalBackend ? _editDetails : null,
+      onFindOnComicVine: backend is LocalBackend ? _findOnComicVine : null,
     );
+  }
+
+  /// Picks a ComicVine match, then opens Edit details pre-filled with it
+  /// (keeping anything ComicVine doesn't have) for the user to confirm.
+  Future<void> _findOnComicVine() async {
+    final apiKey = await ref.read(comicVineKeyStoreProvider).get();
+    if (!mounted) return;
+    if (apiKey == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Add a ComicVine API key in Settings first'),
+        action: SnackBarAction(
+          label: 'Settings',
+          onPressed: () => context.push('/settings/comicvine'),
+        ),
+      ));
+      return;
+    }
+    final existing =
+        ref.read(localLibraryStoreProvider).getSeries(widget.seriesId);
+    if (existing == null) return;
+    final match = await showComicVineMatchSheet(
+      context,
+      client: ComicVineClient(apiKey: apiKey),
+      query: existing.title,
+    );
+    if (match == null || !mounted) return;
+    await _editDetails(
+      heading: 'Review ComicVine details',
+      prefill: existing.withDetails(
+        title: existing.title,
+        summary: match.summary ?? existing.summary,
+        writer: match.writer ?? existing.writer,
+        artist: match.artist ?? existing.artist,
+        publisher: match.publisher ?? existing.publisher,
+        year: match.startYear ?? existing.year,
+        genres: existing.genres, // ComicVine volumes have none
+      ),
+    );
+  }
+
+  /// Imported series only. [prefill] (a ComicVine match) seeds the form in
+  /// place of what's stored; nothing is saved until the user taps Save.
+  Future<void> _editDetails({
+    LocalSeriesRecord? prefill,
+    String heading = 'Edit details',
+  }) async {
+    final store = ref.read(localLibraryStoreProvider);
+    final existing = store.getSeries(widget.seriesId);
+    if (existing == null) return;
+    final edited = await showEditDetailsSheet(context, prefill ?? existing,
+        heading: heading);
+    if (edited == null) return;
+    await store.putSeries(edited);
+    ref.read(localLibraryRevisionProvider.notifier).state++;
+    ref.invalidate(homeFeedProvider);
+    if (mounted) _reloadSeries();
   }
 
   Future<void> _renameBook(Book book) async {

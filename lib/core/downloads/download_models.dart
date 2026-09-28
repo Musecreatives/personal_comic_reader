@@ -51,7 +51,10 @@ class DownloadTask {
       totalPages: totalPages ?? this.totalPages,
       downloadedPages: downloadedPages ?? this.downloadedPages,
       state: state ?? this.state,
-      error: error,
+      // A retry (any other state) drops the old error; a reorder or progress
+      // update of a failed task keeps it.
+      error: error ??
+          (state == null || state == DownloadState.failed ? this.error : null),
       serverId: serverId,
       order: order ?? this.order,
     );

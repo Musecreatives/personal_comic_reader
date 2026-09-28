@@ -9,6 +9,7 @@ import '../core/appearance/appearance_settings.dart';
 import '../core/appearance/appearance_store.dart';
 import '../core/backend/reader_backend.dart';
 import '../core/collections/collections_store.dart';
+import '../core/comicvine/comicvine_key_store.dart';
 import '../core/history/history_entry.dart';
 import '../core/history/history_store.dart';
 import '../core/history/stopped_series_store.dart';
@@ -162,6 +163,11 @@ final kapowarrConfigStoreProvider = Provider<KapowarrConfigStore>((ref) {
 
 /// Bump after saving/clearing the Kapowarr config so watchers refetch.
 final kapowarrConfigRevisionProvider = StateProvider<int>((ref) => 0);
+
+/// The optional ComicVine API key. Needs no init, so unlike the stores
+/// around it this isn't overridden in main().
+final comicVineKeyStoreProvider =
+    Provider<ComicVineKeyStore>((ref) => ComicVineKeyStore());
 
 /// Set once in main() after MediaPoolConfigStore.init() completes.
 final mediaPoolConfigStoreProvider = Provider<MediaPoolConfigStore>((ref) {

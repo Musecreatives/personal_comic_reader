@@ -191,11 +191,7 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     );
     if (newTitle == null || newTitle.isEmpty || newTitle == series.title) return;
     final store = ref.read(localLibraryStoreProvider);
-    await store.putSeries(LocalSeriesRecord(
-      id: series.id,
-      title: newTitle,
-      addedAt: series.addedAt,
-    ));
+    await store.putSeries(series.copyWith(title: newTitle));
     ref.read(localLibraryRevisionProvider.notifier).state++;
   }
 

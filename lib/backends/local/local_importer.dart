@@ -121,12 +121,17 @@ Future<String> _finishImport({
   final record = existing.isNotEmpty
       ? existing.first
       : LocalSeriesRecord(id: seriesId, title: title, addedAt: DateTime.now());
-  final tags = [?info?.year, ?info?.publisher, ...?info?.genres];
-  // Only fill gaps: a later issue shouldn't overwrite an earlier summary.
+  // Only fill gaps: a later issue shouldn't overwrite an earlier summary
+  // (or a hand edit).
   final withInfo = record.copyWith(
     summary: record.summary ?? info?.summary,
-    credits: record.credits ?? info?.credits,
-    tags: record.tags.isEmpty && tags.isNotEmpty ? tags : null,
+    writer: record.writer ?? info?.writer,
+    artist: record.artist ?? info?.artist,
+    publisher: record.publisher ?? info?.publisher,
+    year: record.year ?? info?.year,
+    genres: record.genres.isEmpty && (info?.genres.isNotEmpty ?? false)
+        ? info!.genres
+        : null,
   );
   if (existing.isEmpty || info != null) await store.putSeries(withInfo);
 
