@@ -264,12 +264,50 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     final client = WebDavClient(config: config);
     var ok = 0;
     final errors = <String>[];
-    for (final book in books) {
+
+    // Chapter number and fraction sent; a null fraction is the "preparing"
+    // step (building the CBZ). Shown for the whole upload - a big book takes
+    // minutes, and a silent screen looked like nothing was happening. The
+    // app-wide messenger keeps it up even if the user leaves this screen.
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final progress = ValueNotifier<(int, double?)>((1, null));
+    messenger.showSnackBar(SnackBar(
+      duration: const Duration(days: 1), // hidden below when done
+      content: ValueListenableBuilder(
+        valueListenable: progress,
+        builder: (context, p, _) {
+          final (chapter, sent) = p;
+          final step = sent == null ? 'preparing…' : '${(sent * 100).round()}%';
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Uploading "${series.title}" to $folder - '
+                'chapter $chapter of ${books.length}, $step',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: sent),
+            ],
+          );
+        },
+      ),
+    ));
+    void onProgress(int sent, int total) {
+      if (total > 0) progress.value = (progress.value.$1, sent / total);
+    }
+
+    for (final (i, book) in books.indexed) {
+      progress.value = (i + 1, null);
       final remote =
           '$folder/${sanitizeFileName(series.title)}/${sanitizeFileName(book.title)}.cbz';
       try {
         if (kIsWeb) {
-          await client.putFile(remote, await exportBookToCbz(store, book));
+          await client.putFile(remote, await exportBookToCbz(store, book),
+              onProgress: onProgress);
         } else {
           // Build the CBZ on disk and stream it up - a big book never has to
           // fit in memory.
@@ -277,7 +315,8 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
           try {
             final cbz = File('${temp.path}${Platform.pathSeparator}book.cbz');
             await exportBookToCbzFile(store, book, cbz.path);
-            await client.putFileFromDisk(remote, cbz);
+            await client.putFileFromDisk(remote, cbz,
+                onProgress: onProgress);
           } finally {
             await temp.delete(recursive: true);
           }
@@ -287,12 +326,12 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
         errors.add('${book.title}: $e');
       }
     }
-    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
     final message = errors.isEmpty
         ? 'Uploaded $ok chapter${ok == 1 ? '' : 's'} to $folder'
         : '$ok uploaded, ${errors.length} failed: ${errors.first}';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
+    messenger.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
     );
   }
 

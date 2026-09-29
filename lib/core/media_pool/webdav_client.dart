@@ -53,15 +53,18 @@ class WebDavClient {
   /// Uploads [bytes] to `<baseUrl>/<path>`, creating any missing parent
   /// folders first (WebDAV servers 409 a PUT into a folder that doesn't
   /// exist yet).
-  Future<void> putFile(String path, Uint8List bytes) async {
+  /// [onProgress] gets bytes sent and the total, for a progress bar.
+  Future<void> putFile(String path, Uint8List bytes,
+      {ProgressCallback? onProgress}) async {
     await _makeParents(path);
-    await _put(path, bytes, bytes.length);
+    await _put(path, bytes, bytes.length, onProgress);
   }
 
   /// Streams [file] up to `<baseUrl>/<path>` without reading it into memory.
-  Future<void> putFileFromDisk(String path, File file) async {
+  Future<void> putFileFromDisk(String path, File file,
+      {ProgressCallback? onProgress}) async {
     await _makeParents(path);
-    await _put(path, file.openRead(), await file.length());
+    await _put(path, file.openRead(), await file.length(), onProgress);
   }
 
   Future<void> _makeParents(String path) async {
@@ -81,10 +84,12 @@ class WebDavClient {
     }
   }
 
-  Future<void> _put(String path, Object data, int length) async {
+  Future<void> _put(String path, Object data, int length,
+      ProgressCallback? onProgress) async {
     final res = await _dio.put(
       Uri.encodeFull(path),
       data: data,
+      onSendProgress: onProgress,
       options: Options(
         headers: {'Content-Length': length},
         contentType: 'application/octet-stream',
