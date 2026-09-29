@@ -75,7 +75,10 @@ flutter_launcher_icons:
   android: true
   ios: true
   windows:
-    generate: true
+    # Hand-built: this tool writes one 48px PNG entry, which LoadIcon can't
+    # use for the taskbar (blank icon). windows/runner/resources/app_icon.ico
+    # has 16-64px DIB entries plus a 256px PNG.
+    generate: false
   web:
     generate: false # web icons/manifest are hand-maintained under web/
   min_sdk_android: 21

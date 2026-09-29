@@ -14,6 +14,9 @@ class MediaPoolConfigStore {
   final FlutterSecureStorage _secure;
   late final Box<String> _box;
 
+  /// Called after every save/delete - set by ConnectionsSync.
+  void Function()? onChanged;
+
   MediaPoolConfigStore({FlutterSecureStorage? secureStorage})
       : _secure = secureStorage ?? const FlutterSecureStorage();
 
@@ -35,11 +38,13 @@ class MediaPoolConfigStore {
     await _box.put(_urlKey, config.baseUrl);
     await _box.put(_userKey, config.username);
     await _secure.write(key: _passwordStorageKey, value: config.password);
+    onChanged?.call();
   }
 
   Future<void> clear() async {
     await _box.delete(_urlKey);
     await _box.delete(_userKey);
     await _secure.delete(key: _passwordStorageKey);
+    onChanged?.call();
   }
 }

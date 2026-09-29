@@ -13,6 +13,9 @@ class KapowarrConfigStore {
   final FlutterSecureStorage _secure;
   late final Box<String> _box;
 
+  /// Called after every save/delete - set by ConnectionsSync.
+  void Function()? onChanged;
+
   KapowarrConfigStore({FlutterSecureStorage? secureStorage})
       : _secure = secureStorage ?? const FlutterSecureStorage();
 
@@ -32,10 +35,12 @@ class KapowarrConfigStore {
   Future<void> save(KapowarrConfig config) async {
     await _box.put(_urlKey, config.baseUrl);
     await _secure.write(key: _apiKeyStorageKey, value: config.apiKey);
+    onChanged?.call();
   }
 
   Future<void> clear() async {
     await _box.delete(_urlKey);
     await _secure.delete(key: _apiKeyStorageKey);
+    onChanged?.call();
   }
 }
