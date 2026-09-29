@@ -161,6 +161,19 @@ Not TestFlight blockers - queued for after the steps above.
   the server now allows 16 GB) and a dropped connection restarts from
   zero. Use Nextcloud's chunked upload (`/remote.php/dav/uploads/`, ~50 MB
   chunks) when the server supports it; plain PUT for other WebDAV servers.
+- [ ] **Scan / refresh a library from the app.** Today a new file only
+  shows up after Komga's own scan (or a manual scan in Komga's web UI).
+  - Komga: "Scan library files" (`POST /api/v1/libraries/{id}/scan`) and
+    "Refresh metadata" (`POST /api/v1/libraries/{id}/metadata/refresh`)
+    in the library's menu; admin-only on Komga, so owner-only here.
+  - Run a scan automatically after a successful media-pool upload.
+  - Suwayomi: "Update library" (its library update GraphQL mutation).
+  - Pull-to-refresh on library screens re-fetches from the server.
+- [ ] **Sign out.** `SyncClient.logout()` exists but nothing in the UI
+  calls it. Add Sign out to Settings: call `/auth/logout`, clear the token
+  and the synced stores' local copies (servers, connections, collections,
+  history), detach sync, and return to `/login`. Ask first whether to keep
+  downloads and imported comics on the device.
 - [ ] **Include ComicInfo.xml in media-pool uploads** so edited details
   (summary, credits, genres) reach Komga.
 - [ ] **Encrypt synced secrets on the device** before upload
