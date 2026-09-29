@@ -8,6 +8,9 @@ class ComicVineKeyStore {
 
   final FlutterSecureStorage _secure;
 
+  /// Called after every save/delete - set by ConnectionsSync.
+  void Function()? onChanged;
+
   ComicVineKeyStore({FlutterSecureStorage? secureStorage})
     : _secure = secureStorage ?? const FlutterSecureStorage();
 
@@ -17,8 +20,13 @@ class ComicVineKeyStore {
     return key == null || key.isEmpty ? null : key;
   }
 
-  Future<void> save(String apiKey) =>
-      _secure.write(key: _storageKey, value: apiKey.trim());
+  Future<void> save(String apiKey) async {
+    await _secure.write(key: _storageKey, value: apiKey.trim());
+    onChanged?.call();
+  }
 
-  Future<void> clear() => _secure.delete(key: _storageKey);
+  Future<void> clear() async {
+    await _secure.delete(key: _storageKey);
+    onChanged?.call();
+  }
 }

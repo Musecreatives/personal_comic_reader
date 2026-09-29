@@ -10,6 +10,7 @@ import '../core/appearance/appearance_store.dart';
 import '../core/backend/reader_backend.dart';
 import '../core/collections/collections_store.dart';
 import '../core/comicvine/comicvine_key_store.dart';
+import '../core/sync/connections_sync.dart';
 import '../core/history/history_entry.dart';
 import '../core/history/history_store.dart';
 import '../core/history/stopped_series_store.dart';
@@ -164,10 +165,16 @@ final kapowarrConfigStoreProvider = Provider<KapowarrConfigStore>((ref) {
 /// Bump after saving/clearing the Kapowarr config so watchers refetch.
 final kapowarrConfigRevisionProvider = StateProvider<int>((ref) => 0);
 
-/// The optional ComicVine API key. Needs no init, so unlike the stores
-/// around it this isn't overridden in main().
+/// The optional ComicVine API key. main() overrides this with the instance
+/// ConnectionsSync watches; the default only serves tests.
 final comicVineKeyStoreProvider =
     Provider<ComicVineKeyStore>((ref) => ComicVineKeyStore());
+
+/// Set once in main() after ConnectionsSync.init() completes.
+final connectionsSyncProvider = Provider<ConnectionsSync>((ref) {
+  throw UnimplementedError(
+      'connectionsSyncProvider must be overridden in main()');
+});
 
 /// Set once in main() after MediaPoolConfigStore.init() completes.
 final mediaPoolConfigStoreProvider = Provider<MediaPoolConfigStore>((ref) {
@@ -325,7 +332,7 @@ final syncClientProvider = Provider<SyncClient>((ref) {
 });
 
 /// Attaches every synced store (history, collections, appearance, reader
-/// settings) to the current session and pulls remote changes, refreshing the
+/// settings, connections) to the current session and pulls remote changes, refreshing the
 /// UI providers for whatever changed. Called at startup and after login;
 /// each store is best-effort so one failure never blocks the rest.
 Future<void> startSync(ProviderContainer c, {bool force = true}) async {
@@ -351,6 +358,8 @@ Future<void> startSync(ProviderContainer c, {bool force = true}) async {
   final appearance = c.read(appearanceStoreProvider)..sync.attach(client, queue);
   final reader = c.read(readerSettingsStoreProvider)..sync.attach(client, queue);
   final stats = c.read(readingStatsStoreProvider)..sync.attach(client, queue);
+  final connections = c.read(connectionsSyncProvider)
+    ..sync.attach(client, queue);
 
   // A history entry names the server by the id it had on the device that
   // read it; map that to this device's id for the same server.
@@ -382,6 +391,11 @@ Future<void> startSync(ProviderContainer c, {bool force = true}) async {
         () => c.read(appearanceProvider.notifier).state = appearance.get()),
     run(reader.reconcile, () {}),
     run(stats.reconcile, () => c.read(statsRevisionProvider.notifier).state++),
+    run(connections.reconcile, () {
+      c.read(serverListRevisionProvider.notifier).state++;
+      c.read(kapowarrConfigRevisionProvider.notifier).state++;
+      c.invalidate(activeServerIdProvider);
+    }),
   ]);
   status.state = failed
       ? SyncStatus(phase: SyncPhase.offline, lastOk: last)

@@ -19,6 +19,9 @@ class ServerStore {
   final FlutterSecureStorage _secure;
   late final Box<String> _box;
 
+  /// Called after every save/delete - set by ConnectionsSync.
+  void Function()? onChanged;
+
   ServerStore({FlutterSecureStorage? secureStorage})
       : _secure = secureStorage ?? const FlutterSecureStorage();
 
@@ -57,6 +60,7 @@ class ServerStore {
     if (password != null) {
       await _secure.write(key: _passwordKey(config.id), value: password);
     }
+    onChanged?.call();
   }
 
   Future<String?> getPassword(String serverId) {
@@ -69,6 +73,7 @@ class ServerStore {
     if (getActiveServerId() == id) {
       await setActiveServerId(null);
     }
+    onChanged?.call();
   }
 
   String? getActiveServerId() => _box.get(_activeIdKey);

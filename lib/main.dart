@@ -27,6 +27,7 @@ import 'core/downloads/download_store.dart';
 import 'core/kapowarr/kapowarr_config_store.dart';
 import 'core/local_watch/watch_folder_service.dart';
 import 'core/local_watch/watch_folder_store.dart';
+import 'core/comicvine/comicvine_key_store.dart';
 import 'core/media_pool/media_pool_config_store.dart';
 import 'core/notifications/chapter_watch_store.dart';
 import 'core/reader/page_cache.dart';
@@ -36,6 +37,7 @@ import 'core/stats/reading_stats_store.dart';
 import 'core/storage/last_route_store.dart';
 import 'core/storage/server_store.dart';
 import 'core/sync/auth_store.dart';
+import 'core/sync/connections_sync.dart';
 import 'core/sync/sync_client.dart';
 import 'core/sync/sync_queue.dart';
 import 'features/local_library/local_library_screen.dart' show localLibraryRevisionProvider;
@@ -77,6 +79,16 @@ Future<void> main() async {
 
   final mediaPoolConfigStore = MediaPoolConfigStore();
   await mediaPoolConfigStore.init();
+
+  // Every connection above follows the signed-in account (startSync).
+  final comicVineKeyStore = ComicVineKeyStore();
+  final connectionsSync = ConnectionsSync(
+    servers: serverStore,
+    kapowarr: kapowarrConfigStore,
+    comicVine: comicVineKeyStore,
+    mediaPool: mediaPoolConfigStore,
+  );
+  await connectionsSync.init();
 
   final readingStatsStore = ReadingStatsStore();
   await readingStatsStore.init();
@@ -124,7 +136,7 @@ Future<void> main() async {
   var lastRoute = await lastRouteStore.getLastRoute();
   // A saved route from a previous signed-in session (or /login itself)
   // shouldn't override the auth gate below in either direction.
-  if (lastRoute == '/login') lastRoute = null;
+  if (lastRoute == '/login' || lastRoute == '/') lastRoute = null;
   final defaultLocation =
       serverStore.listServers().isEmpty ? '/onboarding' : '/home';
   // Reopen on the last screen - but a screen deeper than a tab is opened on
@@ -163,6 +175,8 @@ Future<void> main() async {
         pageCacheProvider.overrideWithValue(pageCache),
         kapowarrConfigStoreProvider.overrideWithValue(kapowarrConfigStore),
         mediaPoolConfigStoreProvider.overrideWithValue(mediaPoolConfigStore),
+        comicVineKeyStoreProvider.overrideWithValue(comicVineKeyStore),
+        connectionsSyncProvider.overrideWithValue(connectionsSync),
         downloadStoreProvider.overrideWithValue(downloadStore),
         downloadManagerProvider.overrideWithValue(downloadManager),
         readingStatsStoreProvider.overrideWithValue(readingStatsStore),

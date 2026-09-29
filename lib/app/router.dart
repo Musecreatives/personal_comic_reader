@@ -40,6 +40,10 @@ GoRouter buildRouter({
     GoRouter(
   initialLocation: initialLocation,
   redirect: (context, state) {
+    // Nothing lives at the bare root, but the platform can still report it
+    // (desktop does at startup). Unredirected, it was also saved as the
+    // last route and reopened as "Page Not Found" on every launch.
+    if (state.uri.path == '/') return '/home';
     onRouteChange?.call(state.uri.toString());
     return null;
   },
