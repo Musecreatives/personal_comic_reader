@@ -458,6 +458,8 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
                           child: GestureDetector(
                             onTap: () => _openSeries(s.id),
                             onLongPress: () => _showSeriesActions(s),
+                            // Desktop: nobody long-presses with a mouse.
+                            onSecondaryTap: () => _showSeriesActions(s),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
