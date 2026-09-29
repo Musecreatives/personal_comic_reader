@@ -156,6 +156,13 @@ Not TestFlight blockers - queued for after the steps above.
   - Komga series: upload it as the series poster (Komga's series
     thumbnails API), so every client sees it.
   - Suwayomi: no custom-cover API - leave as is.
+- [ ] **Chunked media-pool uploads.** One PUT per book means a 2 GB
+  omnibus hits server body limits (Nextcloud's image defaults to 1 GB;
+  the server now allows 16 GB) and a dropped connection restarts from
+  zero. Use Nextcloud's chunked upload (`/remote.php/dav/uploads/`, ~50 MB
+  chunks) when the server supports it; plain PUT for other WebDAV servers.
+- [ ] **Include ComicInfo.xml in media-pool uploads** so edited details
+  (summary, credits, genres) reach Komga.
 - [ ] **Encrypt synced secrets on the device** before upload
   (`lib/core/sync/connections_sync.dart`, marked `ponytail:`). Required
   before friends' credentials live in the sync DB.
