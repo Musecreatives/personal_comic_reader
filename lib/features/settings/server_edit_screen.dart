@@ -49,7 +49,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
   /// Direct IP entry still works fine for local dev. OPDS has no proxy path
   /// since it's not tied to a single fixed server the way the other two are.
   String? _sameOriginDefaultUrl(ServerType type) {
-    if (Uri.base.host != 'reader.shaddai.home') return null;
+    if (!const {'reader.shaddai.home', 'reader.shaddaicommunications.com'}.contains(Uri.base.host)) return null;
     return switch (type) {
       ServerType.komga => '${Uri.base.origin}/komga',
       ServerType.suwayomi => '${Uri.base.origin}/suwayomi',
