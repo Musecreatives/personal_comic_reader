@@ -70,7 +70,7 @@ class SyncClient {
   /// falls back to the raw Tailscale address otherwise (local dev, or the
   /// app served from somewhere else on the tailnet).
   static String defaultBaseUrl() {
-    if (Uri.base.host == 'reader.shaddai.home') {
+    if (const {'reader.shaddai.home', 'reader.shaddaicommunications.com'}.contains(Uri.base.host)) {
       return '${Uri.base.origin}/sync';
     }
     return 'http://192.0.2.10:8600';
