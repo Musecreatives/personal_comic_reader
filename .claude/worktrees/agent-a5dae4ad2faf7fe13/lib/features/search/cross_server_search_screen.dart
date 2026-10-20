@@ -1,0 +1,373 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../app/design_tokens.dart';
+import '../../app/motion.dart';
+import '../../app/providers.dart';
+import '../../core/backend/models.dart';
+import '../../core/backend/reader_backend.dart';
+import 'acquire_search.dart';
+import '../shared/error_state.dart';
+import '../shared/series_cover.dart';
+
+/// One query, searched against every configured server's own library at
+/// once (5c), results grouped per server. This searches what's already in
+/// each server's library - it does not reach into Suwayomi's external
+/// source catalog, which is a different, source-scoped kind of search.
+class CrossServerSearchScreen extends ConsumerStatefulWidget {
+  const CrossServerSearchScreen({super.key});
+
+  @override
+  ConsumerState<CrossServerSearchScreen> createState() =>
+      _CrossServerSearchScreenState();
+}
+
+class _CrossServerSearchScreenState
+    extends ConsumerState<CrossServerSearchScreen> {
+  final _controller = TextEditingController();
+  String _query = '';
+  Timer? _debounce;
+  _Mode _mode = _Mode.library;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) setState(() => _query = value.trim());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final backendsAsync = ref.watch(allBackendsProvider);
+
+    return Scaffold(
+      backgroundColor: AppColors.page,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
+              child: Text('Search', style: AppText.largeTitle()),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                height: 42,
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                decoration: BoxDecoration(
+                  color: AppColors.fillSubtle,
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: AppColors.borderStrong),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search, size: 16, color: AppColors.text60),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        onChanged: _onChanged,
+                        autofocus: true,
+                        style: AppText.body(size: 15),
+                        decoration: InputDecoration(
+                          hintText: switch (_mode) {
+                            _Mode.library => 'Search your libraries',
+                            _Mode.manga => 'Find manga on your sources',
+                            _Mode.comics => 'Find comics to acquire',
+                          },
+                          hintStyle: AppText.body(
+                            size: 15,
+                            color: AppColors.text45,
+                          ),
+                          isDense: true,
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: _ModeSwitch(
+                mode: _mode,
+                onChanged: (m) => setState(() => _mode = m),
+              ),
+            ),
+            Expanded(
+              child: _mode == _Mode.manga
+                  ? MangaSourceSearch(query: _query)
+                  : _mode == _Mode.comics
+                  ? ComicSearch(query: _query)
+                  : _query.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Type to search your libraries.',
+                        style: AppText.body(color: AppColors.text45),
+                      ),
+                    )
+                  : backendsAsync.when(
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, st) => AppErrorState(error: e),
+                      data: (backends) {
+                        if (backends.isEmpty) {
+                          return Center(
+                            child: Text(
+                              'No servers configured.',
+                              style: AppText.body(color: AppColors.text45),
+                            ),
+                          );
+                        }
+                        return _ResultsList(backends: backends, query: _query);
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _Mode { library, manga, comics }
+
+/// Library (what you have) / Manga (find on Suwayomi sources) / Comics (find
+/// through Kapowarr). A sliding pill marks the current one.
+class _ModeSwitch extends StatelessWidget {
+  final _Mode mode;
+  final ValueChanged<_Mode> onChanged;
+  const _ModeSwitch({required this.mode, required this.onChanged});
+
+  static const _labels = {
+    _Mode.library: 'Library',
+    _Mode.manga: 'Manga',
+    _Mode.comics: 'Comics',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppColors.fillSubtle,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final w = c.maxWidth / _Mode.values.length;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: Motion.scaled(context, Motion.base),
+                curve: Motion.easeOut,
+                left: w * mode.index,
+                width: w,
+                top: 0,
+                bottom: 0,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  for (final m in _Mode.values)
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onChanged(m),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          child: Center(
+                            child: AnimatedDefaultTextStyle(
+                              duration: Motion.scaled(context, Motion.fast),
+                              style: AppText.body(
+                                size: 12.5,
+                                weight: FontWeight.w600,
+                                color: m == mode
+                                    ? Colors.white
+                                    : AppColors.text60,
+                              ),
+                              child: Text(_labels[m]!),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ResultsList extends ConsumerWidget {
+  final List<ReaderBackend> backends;
+  final String query;
+  const _ResultsList({required this.backends, required this.query});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<List<(ReaderBackend, List<Series>)>>(
+      future: Future.wait(
+        backends.map((b) async {
+          try {
+            final result = await b.listSeries(search: query, size: 10);
+            return (b, result.items);
+          } catch (_) {
+            return (b, const <Series>[]);
+          }
+        }),
+      ),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final groups = snapshot.data!.where((g) => g.$2.isNotEmpty).toList();
+        if (groups.isEmpty) {
+          return Center(
+            child: Text(
+              'No matches on any server.',
+              style: AppText.body(color: AppColors.text45),
+            ),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          children: [
+            for (final (backend, series) in groups) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: AppColors.sourceColor(
+                              backend.config.type.name,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          backend.config.name,
+                          style: AppText.body(
+                            size: 14,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '${series.length} HITS',
+                      style: AppText.mono(size: 10),
+                    ),
+                  ],
+                ),
+              ),
+              for (final s in series)
+                _ResultRow(
+                  series: s,
+                  headers: backend.imageHeaders,
+                  onTap: () async {
+                    // Series/reader routes always operate on whichever
+                    // server is "active" - a result from a different
+                    // server must switch context to it first, or the
+                    // series screen would fetch the tapped id from the
+                    // wrong backend.
+                    await ref
+                        .read(serverStoreProvider)
+                        .setActiveServerId(backend.config.id);
+                    ref.read(activeServerIdProvider.notifier).state =
+                        backend.config.id;
+                    if (context.mounted) {
+                      context.push('/series/${Uri.encodeComponent(s.id)}');
+                    }
+                  },
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ResultRow extends StatelessWidget {
+  final Series series;
+  final Map<String, String> headers;
+  final VoidCallback onTap;
+  const _ResultRow({
+    required this.series,
+    required this.headers,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(13),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 42,
+              height: 60,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SeriesCover(
+                  imageUrl: series.thumbnailUrl,
+                  headers: headers,
+                ),
+              ),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    series.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body(size: 14.5, weight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${series.booksCount} VOL',
+                    style: AppText.mono(size: 10.5),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
