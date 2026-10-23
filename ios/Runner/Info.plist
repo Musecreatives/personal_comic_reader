@@ -30,13 +30,17 @@
 	<string>Shaddai Reader connects to your self-hosted Komga, Kavita, Suwayomi, or OPDS server on your local network or Tailscale.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<!-- Self-hosted comic servers are typically plain HTTP on a private
-		     LAN or Tailscale network, not public HTTPS domains that ATS's
-		     per-domain exceptions are designed for - allow arbitrary loads
-		     rather than trying to enumerate every possible server IP. -->
-		<key>NSAllowsArbitraryLoads</key>
+		<!-- Public servers (Komga, sync) are HTTPS. Plain HTTP is allowed
+		     only to IP addresses and local names: Suwayomi on its Tailscale
+		     IP, a server on the LAN. A plain-HTTP public hostname fails;
+		     put it behind HTTPS. -->
+		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Standard HTTPS only: skips the export-compliance question on every
+	     TestFlight upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
