@@ -204,7 +204,11 @@ class KomgaBackend implements ReaderBackend {
       title: (metadata?['title'] as String?) ?? e['name'] as String,
       number: (metadata?['number'] as String?) ?? '',
       pageCount: e['media']?['pagesCount'] as int? ?? 0,
-      readProgressPage: readProgress?['page'] as int?,
+      // Komga counts pages from 1 (updateProgress sends page + 1).
+      readProgressPage: switch (readProgress?['page']) {
+        final int p => p - 1,
+        _ => null,
+      },
       completed: readProgress?['completed'] as bool? ?? false,
       thumbnailUrl: thumbnailUrlForBook(e['id'] as String),
     );
