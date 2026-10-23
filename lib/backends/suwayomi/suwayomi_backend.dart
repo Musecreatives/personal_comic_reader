@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -9,11 +10,22 @@ import '../../core/discovery/recommender.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/network/retry_interceptor.dart';
 
+/// Suwayomi's optional basic-auth login as request headers; empty when no
+/// username is set, so an open server keeps working unchanged.
+Map<String, String> suwayomiAuthHeaders(String username, String password) =>
+    username.isEmpty
+        ? const {}
+        : {
+            'Authorization':
+                'Basic ${base64Encode(utf8.encode('$username:$password'))}',
+          };
+
 /// Suwayomi (Tachidesk) GraphQL implementation of [ReaderBackend].
 ///
-/// Verified against a live instance with real content. No login is
-/// required by Suwayomi itself (it's typically run behind Tailscale/a
-/// trusted network); `config.username`/password are unused.
+/// Verified against a live instance with real content. Suwayomi's login
+/// is optional basic auth: with a username set, every request and image
+/// load sends it; without one, nothing is sent (an open, Tailscale-only
+/// server).
 ///
 /// Maps our model onto Suwayomi's: a [Library] is a Category, a [Series]
 /// is a Manga, and a [Book] is a Chapter. Collections and reading lists
@@ -37,14 +49,21 @@ class SuwayomiBackend implements ReaderBackend {
   final Map<String, int> _chapterSourceOrder = {};
 
   SuwayomiBackend({required this.config, required String password, Dio? dio})
-      : _dio = dio ??
+      : imageHeaders = suwayomiAuthHeaders(config.username, password),
+        _dio = dio ??
             trackedDio(BaseOptions(
               baseUrl: config.baseUrl,
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 20),
             )) {
+    _dio.options.headers.addAll(imageHeaders);
     _dio.interceptors.add(RetryInterceptor(dio: _dio));
   }
+
+  /// Basic auth for API calls and image loads alike; empty when the
+  /// server has no login.
+  @override
+  final Map<String, String> imageHeaders;
 
   Future<Map<String, dynamic>> _gql(
     String query, [
@@ -330,8 +349,6 @@ class SuwayomiBackend implements ReaderBackend {
   String thumbnailUrlForBook(String bookId) =>
       thumbnailUrlForSeries(_chapterMangaId[bookId] ?? '');
 
-  @override
-  Map<String, String> get imageHeaders => const {};
 
   // ---------------------------------------------------------------------
   // Suwayomi-specific extensions used by the backup import flow (6f). Not

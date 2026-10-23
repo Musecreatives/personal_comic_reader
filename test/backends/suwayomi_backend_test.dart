@@ -24,6 +24,29 @@ void main() {
     backend = SuwayomiBackend(config: config, password: '', dio: dio);
   });
 
+  test('sends basic auth only when a username is set', () {
+    expect(backend.imageHeaders, isEmpty);
+    expect(dio.options.headers['Authorization'], isNull);
+
+    final authDio = Dio();
+    final withLogin = SuwayomiBackend(
+      config: const ServerConfig(
+        id: 's2',
+        name: 'Locked Suwayomi',
+        type: ServerType.suwayomi,
+        baseUrl: 'http://test.local',
+        username: 'paul',
+      ),
+      password: 'secret',
+      dio: authDio,
+    );
+
+    // base64('paul:secret')
+    const header = 'Basic cGF1bDpzZWNyZXQ=';
+    expect(withLogin.imageHeaders['Authorization'], header);
+    expect(authDio.options.headers['Authorization'], header);
+  });
+
   test('listLibraries() maps categories to Library', () async {
     adapter.onPost(
       '/api/graphql',
