@@ -7,6 +7,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class AuthStore {
   static const _tokenKey = 'sync_auth_token';
   static const _usernameKey = 'sync_auth_username';
+  // Kept on sign-out: the next sign-in on this device goes to the same place.
+  static const _urlKey = 'sync_url';
 
   final FlutterSecureStorage _secure;
 
@@ -16,6 +18,11 @@ class AuthStore {
   Future<String?> getToken() => _secure.read(key: _tokenKey);
 
   Future<String?> getUsername() => _secure.read(key: _usernameKey);
+
+  /// The sync server chosen on the sign-in screen; null means the default.
+  Future<String?> getSyncUrl() => _secure.read(key: _urlKey);
+
+  Future<void> saveSyncUrl(String url) => _secure.write(key: _urlKey, value: url);
 
   Future<void> saveSession({required String token, required String username}) async {
     await _secure.write(key: _tokenKey, value: token);
