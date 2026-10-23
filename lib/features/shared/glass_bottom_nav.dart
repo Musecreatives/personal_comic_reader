@@ -25,8 +25,8 @@ const _maxContentWidth = 1200.0;
 /// persistent nav that follows the platform's own convention:
 ///
 /// * iOS: a floating frosted tab bar (iPhone), a sidebar (iPad).
-/// * Android: a Material 3 navigation bar, a rail from 600dp, an extended
-///   rail from 1008dp.
+/// * Android: a Material 3 navigation bar, then from 600dp today's compact
+///   rail with the mascot, at every tablet width (canvas "Android tablet").
 /// * Windows: a Fluent navigation pane, compact icons below 1008px and
 ///   expanded with labels above, Settings pinned to the foot like every
 ///   Windows app.
@@ -147,7 +147,6 @@ class GlassNavScaffold extends ConsumerWidget {
                   tabs: tabs,
                   index: index,
                   onSelect: _select,
-                  extended: width >= Breakpoints.expanded,
                 ),
                 pill,
               ),
@@ -208,11 +207,15 @@ class GlassNavScaffold extends ConsumerWidget {
                 left: 16,
                 right: 16,
                 bottom: 16,
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
-                    child: pill,
+                // Edge-to-edge: keep the pill above the system nav bar.
+                child: SafeArea(
+                  top: false,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: pill,
+                    ),
                   ),
                 ),
               ),
@@ -287,18 +290,16 @@ class GlassNavScaffold extends ConsumerWidget {
 
 typedef _Tab = ({IconData icon, IconData selectedIcon, String label});
 
-/// Material 3 navigation rail (tablets, small desktop windows), extended
-/// with labels on wide screens.
+/// Material 3 navigation rail (tablets, small desktop windows): icons with
+/// labels underneath, never extended.
 class _MaterialRail extends StatelessWidget {
   final List<_Tab> tabs;
   final int index;
   final ValueChanged<int> onSelect;
-  final bool extended;
   const _MaterialRail({
     required this.tabs,
     required this.index,
     required this.onSelect,
-    required this.extended,
   });
 
   @override
@@ -308,13 +309,9 @@ class _MaterialRail extends StatelessWidget {
         border: Border(right: BorderSide(color: AppColors.border)),
       ),
       child: NavigationRail(
-        extended: extended,
-        minExtendedWidth: 220,
         selectedIndex: index,
         onDestinationSelected: onSelect,
-        labelType: extended
-            ? NavigationRailLabelType.none
-            : NavigationRailLabelType.all,
+        labelType: NavigationRailLabelType.all,
         groupAlignment: -0.85,
         leading: const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
