@@ -19,6 +19,7 @@ import 'package:shaddai_reader/app/router.dart';
 import 'package:shaddai_reader/app/theme.dart';
 import 'package:shaddai_reader/core/appearance/appearance_settings.dart';
 import 'package:shaddai_reader/core/backend/reader_backend.dart';
+import 'package:shaddai_reader/features/settings/server_edit_screen.dart';
 
 void main() {
   testWidgets('shows empty state when no server is configured', (tester) async {
@@ -44,7 +45,17 @@ void main() {
     );
 
     expect(find.text('No server configured'), findsOneWidget);
-    expect(find.text('Add a server'), findsOneWidget);
+    expect(find.text('Add Shaddai Komga'), findsOneWidget);
+  });
+
+  testWidgets('a new server is the Shaddai Komga preset', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: ServerEditScreen())),
+    );
+
+    expect(find.text('Shaddai Komga'), findsOneWidget);
+    expect(find.text('https://reader.shaddaicommunications.com/komga'),
+        findsOneWidget);
   });
 
   // The nav shell follows the platform (iOS glass bar / iPad sidebar,
