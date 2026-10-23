@@ -235,7 +235,11 @@ class _SyncRowState extends ConsumerState<_SyncRow>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    user == null ? 'Not signed in' : 'Signed in as $user',
+                    // The server is changed by signing out: a session only
+                    // works on the server that issued it.
+                    user == null
+                        ? 'Not signed in'
+                        : 'Signed in as $user · ${Uri.tryParse(ref.read(syncClientProvider).baseUrl)?.host}',
                     style: AppText.body(size: 14, weight: FontWeight.w500),
                   ),
                   const SizedBox(height: 3),
