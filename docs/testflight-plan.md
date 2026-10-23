@@ -141,6 +141,12 @@ for stability. Home **upload** speed caps everyone's page loads.
      members never get Suwayomi.
 6. Builds expire after 90 days; each new tag uploads a fresh one.
 
+**Where iOS builds run.** Only on macOS with Xcode, so not on Linux, the
+home server or a Windows VM (macOS VMs on non-Apple hardware break Apple's
+licence and every macOS update). Codemagic's `mac_mini_m2` is the build
+machine; GitHub Actions `macos-latest` is the fallback if its free minutes
+run out, and a used M1+ Mac mini only if local Xcode debugging is wanted.
+
 ## 7. Feature roll-out backlog
 
 Not TestFlight blockers - queued for after the steps above.

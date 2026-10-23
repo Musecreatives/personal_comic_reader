@@ -58,7 +58,6 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: importableArchiveExtensions,
-        allowMultiple: true,
       );
       if (files.isEmpty) return;
 
@@ -132,7 +131,6 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.image,
-        allowMultiple: true,
       );
       if (files.isEmpty) return;
 

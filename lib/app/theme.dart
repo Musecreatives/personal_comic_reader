@@ -205,11 +205,14 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: AppColors.card,
       surfaceTintColor: Colors.transparent,
-      indicatorColor: AppColors.accent.withValues(alpha: 0.22),
+      // Canvas "Android · Home": violet pill, filled white icon, bold label.
+      indicatorColor: AppColors.accent.withValues(alpha: 0.32),
       height: 72,
       labelTextStyle: WidgetStateProperty.resolveWith((s) => AppText.body(
             size: 12,
-            weight: FontWeight.w600,
+            weight: s.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
             color: s.contains(WidgetState.selected)
                 ? AppColors.text
                 : AppColors.text60,
@@ -217,19 +220,21 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
       iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(
             size: 24,
             color: s.contains(WidgetState.selected)
-                ? AppColors.accentSoft
+                ? AppColors.text
                 : AppColors.text60,
           )),
     ),
+    // Canvas "Android tablet · Home": 96 wide, same pill as the bar.
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: AppColors.canvas,
-      indicatorColor: AppColors.accent.withValues(alpha: 0.22),
-      selectedIconTheme: IconThemeData(color: AppColors.accentSoft),
+      minWidth: 96,
+      indicatorColor: AppColors.accent.withValues(alpha: 0.32),
+      selectedIconTheme: IconThemeData(color: AppColors.text),
       unselectedIconTheme: IconThemeData(color: AppColors.text60),
       selectedLabelTextStyle:
-          AppText.body(size: 12, weight: FontWeight.w600),
+          AppText.body(size: 12, weight: FontWeight.w700),
       unselectedLabelTextStyle:
-          AppText.body(size: 12, weight: FontWeight.w600, color: AppColors.text60),
+          AppText.body(size: 12, weight: FontWeight.w500, color: AppColors.text60),
     ),
   );
 }

@@ -318,7 +318,7 @@ class _MaterialRail extends StatelessWidget {
         groupAlignment: -0.85,
         leading: const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
-          child: GoofyAvatar(size: 40),
+          child: GoofyAvatar(size: 48),
         ),
         destinations: [
           for (final t in tabs)
