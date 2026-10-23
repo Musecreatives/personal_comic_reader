@@ -15,6 +15,7 @@ import '../../backends/local/local_library_store.dart';
 import '../../core/media_pool/webdav_client.dart';
 import '../shared/back_button.dart';
 import '../shared/series_cover.dart';
+import '../shared/app_sheet.dart';
 
 /// Bumped after every import/delete so the screen (and Home/Search, which
 /// also read through [LocalLibraryStore] via [LocalBackend]) refetch.
@@ -336,7 +337,7 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
   }
 
   void _showSeriesActions(LocalSeriesRecord series) {
-    showModalBottomSheet<void>(
+    showAppSheet<void>(
       context: context,
       sheetAnimationStyle: Motion.sheetStyle,
       backgroundColor: AppColors.card,
@@ -348,17 +349,7 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 38,
-                height: 4,
-                margin: const EdgeInsets.only(top: 10, bottom: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.text30,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
+            const SheetGrabber(),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Text(series.title,

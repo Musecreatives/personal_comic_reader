@@ -1,5 +1,30 @@
 # Changelog
 
+## Native redesign: one brand, platform chrome
+
+- **Interface style** (`lib/app/platform_style.dart`): the app resolves
+  iOS, Android, Windows or web conventions from the device, and the
+  choice can be forced per device in Settings > Appearance > Interface
+  (kept out of the synced appearance box).
+- **Navigation shell**: the iOS floating glass tab bar and iPad sidebar
+  stay; Android gets a Material 3 navigation bar, rail and extended rail;
+  Windows gets a Fluent-style navigation pane (compact or expanded,
+  Settings pinned to the foot); the web gets a bar, rail or labelled
+  sidebar by width. Ctrl+1-5 and Ctrl+F / Ctrl+K on Windows and the web.
+- **Theme per platform**: system text faces (SF Pro, Roboto, Segoe UI
+  Variable; Inter on the web) with JetBrains Mono metadata everywhere;
+  page transitions (iOS slide, predictive back, fade forward); ripples
+  only on Android; compact density and visible scrollbars on desktop;
+  platform corner radii for dialogs, buttons and sheets.
+- **Shared controls**: `AppBackButton` takes each platform's form (and
+  three private copies now delegate to it); `showAppSheet` shows a bottom
+  sheet on phones and a centred dialog on Windows and desktop web, with a
+  shared `SheetGrabber`; switches are adaptive.
+- **Native projects**: Android predictive back and edge-to-edge; the
+  Windows title bar is dark and tinted to the pane on Windows 11; the PWA
+  manifest allows any orientation, and the iOS home-screen web app draws
+  under the status bar.
+
 ## Phase 5 — OPDS backend, stats, smart panel view, wide layout, iOS prep
 
 - **`OpdsBackend`** (`lib/backends/opds/`): a fifth `ReaderBackend`,

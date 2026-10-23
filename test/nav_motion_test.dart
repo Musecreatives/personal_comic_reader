@@ -1,10 +1,12 @@
-// The tab capsule must glide to the tapped tab over several frames, not
-// snap - guards the "I don't see any animation" regression.
+// The iOS tab capsule must glide to the tapped tab over several frames,
+// not snap - guards the "I don't see any animation" regression.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:shaddai_reader/app/design_tokens.dart';
+import 'package:shaddai_reader/app/platform_style.dart';
 import 'package:shaddai_reader/app/providers.dart';
 import 'package:shaddai_reader/app/router.dart';
 import 'package:shaddai_reader/app/theme.dart';
@@ -16,6 +18,11 @@ void main() {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    // The floating capsule bar is the iOS shell; tests run on a host that
+    // would otherwise resolve to the Material one.
+    const ios = AppearanceSettings(interfaceStyle: InterfaceStyle.ios);
+    AppColors.configure(ios);
+    addTearDown(() => AppColors.configure(const AppearanceSettings()));
 
     await tester.pumpWidget(
       ProviderScope(
@@ -27,7 +34,7 @@ void main() {
               .overrideWith((ref) async => null as ReaderBackend?),
         ],
         child: MaterialApp.router(
-          theme: buildAppTheme(const AppearanceSettings()),
+          theme: buildAppTheme(ios),
           routerConfig: buildRouter(),
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
+import '../shared/app_sheet.dart';
 
 /// Things you can do to a series beyond reading it: stop following it, clear
 /// its downloads from this device, (Suwayomi) drop it from the library, or
@@ -19,7 +20,7 @@ class SeriesActionsSheet {
     Future<void> Function()? onEditDetails,
     Future<void> Function()? onFindOnComicVine,
   }) {
-    return showModalBottomSheet<void>(
+    return showAppSheet<void>(
       context: context,
       sheetAnimationStyle: Motion.sheetStyle,
       backgroundColor: AppColors.card,
@@ -65,17 +66,7 @@ class SeriesActionsSheet {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 38,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 10, bottom: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.text30,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
+              const SheetGrabber(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                 child: Text(

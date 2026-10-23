@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../backends/local/local_library_store.dart';
+import '../shared/app_sheet.dart';
 
 /// "Edit details" for an imported series: title, summary, credits,
 /// publisher, year and genres. Returns the edited record for the caller to
@@ -13,8 +14,9 @@ Future<LocalSeriesRecord?> showEditDetailsSheet(
   LocalSeriesRecord initial, {
   String heading = 'Edit details',
 }) {
-  return showModalBottomSheet<LocalSeriesRecord>(
+  return showAppSheet<LocalSeriesRecord>(
     context: context,
+    grabber: true,
     isScrollControlled: true,
     useSafeArea: true,
     sheetAnimationStyle: Motion.sheetStyle,

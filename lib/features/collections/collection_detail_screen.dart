@@ -10,6 +10,7 @@ import '../shared/back_button.dart';
 import '../shared/series_cover.dart';
 import 'collection_entry.dart';
 import 'migrate_sheet.dart';
+import '../shared/app_sheet.dart';
 
 Future<void> renameCollection(
     BuildContext context, WidgetRef ref, String id, String current) async {
@@ -122,8 +123,9 @@ class _CollectionDetailScreenState extends ConsumerState<CollectionDetailScreen>
       _snack('Make another collection first.');
       return;
     }
-    final target = await showModalBottomSheet<LocalCollection>(
+    final target = await showAppSheet<LocalCollection>(
       context: context,
+      grabber: true,
       backgroundColor: AppColors.card,
       builder: (s) => SafeArea(
         child: ListView(
@@ -189,8 +191,9 @@ class _CollectionDetailScreenState extends ConsumerState<CollectionDetailScreen>
 
   Future<void> _actions(String entry, ResolvedEntry? e) async {
     final suwayomi = e?.backend is SuwayomiBackend;
-    final action = await showModalBottomSheet<String>(
+    final action = await showAppSheet<String>(
       context: context,
+      grabber: true,
       backgroundColor: AppColors.card,
       builder: (s) => SafeArea(
         child: Column(

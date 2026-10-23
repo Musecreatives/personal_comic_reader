@@ -11,6 +11,7 @@ import '../../core/kapowarr/kapowarr_client.dart';
 import '../discovery/discovery_providers.dart';
 import '../shared/series_cover.dart';
 import 'source_showcase.dart';
+import '../shared/app_sheet.dart';
 
 // ---------------------------------------------------------------------------
 // Shared preview sheet
@@ -32,7 +33,7 @@ Future<void> showAcquireSheet(
   bool alreadyHave = false,
   String alreadyHaveLabel = 'Already added',
 }) {
-  return showModalBottomSheet<void>(
+  return showAppSheet<void>(
     context: context,
     isScrollControlled: true,
     sheetAnimationStyle: Motion.sheetStyle,
@@ -116,17 +117,7 @@ class _AcquireSheetState extends State<_AcquireSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 38,
-                height: 4,
-                margin: const EdgeInsets.only(top: 10, bottom: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.text30,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
+            const SheetGrabber(),
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
