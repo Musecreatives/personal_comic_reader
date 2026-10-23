@@ -129,9 +129,14 @@ class SyncClient {
     await _dio.post('/auth/logout');
   }
 
-  Future<String> me() async {
-    final res = await _dio.get('/auth/me');
-    return (res.data as Map<String, dynamic>)['username'] as String;
+  /// The signed-in account. A sync service from before roles sends no
+  /// `role`; that account is the owner, so nothing hides on an old server.
+  Future<({String username, bool isOwner})> me() async {
+    final data = (await _dio.get('/auth/me')).data as Map<String, dynamic>;
+    return (
+      username: data['username'] as String,
+      isOwner: (data['role'] as String? ?? 'owner') == 'owner',
+    );
   }
 
   Future<List<SyncRecord>> pull(String resource, {String since = ''}) async {
