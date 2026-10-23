@@ -419,7 +419,7 @@ class _ToggleRow extends StatelessWidget {
               ],
             ),
           ),
-          Switch(
+          Switch.adaptive(
             value: value,
             onChanged: onChanged,
             activeThumbColor: Colors.white,

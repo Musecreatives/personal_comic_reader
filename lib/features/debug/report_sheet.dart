@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/debug/problem_reports.dart';
+import '../shared/app_sheet.dart';
 
 /// "Report a problem": what happened, plus (by default) recent logs and
 /// network calls, sent to the sync server as a ticket. [error] prefills a
@@ -14,8 +15,9 @@ Future<void> showReportSheet(BuildContext context, {Object? error}) {
   try {
     route = GoRouter.of(context).routerDelegate.currentConfiguration.uri.toString();
   } catch (_) {}
-  return showModalBottomSheet<void>(
+  return showAppSheet<void>(
     context: context,
+    grabber: true,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: AppColors.card,

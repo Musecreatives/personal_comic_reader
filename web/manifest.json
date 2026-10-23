@@ -6,7 +6,7 @@
     "background_color": "#0A1420",
     "theme_color": "#0A1420",
     "description": "Comic and manga reader for Komga, Kavita, Suwayomi, and OPDS.",
-    "orientation": "portrait-primary",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
@@ -31,5 +31,15 @@
             "type": "image/png",
             "purpose": "maskable"
         }
-    ]
+    ],
+    "display_override": [
+        "standalone",
+        "minimal-ui"
+    ],
+    "categories": [
+        "books",
+        "entertainment"
+    ],
+    "scope": ".",
+    "id": "."
 }

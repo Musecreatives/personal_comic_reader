@@ -4,6 +4,7 @@ import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../core/comicvine/comicvine_client.dart';
 import '../shared/series_cover.dart';
+import '../shared/app_sheet.dart';
 
 /// Searches ComicVine volumes for [query] (editable in the sheet) and lets
 /// the user pick one. Returns the picked volume with its full details
@@ -13,8 +14,9 @@ Future<ComicVineVolume?> showComicVineMatchSheet(
   required ComicVineClient client,
   required String query,
 }) {
-  return showModalBottomSheet<ComicVineVolume>(
+  return showAppSheet<ComicVineVolume>(
     context: context,
+    grabber: true,
     isScrollControlled: true,
     useSafeArea: true,
     sheetAnimationStyle: Motion.sheetStyle,

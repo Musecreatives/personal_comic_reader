@@ -162,21 +162,7 @@ class _BackButton extends StatelessWidget {
   const _BackButton({required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.fillSubtle,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          width: 34,
-          height: 34,
-          child: Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: AppColors.text),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppBackButton(onTap: onTap);
 }
 
 class _PickFileStep extends StatelessWidget {
@@ -386,7 +372,7 @@ class _MatchRow extends StatelessWidget {
             ),
           ),
           if (canToggle)
-            Switch(
+            Switch.adaptive(
               value: !match.excluded,
               onChanged: (_) => onToggle(),
               activeThumbColor: Colors.white,

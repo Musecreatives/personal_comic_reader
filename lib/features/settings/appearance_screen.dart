@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/back_button.dart';
 
 import '../../app/design_tokens.dart';
+import '../../app/platform_style.dart';
 import '../../app/providers.dart';
 import '../../core/appearance/appearance_settings.dart';
 
@@ -70,7 +71,79 @@ class AppearanceScreen extends ConsumerWidget {
                 ],
               ],
             ),
+            const SizedBox(height: 22),
+            Text('INTERFACE', style: AppText.sectionLabel()),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final style in InterfaceStyle.values)
+                  _StyleChip(
+                    label: style.label,
+                    selected: appearance.interfaceStyle == style,
+                    onTap: () =>
+                        update(appearance.copyWith(interfaceStyle: style)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Navigation, sheets and controls follow this platform. '
+              'Automatic matches ${_deviceName()}. Kept on this device only.',
+              style: AppText.body(size: 12.5, color: AppColors.text45),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+String _deviceName() => switch (PlatformStyle.resolve(InterfaceStyle.auto)) {
+      UiPlatform.ios => 'iOS',
+      UiPlatform.android => 'Android',
+      UiPlatform.windows => 'Windows',
+      UiPlatform.web => 'the web',
+    };
+
+class _StyleChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _StyleChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected
+            ? AppColors.accent.withValues(alpha: 0.16)
+            : AppColors.fillSubtle,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(PlatformStyle.controlRadius),
+          side: BorderSide(
+            color: selected
+                ? AppColors.accent.withValues(alpha: 0.5)
+                : AppColors.border,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(PlatformStyle.controlRadius),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            child: Text(label,
+                style: AppText.body(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: selected ? AppColors.text : AppColors.text60)),
+          ),
         ),
       ),
     );
@@ -82,21 +155,7 @@ class _BackButton extends StatelessWidget {
   const _BackButton({required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.fillSubtle,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          width: 34,
-          height: 34,
-          child: Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: AppColors.text),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppBackButton(onTap: onTap);
 }
 
 class _LivePreview extends StatelessWidget {
