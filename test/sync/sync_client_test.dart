@@ -55,7 +55,7 @@ void main() {
       headers: {'Authorization': 'Bearer a-token'},
     );
 
-    final username = await client.me();
+    final (:username, isOwner: _) = await client.me();
 
     expect(username, 'paul');
   });
@@ -68,7 +68,7 @@ void main() {
       headers: {'Authorization': 'Bearer swapped-token'},
     );
 
-    final username = await client.me();
+    final (:username, isOwner: _) = await client.me();
 
     expect(username, 'paul');
   });
@@ -141,6 +141,16 @@ void main() {
 
     expect(result, hasLength(1));
     expect(result.single.recordId, 'book-1');
+  });
+
+  test('me() reads the role; an old server without one means owner',
+      () async {
+    adapter.onGet('/auth/me',
+        (server) => server.reply(200, {'username': 'ada', 'role': 'member'}));
+    expect((await client.me()).isOwner, isFalse);
+
+    adapter.onGet('/auth/me', (server) => server.reply(200, {'username': 'paul'}));
+    expect((await client.me()).isOwner, isTrue);
   });
 
   test('installed apps default to the public address, not Tailscale', () {

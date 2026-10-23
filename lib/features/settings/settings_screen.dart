@@ -7,11 +7,12 @@ import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../shared/back_button.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final owner = ref.watch(isOwnerProvider);
     return Scaffold(
       backgroundColor: AppColors.page,
       body: SafeArea(
@@ -67,18 +68,20 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: 'Add, edit, or switch between servers',
                 onTap: () => context.push('/settings/servers'),
               ),
-              _SettingsRow(
-                icon: Icons.download_outlined,
-                title: 'Kapowarr',
-                subtitle: 'Acquisition status - not a reading source',
-                onTap: () => context.push('/settings/kapowarr'),
-              ),
-              _SettingsRow(
-                icon: Icons.health_and_safety_outlined,
-                title: 'Suwayomi maintenance',
-                subtitle: 'Extension health, backup & restore',
-                onTap: () => context.push('/settings/suwayomi'),
-              ),
+              if (owner) ...[
+                _SettingsRow(
+                  icon: Icons.download_outlined,
+                  title: 'Kapowarr',
+                  subtitle: 'Acquisition status - not a reading source',
+                  onTap: () => context.push('/settings/kapowarr'),
+                ),
+                _SettingsRow(
+                  icon: Icons.health_and_safety_outlined,
+                  title: 'Suwayomi maintenance',
+                  subtitle: 'Extension health, backup & restore',
+                  onTap: () => context.push('/settings/suwayomi'),
+                ),
+              ],
               _SettingsRow(
                 icon: Icons.downloading_outlined,
                 title: 'Downloads',
@@ -98,12 +101,13 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: 'Import and read CBZ/ZIP files directly',
                 onTap: () => context.push('/local-library'),
               ),
-              _SettingsRow(
-                icon: Icons.cloud_upload_outlined,
-                title: 'Media Pool',
-                subtitle: 'Back up locally-imported comics over WebDAV',
-                onTap: () => context.push('/settings/media-pool'),
-              ),
+              if (owner)
+                _SettingsRow(
+                  icon: Icons.cloud_upload_outlined,
+                  title: 'Media Pool',
+                  subtitle: 'Back up locally-imported comics over WebDAV',
+                  onTap: () => context.push('/settings/media-pool'),
+                ),
               _SettingsRow(
                 icon: Icons.travel_explore_outlined,
                 title: 'ComicVine',
