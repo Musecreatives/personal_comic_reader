@@ -58,10 +58,16 @@ class _NoServerState extends StatelessWidget {
             Icon(Icons.dns_outlined, size: 48, color: AppColors.text45),
             const SizedBox(height: 12),
             Text('No server configured', style: AppText.heading(size: 18)),
+            const SizedBox(height: 6),
+            Text('Sign in with the Komga account you were given.',
+                textAlign: TextAlign.center,
+                style: AppText.body(size: 13, color: AppColors.text60)),
             const SizedBox(height: 16),
+            // The form opens pre-filled with the public Komga address;
+            // its type picker still reaches Suwayomi and OPDS.
             FilledButton(
               onPressed: () => context.push('/settings/servers/new'),
-              child: const Text('Add a server'),
+              child: const Text('Add Shaddai Komga'),
             ),
           ],
         ),
