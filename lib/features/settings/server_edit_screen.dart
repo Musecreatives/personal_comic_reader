@@ -273,7 +273,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
               _FormField(
                 controller: _usernameController,
                 label: _type == ServerType.suwayomi
-                    ? 'Username / email (unused - no auth)'
+                    ? 'Username (only if Suwayomi has a login)'
                     : 'Username / email',
                 validator: (v) => _type != ServerType.suwayomi &&
                         (v == null || v.trim().isEmpty)
@@ -284,7 +284,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
               _FormField(
                 controller: _passwordController,
                 label: _type == ServerType.suwayomi
-                    ? 'Password (unused - no auth)'
+                    ? 'Password (only if Suwayomi has a login)'
                     : 'Password',
                 obscureText: true,
                 validator: (v) => _type != ServerType.suwayomi &&

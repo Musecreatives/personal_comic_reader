@@ -38,9 +38,9 @@ class _SuwayomiMaintenanceScreenState extends ConsumerState<SuwayomiMaintenanceS
     return (health, extensions);
   }
 
-  void _ensureClient(ServerConfig config) {
+  void _ensureClient(ServerConfig config, Map<String, String> headers) {
     if (_client != null) return;
-    _client = SuwayomiMaintenanceClient(config: config);
+    _client = SuwayomiMaintenanceClient(config: config, headers: headers);
     _future = _load(_client!);
   }
 
@@ -180,7 +180,7 @@ class _SuwayomiMaintenanceScreenState extends ConsumerState<SuwayomiMaintenanceS
                       ),
                     );
                   }
-                  _ensureClient(backend.config);
+                  _ensureClient(backend.config, backend.imageHeaders);
                   return _Body(
                     future: _future!,
                     reinstalling: _reinstalling,
