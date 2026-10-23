@@ -1,5 +1,18 @@
 # Changelog
 
+## Redesign Phase 0: baseline fixes
+
+- **Web start-up crash**: `ReadingStatsStore` made its device id with
+  `Random().nextInt(1 << 32)`, and `1 << 32` is `0` on the web, so a fresh
+  browser threw before the first screen. Now `1 << 31`, with a test.
+- **Nav matches the canvas**: Material bar and rail use the 32% violet pill,
+  white selected icon and bold selected label; the tablet rail is 96 wide
+  with the 48px mascot.
+- **Debug and release side by side** on Android: debug builds install as
+  `com.shaddaicommunications.reader.debug`, labelled "Shaddai Reader (debug)".
+- Analyzer clean again (an unawaited return, `file_picker`'s deprecated
+  `allowMultiple`).
+
 ## Native redesign: one brand, platform chrome
 
 - **Interface style** (`lib/app/platform_style.dart`): the app resolves

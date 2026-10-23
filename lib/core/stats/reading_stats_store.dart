@@ -40,7 +40,7 @@ class ReadingStatsStore {
     _box = await Hive.openBox<String>(_boxName);
     var device = _box.get(_deviceKey);
     if (device == null) {
-      device = Random().nextInt(1 << 32).toRadixString(36) +
+      device = Random().nextInt(1 << 31).toRadixString(36) +
           DateTime.now().microsecondsSinceEpoch.toRadixString(36);
       await _box.put(_deviceKey, device);
     }
