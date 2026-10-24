@@ -16,13 +16,18 @@ No passwords or keys belong in this file.
 | Service | Container | Reached at | Data |
 |---|---|---|---|
 | Sync service (accounts, history, settings) | `shaddai-sync` | `100.108.109.63:8600`, public `https://reader.shaddaicommunications.com/sync` | `~/docker/sync-service/data/sync.db` (internal SSD) |
-| Komga (comics and manga for everyone) | `komga` | `100.108.109.63:8081`, public `/komga` | `/mnt/media-pool/comics-manga/komga/config` |
-| Suwayomi (manga sources, owner only) | `suwayomi` | `http://100.108.109.63:4567` (Tailscale only) | `/mnt/media-pool/comics-manga/suwayomi/data` |
-| Kapowarr (comic downloads, owner only) | `kapowarr` | `100.108.109.63:5656` | `/mnt/media-pool/comics-manga/kapowarr/db` |
+| Komga (comics and manga for everyone) | `komga` | `100.108.109.63:8081`, public `/komga` | `~/docker/comics-manga/appdata/komga-config` (SSD) |
+| Suwayomi (manga sources, owner only) | `suwayomi` | `http://100.108.109.63:4567` (Tailscale only) | `~/docker/comics-manga/appdata/suwayomi-data` (SSD) |
+| Kapowarr (comic downloads, owner only) | `kapowarr` | `100.108.109.63:5656` | `~/docker/comics-manga/appdata/kapowarr-db` (SSD) |
 | Caddy (public edge) | `caddy` | public HTTPS | `~/docker/caddy/Caddyfile` |
 
 - Komga, Suwayomi and Kapowarr: `~/docker/comics-manga/docker-compose.yml`.
   Ports are bound to the Tailscale address only.
+- Since 2026-10-24 their settings and databases live on the internal SSD
+  (`appdata/`), so a pool drive dropping out can't damage them. Only the
+  comic and manga libraries (`library/comics`, `library/manga`) and
+  Kapowarr's downloads stay on the pool. The old copies are kept on the pool
+  as `komga/config.moved-to-ssd-20261024` and so on.
 - The sync service is started by hand, not by compose. Its source is
   `~/docker/comics-manga/sync-service/` (not in this repo). To redeploy:
   back up `sync.db`, `docker build -t shaddai-sync .`, then recreate with the
@@ -72,11 +77,12 @@ by `mergerfs-watchdog.timer`. Alerts go to ntfy topic `homelab-alerts`.
 - Alerts when a branch mount is shut down, read-only, or stacked twice.
 - Alerts when Suwayomi's newest backup looks empty.
 - **Since 2026-10-24:** when any branch's live mount is unhealthy or missing,
-  it stops `komga`, `suwayomi` and `kapowarr`, records them in
+  it stops `komga`, `suwayomi` and `kapowarr` (so they don't scan or write a
+  half-missing library), records them in
   `/var/lib/mergerfs-watchdog/stopped-apps`, and alerts. Once every branch is
-  healthy and each app's database is in exactly one place, at least 1 MB and
-  readable, it starts them again and sends an all-clear. If a database is in
-  two places it keeps them stopped and alerts instead.
+  healthy, each database on the SSD is full-size and readable, and the
+  libraries on the pool answer again, it starts them and sends an all-clear.
+- Suwayomi's backups are checked in `appdata/suwayomi-data/backups`.
 - It never remounts a branch or moves files: that stays a manual step.
 - Test it without touching anything:
   `sudo env CHECK_ONLY=1 bash mergerfs-watchdog.sh`, or
@@ -90,7 +96,9 @@ by `mergerfs-watchdog.timer`. Alerts go to ntfy topic `homelab-alerts`.
 3. **Reconnect it** (cable, hub power). It usually comes back under a new
    device name and is remounted by fstab on top of the dead mount. Leave the
    dead mount underneath; a reboot clears it. Do not `umount` the top entry.
-4. **Look for duplicate databases** before starting anything:
+4. **Look for duplicate databases** before starting anything (only matters
+   for app data still on the pool; since the move to the SSD this is a
+   safety check, not an expected problem):
    ```bash
    for b in hdd1tb external flash16gb hdd1tb2; do
      ls -la /mnt/$b/comics-manga/{komga/config,suwayomi/data,kapowarr/db} 2>/dev/null
@@ -119,8 +127,7 @@ database was intact (761 manga).
 
 ## Recommended next steps
 
-- Move Komga's, Suwayomi's and Kapowarr's config and databases off the pool
-  onto the internal SSD, as the sync service already is. The library files
-  can stay on the pool.
+- After a few weeks without trouble, delete the `*.moved-to-ssd-20261024`
+  folders on the pool.
 - Reboot when convenient to clear the stacked dead mounts.
 - Replace or re-power the USB hub.
