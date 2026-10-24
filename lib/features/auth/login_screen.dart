@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
+import '../../core/backend/reader_backend.dart';
 import '../../core/sync/sync_client.dart';
 
 /// Sign in (or create an account) to shaddai-sync, the app's own small
@@ -73,6 +75,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await auth.saveSession(token: result.token, username: result.username);
       await auth.saveSyncUrl(client.baseUrl);
       ref.read(currentUsernameProvider.notifier).state = result.username;
+      if (_creatingAccount) await _addPresetKomga(client, password);
 
       unawaited(startSync(container));
 
@@ -82,6 +85,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  /// The service makes a friend's Komga login with their account; add it
+  /// so they never type it. Best effort: without it, Home still offers
+  /// "Add Shaddai Komga", and sync carries the server to their other devices.
+  Future<void> _addPresetKomga(SyncClient client, String password) async {
+    try {
+      final komga = (await client.me()).komga;
+      if (komga == null) return;
+      final store = ref.read(serverStoreProvider);
+      final id = const Uuid().v4();
+      await store.saveServer(
+        ServerConfig(
+          id: id,
+          name: 'Shaddai Komga',
+          type: ServerType.komga,
+          baseUrl: komga.url,
+          username: komga.username,
+        ),
+        password: password,
+      );
+      await store.setActiveServerId(id);
+      ref.read(activeServerIdProvider.notifier).state = id;
+      ref.read(serverListRevisionProvider.notifier).state++;
+    } catch (_) {}
   }
 
   String _describeError(Object e) {
