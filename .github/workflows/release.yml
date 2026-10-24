@@ -1,0 +1,206 @@
+name: Release
+
+# Push a tag like v1.0.0 to build every platform and publish a GitHub
+# Release with stable file names (the download page links to
+# releases/latest/download/<name>). The home server picks up the web build
+# from the release by itself. iOS TestFlight builds run on Codemagic from
+# the same tag (codemagic.yaml).
+#
+# "Run workflow" by hand builds everything as downloadable artifacts
+# without publishing a release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ github.ref_name }}
+  IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  # A draft first, so a failed build never leaves a half-published release.
+  draft:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --generate-notes --title "Shaddai Reader $TAG"
+
+  android:
+    needs: [check, draft]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+      - name: Release signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE" | base64 -d > android/app/release.jks
+          printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$STORE_PW" "$ALIAS" "$KEY_PW" > android/key.properties
+      - run: flutter pub get
+      # The run number keeps versionCode rising, so every APK installs
+      # over the last one.
+      - name: Build APK
+        run: |
+          NAME_ARG=""; [ "$IS_TAG" = true ] && NAME_ARG="--build-name=${TAG#v}"
+          flutter build apk --release --build-number=${{ github.run_number }} $NAME_ARG
+          cp build/app/outputs/flutter-apk/app-release.apk ShaddaiReader.apk
+      - if: env.IS_TAG == 'true'
+        run: gh release upload "$TAG" ShaddaiReader.apk --repo "$GITHUB_REPOSITORY" --clobber
+      - if: env.IS_TAG != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ShaddaiReader-android
+          path: ShaddaiReader.apk
+          retention-days: 14
+
+  web:
+    needs: [check, draft]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build web
+        run: |
+          NAME_ARG=""; [ "$IS_TAG" = true ] && NAME_ARG="--build-name=${TAG#v}"
+          flutter build web --release --build-number=${{ github.run_number }} $NAME_ARG
+          (cd build/web && zip -qr ../../ShaddaiReader-web.zip .)
+      - if: env.IS_TAG == 'true'
+        run: gh release upload "$TAG" ShaddaiReader-web.zip --repo "$GITHUB_REPOSITORY" --clobber
+      - if: env.IS_TAG != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ShaddaiReader-web
+          path: ShaddaiReader-web.zip
+          retention-days: 14
+
+  windows:
+    needs: [check, draft]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build Windows
+        run: |
+          NAME_ARG=""; [ "$IS_TAG" = true ] && NAME_ARG="--build-name=${TAG#v}"
+          flutter build windows --release --build-number=${{ github.run_number }} $NAME_ARG
+          pwsh -Command "Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath ShaddaiReader-windows.zip"
+      - if: env.IS_TAG == 'true'
+        run: gh release upload "$TAG" ShaddaiReader-windows.zip --repo "$GITHUB_REPOSITORY" --clobber
+      - if: env.IS_TAG != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ShaddaiReader-windows
+          path: ShaddaiReader-windows.zip
+          retention-days: 14
+
+  # Unsigned, for sideloading (AltStore / SideStore / Sideloadly re-sign it
+  # with your own Apple ID). Friends get the TestFlight build instead.
+  ios-unsigned:
+    needs: [check, draft]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: macos-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build (no code signing)
+        run: |
+          NAME_ARG=""; [ "$IS_TAG" = true ] && NAME_ARG="--build-name=${TAG#v}"
+          flutter build ios --release --no-codesign --build-number=${{ github.run_number }} $NAME_ARG
+          mkdir Payload && cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qr ShaddaiReader-unsigned.ipa Payload
+      - if: env.IS_TAG == 'true'
+        run: gh release upload "$TAG" ShaddaiReader-unsigned.ipa --repo "$GITHUB_REPOSITORY" --clobber
+      - if: env.IS_TAG != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ShaddaiReader-unsigned-ipa
+          path: ShaddaiReader-unsigned.ipa
+          retention-days: 14
+
+  publish:
+    needs: [android, web, windows, ios-unsigned]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
