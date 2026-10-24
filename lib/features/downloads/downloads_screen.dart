@@ -210,7 +210,7 @@ class _QueueTab extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Switch(
+                  Switch.adaptive(
                     value: wifiOnly,
                     onChanged: onWifiOnlyChanged,
                     activeThumbColor: Colors.white,

@@ -180,7 +180,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
       final series = await backend.getSeries(e.seriesId);
       final books = await backend.listBooks(e.seriesId);
       final i = books.indexWhere((b) => b.id == e.bookId);
-      if (i < 0) return _heroFromSeries(FeedSeries(series, backend));
+      if (i < 0) return await _heroFromSeries(FeedSeries(series, backend));
       // A finished chapter means "continue" is the next one, from its start.
       if (e.completed && i + 1 < books.length) {
         return _HeroData(series: series, backend: backend, book: books[i + 1], entry: e);

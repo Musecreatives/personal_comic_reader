@@ -16,6 +16,20 @@ void main() {
     expect(store.enabled, true);
   });
 
+  // Regression: `nextInt(1 << 32)` threw on the web (1 << 32 == 0 there), so a
+  // fresh browser never got past start-up. hive_test is VM-only, so the web
+  // side is checked by opening `flutter build web` in a clean profile.
+  test('a fresh init() creates a device id and keeps it', () async {
+    await ReadingStatsStore().init();
+    final box = Hive.box<String>('reading_stats');
+    final device = box.get('_device');
+    expect(device, isNotEmpty);
+
+    await box.close();
+    await ReadingStatsStore().init();
+    expect(Hive.box<String>('reading_stats').get('_device'), device);
+  });
+
   test('recordPages() and recordSeconds() accumulate for the given day',
       () async {
     final store = ReadingStatsStore();
