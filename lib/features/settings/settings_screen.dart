@@ -68,6 +68,14 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: 'Add, edit, or switch between servers',
                 onTap: () => context.push('/settings/servers'),
               ),
+              _SettingsRow(
+                icon: Icons.inbox_outlined,
+                title: owner ? 'Requests' : 'My requests',
+                subtitle: owner
+                    ? 'Series your friends asked for'
+                    : 'Series you asked for, and where they stand',
+                onTap: () => context.push('/settings/requests'),
+              ),
               if (owner) ...[
                 _SettingsRow(
                   icon: Icons.download_outlined,
