@@ -28,17 +28,44 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final backendAsync = ref.watch(activeBackendProvider);
 
+    final topPad = MediaQuery.paddingOf(context).top;
     return Scaffold(
       backgroundColor: AppColors.page,
       extendBody: true,
-      body: backendAsync.when(
-        loading: () => const _HomeSkeleton(),
-        error: (e, st) => AppErrorState(
-          error: e,
-          onRetry: () => ref.invalidate(activeBackendProvider),
-        ),
-        data: (backend) =>
-            backend == null ? const _NoServerState() : const _HomeBody(),
+      body: Stack(
+        children: [
+          backendAsync.when(
+            loading: () => const _HomeSkeleton(),
+            error: (e, st) => AppErrorState(
+              error: e,
+              onRetry: () => ref.invalidate(activeBackendProvider),
+            ),
+            data: (backend) =>
+                backend == null ? const _NoServerState() : const _HomeBody(),
+          ),
+          // Edge to edge, Home scrolls under the status bar; a soft scrim
+          // keeps headings from colliding with the clock and icons.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topPad,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.page.withValues(alpha: 0.85),
+                      AppColors.page.withValues(alpha: 0.55),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -680,7 +707,19 @@ class _HeroCard extends ConsumerWidget {
             stops: const [0, 0.6, 1],
           ),
         ),
-        child: Padding(
+        // Fade into the page at the foot, as the board does, so the hero
+        // doesn't end on a hard line above the chips.
+        position: DecorationPosition.background,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AppColors.page.withValues(alpha: 0), AppColors.page],
+              stops: const [0.55, 1],
+            ),
+          ),
+          child: Padding(
           padding: EdgeInsets.fromLTRB(
               48, MediaQuery.paddingOf(context).top + 40, 48, 40),
           child: Row(
@@ -710,6 +749,7 @@ class _HeroCard extends ConsumerWidget {
               ),
             ],
           ),
+        ),
         ),
       );
     }
