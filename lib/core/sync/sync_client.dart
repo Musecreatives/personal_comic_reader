@@ -32,6 +32,41 @@ class SyncRecord {
       };
 }
 
+/// A friend's request for a series (sync service `/requests`).
+class SeriesRequest {
+  final int id;
+  final String title;
+  final int? comicvineId;
+  final int? year;
+  final String? coverLink;
+
+  /// "waiting", "added" or "declined".
+  final String status;
+
+  /// Who asked; only filled in the owner's list.
+  final String? username;
+
+  const SeriesRequest({
+    required this.id,
+    required this.title,
+    required this.status,
+    this.comicvineId,
+    this.year,
+    this.coverLink,
+    this.username,
+  });
+
+  factory SeriesRequest.fromJson(Map<String, dynamic> j) => SeriesRequest(
+        id: j['id'] as int,
+        title: j['title'] as String,
+        status: j['status'] as String,
+        comicvineId: j['comicvine_id'] as int?,
+        year: j['year'] as int?,
+        coverLink: j['cover_link'] as String?,
+        username: j['username'] as String?,
+      );
+}
+
 class SyncAuthException implements Exception {
   final String message;
   const SyncAuthException(this.message);
@@ -131,12 +166,55 @@ class SyncClient {
 
   /// The signed-in account. A sync service from before roles sends no
   /// `role`; that account is the owner, so nothing hides on an old server.
-  Future<({String username, bool isOwner})> me() async {
+  /// [komga] is the Komga login the service made for a friend at sign-up.
+  Future<({String username, bool isOwner, ({String url, String username})? komga})>
+      me() async {
     final data = (await _dio.get('/auth/me')).data as Map<String, dynamic>;
+    final k = data['komga'] as Map<String, dynamic>?;
     return (
       username: data['username'] as String,
       isOwner: (data['role'] as String? ?? 'owner') == 'owner',
+      komga: k == null
+          ? null
+          : (url: k['url'] as String, username: k['username'] as String),
     );
+  }
+
+  /// Kapowarr search run by the service with the owner's key, so friends
+  /// can search without it (results have Kapowarr's own JSON shape).
+  Future<List<Map<String, dynamic>>> kapowarrSearch(String query) async {
+    final res = await _dio.get('/kapowarr/search', queryParameters: {'q': query});
+    return ((res.data as Map<String, dynamic>)['results'] as List)
+        .cast<Map<String, dynamic>>();
+  }
+
+  /// A friend asking for a series; the owner approves it.
+  Future<SeriesRequest> createRequest({
+    required String title,
+    int? comicvineId,
+    int? year,
+    String? coverLink,
+  }) async {
+    final res = await _dio.post('/requests', data: {
+      'title': title,
+      'comicvine_id': ?comicvineId,
+      'year': ?year,
+      'cover_link': ?coverLink,
+    });
+    return SeriesRequest.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// Your own requests, or with [all] (owner only) everyone's.
+  Future<List<SeriesRequest>> requests({bool all = false}) async {
+    final res = await _dio.get(all ? '/admin/requests' : '/requests');
+    return ((res.data as Map<String, dynamic>)['requests'] as List)
+        .map((r) => SeriesRequest.fromJson(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Owner: marks a request "added" or "declined".
+  Future<void> decideRequest(int id, String status) async {
+    await _dio.patch('/admin/requests/$id', data: {'status': status});
   }
 
   Future<List<SyncRecord>> pull(String resource, {String since = ''}) async {

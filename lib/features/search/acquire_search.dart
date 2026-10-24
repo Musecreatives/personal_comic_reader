@@ -616,6 +616,11 @@ class _ComicSearchState extends ConsumerState<ComicSearch> {
   KapowarrClient? _client;
   final _added = <int>{};
 
+  /// No Kapowarr settings on this device (a friend): search through the
+  /// sync service, which holds the owner's key, and "Ask for this" instead
+  /// of adding.
+  bool _viaService = false;
+
   @override
   void initState() {
     super.initState();
@@ -641,12 +646,19 @@ class _ComicSearchState extends ConsumerState<ComicSearch> {
     });
     try {
       final config = await ref.read(kapowarrConfigProvider.future);
-      if (config == null) {
+      final List<KapowarrSearchResult> results;
+      if (config != null) {
+        _viaService = false;
+        results = await (_client = KapowarrClient(config: config)).searchVolumes(query);
+      } else if (ref.read(currentUsernameProvider) != null) {
+        _viaService = true;
+        results = (await ref.read(syncClientProvider).kapowarrSearch(query))
+            .map(KapowarrSearchResult.fromJson)
+            .toList();
+      } else {
         if (mounted) setState(() => _client = null);
         return;
       }
-      final client = _client = KapowarrClient(config: config);
-      final results = await client.searchVolumes(query);
       if (mounted && query == widget.query.trim()) setState(() => _results = results);
     } catch (e) {
       if (mounted) setState(() => _error = "Couldn't search Kapowarr: $e");
@@ -656,6 +668,34 @@ class _ComicSearchState extends ConsumerState<ComicSearch> {
   }
 
   void _preview(KapowarrSearchResult r) {
+    if (_viaService) {
+      showAcquireSheet(
+        context,
+        coverUrl: r.coverUrl,
+        title: r.title,
+        subtitle: [
+          if (r.publisher.isNotEmpty) r.publisher,
+          if (r.year > 0) '${r.year}',
+          '${r.issueCount} issues',
+        ].join('  ·  ').toUpperCase(),
+        details: _Expandable(r.description),
+        actionLabel: 'Ask for this',
+        alreadyHave: r.alreadyAdded || _added.contains(r.comicvineId),
+        alreadyHaveLabel: 'Already in the library',
+        onAction: () async {
+          await ref.read(syncClientProvider).createRequest(
+                title: r.title,
+                comicvineId: r.comicvineId,
+                year: r.year > 0 ? r.year : null,
+                coverLink: r.coverUrl.isEmpty ? null : r.coverUrl,
+              );
+          if (mounted) setState(() => _added.add(r.comicvineId));
+        },
+        doneLabel: 'See my requests',
+        onDone: () => context.push('/settings/requests'),
+      );
+      return;
+    }
     final client = _client!;
     showAcquireSheet(
       context,
@@ -682,7 +722,8 @@ class _ComicSearchState extends ConsumerState<ComicSearch> {
   @override
   Widget build(BuildContext context) {
     final configAsync = ref.watch(kapowarrConfigProvider);
-    if (configAsync.valueOrNull == null && !configAsync.isLoading) {
+    final signedIn = ref.watch(currentUsernameProvider) != null;
+    if (configAsync.valueOrNull == null && !configAsync.isLoading && !signedIn) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(28),
