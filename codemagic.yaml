@@ -38,8 +38,12 @@ workflows:
           cd ios && pod install
       - name: Flutter build ipa
         script: |
+          # TestFlight refuses a build number it has seen; BUILD_NUMBER rises
+          # with every Codemagic build. The version name comes from the tag.
           flutter build ipa \
             --release \
+            --build-name="${CM_TAG#v}" \
+            --build-number="$BUILD_NUMBER" \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
