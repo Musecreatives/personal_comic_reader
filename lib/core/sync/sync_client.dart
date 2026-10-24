@@ -32,6 +32,33 @@ class SyncRecord {
       };
 }
 
+/// A single-use code the owner gave one friend (sync service `/admin/invites`).
+class Invite {
+  final String code;
+  final String note;
+  final String link;
+
+  /// "unused", "used" or "revoked".
+  final String status;
+  final String? usedBy;
+
+  const Invite({
+    required this.code,
+    required this.note,
+    required this.link,
+    required this.status,
+    this.usedBy,
+  });
+
+  factory Invite.fromJson(Map<String, dynamic> j) => Invite(
+        code: j['code'] as String,
+        note: j['note'] as String? ?? '',
+        link: j['link'] as String,
+        status: j['status'] as String,
+        usedBy: j['used_by'] as String?,
+      );
+}
+
 /// A friend's request for a series (sync service `/requests`).
 class SeriesRequest {
   final int id;
@@ -215,6 +242,24 @@ class SyncClient {
   /// Owner: marks a request "added" or "declined".
   Future<void> decideRequest(int id, String status) async {
     await _dio.patch('/admin/requests/$id', data: {'status': status});
+  }
+
+  /// Owner only: a fresh single-use code, [note] says who it's for.
+  Future<Invite> createInvite(String note) async {
+    final res = await _dio.post('/admin/invites', data: {'note': note});
+    return Invite.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<List<Invite>> invites() async {
+    final res = await _dio.get('/admin/invites');
+    return ((res.data as Map<String, dynamic>)['invites'] as List)
+        .map((e) => Invite.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Only unused codes can be revoked; a used one already became an account.
+  Future<void> revokeInvite(String code) async {
+    await _dio.delete('/admin/invites/$code');
   }
 
   Future<List<SyncRecord>> pull(String resource, {String since = ''}) async {
