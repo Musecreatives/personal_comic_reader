@@ -257,14 +257,21 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   /// a later checkpoint (dispose, or another backgrounding) only counts
   /// the time since *this* checkpoint - otherwise calling this more than
   /// once per session would double-count reading time.
+  /// Opening a chapter already marked read (to look back at a page) must not
+  /// mark it unread: Suwayomi takes `isRead: false` and Komga an earlier
+  /// page as "in progress again". Only finishing it again is sent.
+  bool _wouldUnread(bool completed) => widget.book.completed && !completed;
+
   void _checkpointSession() {
     final completed = _currentPage >= widget.book.pageCount - 1;
-    _progressSync.sendNow(
-      widget.backend,
-      widget.book.id,
-      page: _currentPage,
-      completed: completed,
-    );
+    if (!_wouldUnread(completed)) {
+      _progressSync.sendNow(
+        widget.backend,
+        widget.book.id,
+        page: _currentPage,
+        completed: completed,
+      );
+    }
     final elapsed = DateTime.now().difference(_sessionStart).inSeconds;
     if (elapsed > 0) {
       _statsStore.recordSeconds(elapsed);
@@ -304,12 +311,14 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   void _onPageChanged(int page) {
     setState(() => _currentPage = page);
     final completed = page >= widget.book.pageCount - 1;
-    _progressSync.scheduleUpdate(
-      widget.backend,
-      widget.book.id,
-      page: page,
-      completed: completed,
-    );
+    if (!_wouldUnread(completed)) {
+      _progressSync.scheduleUpdate(
+        widget.backend,
+        widget.book.id,
+        page: page,
+        completed: completed,
+      );
+    }
     _pageCache.prefetch(
       widget.backend,
       widget.book.id,
