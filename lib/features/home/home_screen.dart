@@ -28,17 +28,44 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final backendAsync = ref.watch(activeBackendProvider);
 
+    final topPad = MediaQuery.paddingOf(context).top;
     return Scaffold(
       backgroundColor: AppColors.page,
       extendBody: true,
-      body: backendAsync.when(
-        loading: () => const _HomeSkeleton(),
-        error: (e, st) => AppErrorState(
-          error: e,
-          onRetry: () => ref.invalidate(activeBackendProvider),
-        ),
-        data: (backend) =>
-            backend == null ? const _NoServerState() : const _HomeBody(),
+      body: Stack(
+        children: [
+          backendAsync.when(
+            loading: () => const _HomeSkeleton(),
+            error: (e, st) => AppErrorState(
+              error: e,
+              onRetry: () => ref.invalidate(activeBackendProvider),
+            ),
+            data: (backend) =>
+                backend == null ? const _NoServerState() : const _HomeBody(),
+          ),
+          // Edge to edge, Home scrolls under the status bar; a soft scrim
+          // keeps headings from colliding with the clock and icons.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topPad,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.page.withValues(alpha: 0.85),
+                      AppColors.page.withValues(alpha: 0.55),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -108,12 +135,17 @@ class _HeroData {
   /// chapter was finished and the hero moved on to the next one.
   final int page;
 
+  /// Its server isn't answering: built from [entry] alone so the last read
+  /// stays on Home, with Resume off until the server is back.
+  final bool offline;
+
   const _HeroData({
     required this.series,
     required this.backend,
     this.book,
     this.entry,
     this.page = 0,
+    this.offline = false,
   });
 
   String get key => seriesKey(backend.config.id, series.id);
@@ -135,6 +167,10 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
   // more often than that.
   Future<List<_HeroData>>? _heroFuture;
   (DateTime?, int, String?, int)? _heroKey;
+
+  /// The last heroes shown. A refresh keeps them up while the new set
+  /// resolves; only the very first load waits on a skeleton.
+  List<_HeroData>? _lastHeroes;
 
   static const _maxHeroes = 5;
 
@@ -180,8 +216,9 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
   // series read out of order (jumped to ch. 181), the first unread is
   // chapter 1, which is not where anyone left off.
   Future<_HeroData?> _heroFromHistory(HistoryEntry e) async {
+    ReaderBackend? backend;
     try {
-      final backend = await ref.read(backendForServerProvider(e.serverId).future);
+      backend = await ref.read(backendForServerProvider(e.serverId).future);
       if (backend == null) return null;
       final series = await backend.getSeries(e.seriesId);
       final books = await backend.listBooks(e.seriesId);
@@ -194,8 +231,34 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
       return _HeroData(
           series: series, backend: backend, book: books[i], entry: e, page: e.lastPage);
     } catch (_) {
-      return null;
+      // The server isn't answering: keep what was read last on Home rather
+      // than letting it vanish.
+      return backend == null ? null : _offlineHero(e, backend);
     }
+  }
+
+  /// History has no series title; a download of that series does.
+  _HeroData _offlineHero(HistoryEntry e, ReaderBackend backend) {
+    final downloaded = ref
+        .read(downloadStoreProvider)
+        .listTasks()
+        .where((t) => t.seriesId == e.seriesId && t.seriesTitle.isNotEmpty)
+        .firstOrNull
+        ?.seriesTitle;
+    return _HeroData(
+      series: Series(
+        id: e.seriesId,
+        libraryId: '',
+        title: downloaded ?? e.bookTitle,
+        booksCount: 0,
+        booksReadCount: 0,
+        booksUnreadCount: 0,
+      ),
+      backend: backend,
+      entry: e,
+      page: e.lastPage,
+      offline: true,
+    );
   }
 
   Future<_HeroData?> _heroFromSeries(FeedSeries s) async {
@@ -260,8 +323,22 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
               key: const ValueKey('content'),
               future: _heroFuture,
               builder: (context, heroSnap) {
-                final heroes = heroSnap.data ?? const <_HeroData>[];
+                if (heroSnap.connectionState == ConnectionState.done) {
+                  _lastHeroes = heroSnap.data ?? const [];
+                }
+                final ready = _lastHeroes;
+                // First load: until the hero resolves the shelves can't
+                // tell which series it takes, so they'd show it and then
+                // drop it. Hold the skeleton instead.
+                if (ready == null) {
+                  return const _HomeSkeleton(key: ValueKey('hero-wait'));
+                }
+                final heroes = ready;
                 final heroKeys = heroes.map((h) => h.key).toSet();
+                final down = {
+                  for (final s in [...feed.unreachable, ...feed.rejected]) s.id
+                };
+                final filterIsDown = _filter != null && down.contains(_filter);
                 final last = lastReadByKey(history, activeId);
                 final visible = feed.inProgress
                     .where((s) => _filter == null || s.serverId == _filter)
@@ -275,7 +352,11 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                     .toList();
                 final topPad = MediaQuery.paddingOf(context).top;
 
-                return ListView(
+                // Any touch on Home (scrolling, reaching for Resume) holds
+                // the hero still.
+                return Listener(
+                  onPointerDown: (_) => _HeroCarouselState.lastTouch = DateTime.now(),
+                  child: ListView(
                   padding: EdgeInsets.zero,
                   children: [
                     if (heroes.isNotEmpty)
@@ -286,19 +367,30 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                       _SourceChips(
                         servers: servers,
                         selected: _filter,
+                        down: down,
                         onSelect: (id) => setState(() => _filter = id),
                       ),
                     if (feed.rejected.isNotEmpty)
-                      _UnreachableNote(
+                      _StatusNote(
+                        icon: Icons.lock_outline_rounded,
+                        color: AppColors.dangerText,
                         message:
-                            '${feed.rejected.map((s) => s.name).join(', ')} rejected your login. '
+                            '${feed.rejected.map((s) => _typeLabel(s.type)).join(' and ')} rejected your login. '
                             'Update the password in Sources & servers.',
                         onRetry: _refresh,
                       ),
                     if (feed.unreachable.isNotEmpty)
-                      _UnreachableNote(
-                        message:
-                            "Couldn't reach ${feed.unreachable.map((s) => _typeLabel(s.type)).join(', ')}",
+                      _StatusNote(
+                        icon: Icons.cloud_off_rounded,
+                        color: AppColors.warningText,
+                        message: outageMessage(
+                          down: [for (final s in feed.unreachable) _typeLabel(s.type)],
+                          fine: [
+                            for (final s in servers)
+                              if (s.type != ServerType.local && !down.contains(s.id))
+                                _typeLabel(s.type),
+                          ],
+                        ),
                         onRetry: _refresh,
                       ),
                     AnimatedSwitcher(
@@ -308,23 +400,33 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                         key: ValueKey(_filter),
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (shelf.isNotEmpty)
-                            _ContinueShelf(
-                              items: shelf,
-                              lastBySeries: last,
-                              onOpen: _openSeries,
-                            ),
-                          if (recs.length >= 3 && suwayomiVisible)
-                            _RecommendedShelf(recs: recs.take(12).toList()),
-                          if (recent.length >= 3)
-                            _JustAdded(rows: recent, onOpen: _openSeries),
-                          if (shelf.isEmpty && recent.isEmpty && heroes.isEmpty)
-                            const _NothingYet(),
+                          if (filterIsDown)
+                            _FilteredDown(
+                              label: _typeLabel(servers
+                                  .firstWhere((s) => s.id == _filter)
+                                  .type),
+                              onRetry: _refresh,
+                            )
+                          else ...[
+                            if (shelf.isNotEmpty)
+                              _ContinueShelf(
+                                items: shelf,
+                                lastBySeries: last,
+                                onOpen: _openSeries,
+                              ),
+                            if (recs.length >= 3 && suwayomiVisible)
+                              _RecommendedShelf(recs: recs.take(12).toList()),
+                            if (recent.length >= 3)
+                              _JustAdded(rows: recent, onOpen: _openSeries),
+                            if (shelf.isEmpty && recent.isEmpty && heroes.isEmpty)
+                              const _NothingYet(),
+                          ],
                         ],
                       ),
                     ),
                     const SizedBox(height: 120),
                   ],
+                ),
                 );
               },
             );
@@ -351,10 +453,13 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   static const _every = Duration(seconds: 7);
   static const _pauseAfterTouch = Duration(seconds: 10);
 
+  /// Last touch anywhere on Home (set by Home's own listener too), so the
+  /// hero doesn't change under a thumb on its way to Resume.
+  static DateTime lastTouch = DateTime.fromMillisecondsSinceEpoch(0);
+
   final _controller = PageController();
   Timer? _timer;
   int _page = 0;
-  DateTime _lastTouch = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -365,7 +470,9 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   void _advance() {
     final n = widget.heroes.length;
     if (!mounted || n < 2 || Motion.reduced(context)) return;
-    if (DateTime.now().difference(_lastTouch) < _pauseAfterTouch) return;
+    // A screen reader's focus would be pulled along by the rotation.
+    if (MediaQuery.accessibleNavigationOf(context)) return;
+    if (DateTime.now().difference(lastTouch) < _pauseAfterTouch) return;
     _controller.animateToPage(
       (_page + 1) % n,
       duration: Motion.scaled(context, const Duration(milliseconds: 520)),
@@ -383,29 +490,28 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   @override
   Widget build(BuildContext context) {
     final n = widget.heroes.length;
-    final tall = MediaQuery.sizeOf(context).width < 700;
-    return SizedBox(
-      height: tall ? 452 : 420,
+    return LayoutBuilder(builder: (context, box) {
+      final split = _heroSplits(box.maxWidth);
+      return SizedBox(
+      height: _heroHeight(context, split),
       child: Stack(
         children: [
-          Listener(
-            onPointerDown: (_) => _lastTouch = DateTime.now(),
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (_) {
-                _lastTouch = DateTime.now();
-                return false;
-              },
-              child: PageView.builder(
-                controller: _controller,
-                itemCount: n,
-                onPageChanged: (p) => setState(() => _page = p),
-                itemBuilder: (context, i) => _HeroCard(hero: widget.heroes[i]),
-              ),
+          NotificationListener<ScrollNotification>(
+            onNotification: (_) {
+              lastTouch = DateTime.now();
+              return false;
+            },
+            child: PageView.builder(
+              controller: _controller,
+              itemCount: n,
+              onPageChanged: (p) => setState(() => _page = p),
+              itemBuilder: (context, i) =>
+                  _HeroCard(hero: widget.heroes[i], split: split),
             ),
           ),
           if (n > 1)
             Positioned(
-              left: 24,
+              left: split ? 48 : 24,
               bottom: 12,
               child: Row(
                 children: [
@@ -429,12 +535,26 @@ class _HeroCarouselState extends State<_HeroCarousel> {
         ],
       ),
     );
+    });
   }
 }
 
+/// Canvas "Android tablet · Home": with room, the hero is text on the left
+/// and the cover on the right, instead of a cover cropped to a wide strip.
+/// Below this (phones, a portrait tablet beside its rail) the full-bleed
+/// cover stays.
+bool _heroSplits(double width) => width >= 720;
+
+double _heroHeight(BuildContext context, bool split) => split
+    ? 420 + MediaQuery.paddingOf(context).top
+    : MediaQuery.sizeOf(context).width < 700
+        ? 452
+        : 420;
+
 class _HeroCard extends ConsumerWidget {
   final _HeroData hero;
-  const _HeroCard({required this.hero});
+  final bool split;
+  const _HeroCard({required this.hero, this.split = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -442,147 +562,218 @@ class _HeroCard extends ConsumerWidget {
     final book = hero.book;
     final entry = hero.entry;
     final page = hero.page;
+    final offline = hero.offline;
     // With a history entry the position is exact (page within the chapter
     // last read); without one it falls back to the server's saved progress.
+    // Offline there is no book: the entry is all there is.
     final positioned = entry != null && book != null && book.pageCount > 0;
-    final progress = positioned
-        ? ((page + 1) / book.pageCount).clamp(0.0, 1.0)
+    final pages = offline ? entry!.pageCount : book?.pageCount ?? 0;
+    final exact = positioned || (offline && pages > 0);
+    final progress = exact
+        ? ((page + 1) / pages).clamp(0.0, 1.0)
         : book == null
             ? (series.booksCount == 0 ? 0.0 : series.booksReadCount / series.booksCount)
             : book.progressRatio;
-    final pageLabel = positioned
-        ? '${page + 1}/${book.pageCount}'
+    final pageLabel = exact
+        ? '${page + 1}/$pages'
         : book != null && book.pageCount > 0
             ? '${book.readProgressPage ?? 0}/${book.pageCount}'
             : '${series.booksReadCount}/${series.booksCount}';
-    final subtitle = positioned
-        ? 'Ch. ${formatChapterNumber(book.number)} · page ${page + 1} of ${book.pageCount}'
-        : book != null
-            ? _plainChapterLabel(book)
-            : '${series.booksUnreadCount} unread';
     final type = hero.backend.config.type;
-    final tall = MediaQuery.sizeOf(context).width < 700;
+    final subtitle = offline
+        ? 'Ch. ${formatChapterNumber(entry!.bookNumber)} · page ${page + 1} of $pages'
+            " · ${_typeLabel(type)} isn't answering"
+        : positioned
+            ? 'Ch. ${formatChapterNumber(book.number)} · page ${page + 1} of ${book.pageCount}'
+            : book != null
+                ? _plainChapterLabel(book)
+                : '${series.booksUnreadCount} unread';
+    final sourceColor =
+        offline ? AppColors.warning : AppColors.sourceColor(type.name);
 
-    return SizedBox(
-      height: tall ? 452 : 420,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          SeriesCover(imageUrl: series.thumbnailUrl, headers: hero.backend.imageHeaders),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [
-                  AppColors.page,
-                  AppColors.page.withValues(alpha: 0.82),
-                  Colors.transparent,
-                ],
-                stops: const [0.05, 0.40, 0.76],
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FadeSlideIn(
+          // Wrap, not Row: "CONTINUE · 12M AGO" beside "SUWAYOMI · OFFLINE"
+          // doesn't fit a small phone.
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _Pill(
+                label: entry == null
+                    ? 'CONTINUE'
+                    : 'CONTINUE · ${_ago(entry.timestamp)}',
+                color: AppColors.accentSoft,
+                background: AppColors.accent.withValues(alpha: 0.28),
               ),
+              _Pill(
+                label: offline
+                    ? '${_typeLabel(type).toUpperCase()} · OFFLINE'
+                    : _typeLabel(type).toUpperCase(),
+                color: offline ? AppColors.warningText : sourceColor,
+                background: sourceColor.withValues(alpha: 0.16),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        FadeSlideIn(
+          delay: const Duration(milliseconds: 40),
+          child: Text(
+            series.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.largeTitle(size: 42),
+          ),
+        ),
+        const SizedBox(height: 10),
+        FadeSlideIn(
+          delay: const Duration(milliseconds: 80),
+          child: Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.body(size: 13.5, color: AppColors.text60),
+          ),
+        ),
+        const SizedBox(height: 20),
+        FadeSlideIn(
+          delay: const Duration(milliseconds: 120),
+          child: Row(
+            children: [
+              _ResumeButton(
+                onTap: book == null
+                    ? null
+                    : () async {
+                        await activateServer(ref, hero.backend.config.id);
+                        if (!context.mounted) return;
+                        // push, not go: back from the reader returns here.
+                        context.push(
+                          '/read/${Uri.encodeComponent(book.id)}'
+                          '${entry != null && page > 0 ? '?page=$page' : ''}',
+                        );
+                      },
+              ),
+              const SizedBox(width: 10),
+              _IconSquareButton(
+                icon: Icons.download_outlined,
+                tooltip: 'Download this chapter',
+                onTap: book == null
+                    ? null
+                    : () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        await ref.read(downloadManagerProvider).enqueueBooks(
+                            hero.backend, [book], series.id, series.title);
+                        messenger.showSnackBar(SnackBar(
+                          content: Text('Downloading ${_plainChapterLabel(book)}'),
+                          duration: const Duration(seconds: 2),
+                        ));
+                      },
+              ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(pageLabel,
+                      style: AppText.mono(size: 11, color: AppColors.text60)),
+                  const SizedBox(height: 7),
+                  SizedBox(width: 66, child: _ProgressBar(value: progress)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    // Offline the cover can't load; the placeholder stands in.
+    final cover = SeriesCover(
+      imageUrl: offline ? null : series.thumbnailUrl,
+      headers: hero.backend.imageHeaders,
+    );
+
+    if (split) {
+      final tint = AppColors
+          .coverTints[series.id.hashCode.abs() % AppColors.coverTints.length];
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [tint, AppColors.card, AppColors.page],
+            stops: const [0, 0.6, 1],
+          ),
+        ),
+        // Fade into the page at the foot, as the board does, so the hero
+        // doesn't end on a hard line above the chips.
+        position: DecorationPosition.background,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AppColors.page.withValues(alpha: 0), AppColors.page],
+              stops: const [0.55, 1],
             ),
           ),
-          Positioned(
-            left: 24,
-            right: 24,
-            bottom: 30,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FadeSlideIn(
-                  child: Row(
-                    children: [
-                      _Pill(
-                        label: entry == null
-                            ? 'CONTINUE'
-                            : 'CONTINUE · ${_ago(entry.timestamp)}',
-                        color: AppColors.accentSoft,
-                        background: AppColors.accent.withValues(alpha: 0.28),
-                      ),
-                      const SizedBox(width: 8),
-                      _Pill(
-                        label: _typeLabel(type).toUpperCase(),
-                        color: AppColors.sourceColor(type.name),
-                        background: AppColors.sourceColor(type.name).withValues(alpha: 0.16),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                FadeSlideIn(
-                  delay: const Duration(milliseconds: 40),
-                  child: Text(
-                    series.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.largeTitle(size: 42),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                FadeSlideIn(
-                  delay: const Duration(milliseconds: 80),
-                  child: Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.body(size: 13.5, color: AppColors.text60),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                FadeSlideIn(
-                  delay: const Duration(milliseconds: 120),
-                  child: Row(
-                    children: [
-                      _ResumeButton(
-                        onTap: book == null
-                            ? null
-                            : () async {
-                                await activateServer(ref, hero.backend.config.id);
-                                if (!context.mounted) return;
-                                // push, not go: back from the reader returns here.
-                                context.push(
-                                  '/read/${Uri.encodeComponent(book.id)}'
-                                  '${entry != null && page > 0 ? '?page=$page' : ''}',
-                                );
-                              },
-                      ),
-                      const SizedBox(width: 10),
-                      _IconSquareButton(
-                        icon: Icons.download_outlined,
-                        tooltip: 'Download this chapter',
-                        onTap: book == null
-                            ? null
-                            : () async {
-                                final messenger = ScaffoldMessenger.of(context);
-                                await ref.read(downloadManagerProvider).enqueueBooks(
-                                    hero.backend, [book], series.id, series.title);
-                                messenger.showSnackBar(SnackBar(
-                                  content: Text(
-                                      'Downloading ${_plainChapterLabel(book)}'),
-                                  duration: const Duration(seconds: 2),
-                                ));
-                              },
-                      ),
-                      const Spacer(),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(pageLabel,
-                              style: AppText.mono(size: 11, color: AppColors.text45)),
-                          const SizedBox(height: 7),
-                          SizedBox(width: 66, child: _ProgressBar(value: progress)),
-                        ],
+          child: Padding(
+          padding: EdgeInsets.fromLTRB(
+              48, MediaQuery.paddingOf(context).top + 40, 48, 40),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(child: details),
+              const SizedBox(width: 48),
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 60),
+                child: Container(
+                  width: 230,
+                  height: 330,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.text.withValues(alpha: 0.08)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.canvas.withValues(alpha: 0.55),
+                        offset: const Offset(0, 24),
+                        blurRadius: 50,
                       ),
                     ],
                   ),
+                  child: cover,
                 ),
+              ),
+            ],
+          ),
+        ),
+        ),
+      );
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        cover,
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [
+                AppColors.page,
+                AppColors.page.withValues(alpha: 0.82),
+                Colors.transparent,
               ],
+              stops: const [0.05, 0.40, 0.76],
             ),
           ),
-        ],
-      ),
+        ),
+        Positioned(left: 24, right: 24, bottom: 30, child: details),
+      ],
     );
   }
 }
@@ -712,9 +903,16 @@ class _ProgressBar extends StatelessWidget {
 class _SourceChips extends StatelessWidget {
   final List<ServerConfig> servers;
   final String? selected;
+
+  /// Servers not answering (or rejecting the login): their chip is dimmed.
+  final Set<String> down;
   final ValueChanged<String?> onSelect;
-  const _SourceChips(
-      {required this.servers, required this.selected, required this.onSelect});
+  const _SourceChips({
+    required this.servers,
+    required this.selected,
+    this.down = const {},
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -739,6 +937,7 @@ class _SourceChips extends StatelessWidget {
               label: label(s),
               dot: AppColors.sourceColor(s.type.name),
               selected: selected == s.id,
+              down: down.contains(s.id),
               onTap: () => onSelect(s.id),
             ),
           ],
@@ -752,45 +951,60 @@ class _Chip extends StatelessWidget {
   final String label;
   final Color? dot;
   final bool selected;
+  final bool down;
   final VoidCallback onTap;
-  const _Chip({required this.label, this.dot, required this.selected, required this.onTap});
+  const _Chip({
+    required this.label,
+    this.dot,
+    required this.selected,
+    this.down = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return PressScale(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: Motion.scaled(context, Motion.fast),
-          curve: Motion.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? AppColors.accent : AppColors.fillSubtle,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-                color: selected ? AppColors.accent : AppColors.border),
-          ),
-          child: Row(
-            children: [
-              if (dot != null) ...[
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+      child: Opacity(
+        opacity: down && !selected ? 0.55 : 1,
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: Motion.scaled(context, Motion.fast),
+            curve: Motion.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? AppColors.accent : AppColors.fillSubtle,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                  color: selected ? AppColors.accent : AppColors.border),
+            ),
+            child: Row(
+              children: [
+                if (down) ...[
+                  Icon(Icons.cloud_off_rounded,
+                      size: 13,
+                      color: selected ? Colors.white : AppColors.warningText),
+                  const SizedBox(width: 6),
+                ] else if (dot != null) ...[
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 7),
+                ],
+                AnimatedDefaultTextStyle(
+                  duration: Motion.scaled(context, Motion.fast),
+                  style: AppText.body(
+                    size: 12.5,
+                    weight: FontWeight.w600,
+                    color: selected ? Colors.white : AppColors.text60,
+                  ),
+                  child: Text(label),
                 ),
-                const SizedBox(width: 7),
               ],
-              AnimatedDefaultTextStyle(
-                duration: Motion.scaled(context, Motion.fast),
-                style: AppText.body(
-                  size: 12.5,
-                  weight: FontWeight.w600,
-                  color: selected ? Colors.white : AppColors.text60,
-                ),
-                child: Text(label),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -798,26 +1012,78 @@ class _Chip extends StatelessWidget {
   }
 }
 
-class _UnreachableNote extends StatelessWidget {
+/// "Suwayomi isn't answering. Komga and your downloads are fine." Says what
+/// is down and, as plainly, what still works (canvas "Server not
+/// responding"). [down] and [fine] are source labels.
+String outageMessage({required List<String> down, required List<String> fine}) {
+  String both(List<String> l) => l.length < 2
+      ? l.join()
+      : '${l.sublist(0, l.length - 1).join(', ')} and ${l.last}';
+  final what = down.length == 1
+      ? "${down.single} isn't answering."
+      : "${both(down)} aren't answering.";
+  final ok = fine.isEmpty
+      ? 'Your downloads are fine.'
+      : '${both(fine)} and your downloads are fine.';
+  return '$what $ok';
+}
+
+/// One line about a source that needs attention: amber when it is simply
+/// down, red when you have to fix something (a rejected login).
+class _StatusNote extends StatelessWidget {
+  final IconData icon;
+  final Color color;
   final String message;
   final VoidCallback onRetry;
-  const _UnreachableNote({required this.message, required this.onRetry});
+  const _StatusNote({
+    required this.icon,
+    required this.color,
+    required this.message,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 10, 12, 0),
       child: Row(
         children: [
-          Icon(Icons.cloud_off_rounded, size: 15, color: AppColors.dangerText),
-          const SizedBox(width: 8),
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              message,
-              style: AppText.body(size: 12, color: AppColors.dangerText),
-            ),
+            child: Text(message, style: AppText.body(size: 13, color: AppColors.text)),
           ),
           TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
+  }
+}
+
+/// The shelves filtered to a server that isn't answering: say so, instead
+/// of a false "Nothing in progress yet".
+class _FilteredDown extends StatelessWidget {
+  final String label;
+  final VoidCallback onRetry;
+  const _FilteredDown({required this.label, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 64, 32, 0),
+      child: Column(
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 40, color: AppColors.warningText),
+          const SizedBox(height: 14),
+          Text('$label is offline', style: AppText.heading(size: 17)),
+          const SizedBox(height: 8),
+          Text(
+            "It isn't answering right now. What you've downloaded still opens from Downloads.",
+            textAlign: TextAlign.center,
+            style: AppText.body(size: 13, color: AppColors.text60),
+          ),
+          const SizedBox(height: 12),
+          TextButton(onPressed: onRetry, child: const Text('Try again')),
         ],
       ),
     );
@@ -1384,7 +1650,13 @@ class _HomeSkeletonState extends State<_HomeSkeleton>
         physics: const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
         children: [
-          Container(height: 380, color: AppColors.card),
+          // Same height as the hero it stands in for, so nothing jumps.
+          LayoutBuilder(
+            builder: (context, box) => Container(
+              height: _heroHeight(context, _heroSplits(box.maxWidth)),
+              color: AppColors.card,
+            ),
+          ),
           const SizedBox(height: 26),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
