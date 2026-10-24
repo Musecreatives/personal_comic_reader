@@ -67,13 +67,18 @@ class StaleExtensionFileException implements Exception {
 class SuwayomiMaintenanceClient {
   final Dio _dio;
 
-  SuwayomiMaintenanceClient({required ServerConfig config, Dio? dio})
-      : _dio = dio ??
+  /// [headers]: the backend's login headers ([SuwayomiBackend.imageHeaders]).
+  SuwayomiMaintenanceClient({
+    required ServerConfig config,
+    Map<String, String> headers = const {},
+    Dio? dio,
+  }) : _dio = dio ??
             trackedDio(BaseOptions(
               baseUrl: config.baseUrl,
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 30),
             )) {
+    _dio.options.headers.addAll(headers);
     _dio.interceptors.add(RetryInterceptor(dio: _dio));
   }
 

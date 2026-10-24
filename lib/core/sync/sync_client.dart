@@ -65,16 +65,35 @@ class SyncClient {
     ));
   }
 
-  /// Same-origin default when served from reader.shaddai.home, matching
-  /// the `_sameOriginDefaultUrl` pattern used for Kapowarr/other servers -
-  /// falls back to the raw Tailscale address otherwise (local dev, or the
-  /// app served from somewhere else on the tailnet).
+  /// The public sync address: what installed apps use unless the sign-in
+  /// screen was given another one (saved in [AuthStore]).
+  static const publicUrl = 'https://reader.shaddaicommunications.com/sync';
+
+  /// Same-origin when the web app is served from one of our hosts, the
+  /// public address everywhere else. No Tailscale address: friends and a
+  /// tablet without the VPN must be able to sign in.
   static String defaultBaseUrl() {
     if (const {'reader.shaddai.home', 'reader.shaddaicommunications.com'}.contains(Uri.base.host)) {
       return '${Uri.base.origin}/sync';
     }
-    return 'http://100.108.109.63:8600';
+    return publicUrl;
   }
+
+  /// What someone types into the sync server field, made usable:
+  /// `https://` added when there's no scheme, trailing slashes dropped.
+  /// Null for blank input.
+  static String? normalizeUrl(String input) {
+    var url = input.trim();
+    if (url.isEmpty) return null;
+    if (!url.contains('://')) url = 'https://$url';
+    while (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    return url;
+  }
+
+  String get baseUrl => _dio.options.baseUrl;
+  set baseUrl(String url) => _dio.options.baseUrl = url;
 
   void updateToken(String? token) {
     _token = token;
@@ -110,9 +129,14 @@ class SyncClient {
     await _dio.post('/auth/logout');
   }
 
-  Future<String> me() async {
-    final res = await _dio.get('/auth/me');
-    return (res.data as Map<String, dynamic>)['username'] as String;
+  /// The signed-in account. A sync service from before roles sends no
+  /// `role`; that account is the owner, so nothing hides on an old server.
+  Future<({String username, bool isOwner})> me() async {
+    final data = (await _dio.get('/auth/me')).data as Map<String, dynamic>;
+    return (
+      username: data['username'] as String,
+      isOwner: (data['role'] as String? ?? 'owner') == 'owner',
+    );
   }
 
   Future<List<SyncRecord>> pull(String resource, {String since = ''}) async {

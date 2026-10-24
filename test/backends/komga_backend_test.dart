@@ -134,6 +134,25 @@ void main() {
     // No exception = the mock matched the expected body/path.
   });
 
+  test('getBook() turns 1-based read progress back into a 0-based page',
+      () async {
+    adapter.onGet(
+      '/api/v1/books/book1',
+      (server) => server.reply(200, {
+        'id': 'book1',
+        'seriesId': 's1',
+        'name': 'Issue 1',
+        'media': {'pagesCount': 600},
+        'readProgress': {'page': 444, 'completed': false},
+      }),
+    );
+
+    final book = await backend.getBook('book1');
+
+    // What updateProgress(page: 443) stored; reopens on the same page.
+    expect(book.readProgressPage, 443);
+  });
+
   test('thumbnailUrlForSeries() builds a full URL under the base', () {
     expect(
       backend.thumbnailUrlForSeries('series1'),

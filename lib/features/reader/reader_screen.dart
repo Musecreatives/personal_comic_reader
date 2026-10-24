@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,17 @@ import 'widgets/reader_overlay.dart';
 import 'widgets/reader_settings_sheet.dart';
 import 'widgets/single_page_view.dart';
 import 'widgets/vertical_page_view.dart';
+
+/// Where a book opens. [requested] comes from history or the now-reading
+/// pill, [saved] from the server. History is only written when the reader
+/// closes, so it can be behind the server (app killed mid-read) and the
+/// server behind history (update still queued offline): the further of the
+/// two wins. Going back a chapter requests its last page, which still wins.
+int resumePage(int? requested, int? saved, int pageCount) {
+  if (pageCount <= 0) return 0;
+  final page = math.max(requested ?? 0, saved ?? 0);
+  return page.clamp(0, pageCount - 1);
+}
 
 class ReaderScreen extends ConsumerWidget {
   final String bookId;
@@ -199,10 +211,11 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     WidgetsBinding.instance.addObserver(this);
     _settings = _settingsStore.effective(widget.book.seriesId);
     _remember = _settingsStore.hasOverride(widget.book.seriesId);
-    _currentPage = widget.initialPage ?? widget.book.readProgressPage ?? 0;
-    if (_currentPage < 0 || _currentPage >= widget.book.pageCount) {
-      _currentPage = 0;
-    }
+    _currentPage = resumePage(
+      widget.initialPage,
+      widget.book.readProgressPage,
+      widget.book.pageCount,
+    );
     _sessionStart = DateTime.now();
     _seenPages.add(_currentPage);
     _applyWakelock();
@@ -303,6 +316,19 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
       page + 1,
       widget.book.pageCount,
     );
+    // Near the end, warm the next chapter's opening pages on disk so it
+    // opens instantly. Its page count may be unknown (0) before Suwayomi
+    // has fetched it; its first 3 pages exist either way, and a miss is
+    // swallowed.
+    final next = _nextBook;
+    if (next != null && page >= widget.book.pageCount - 3) {
+      _pageCache.prefetch(
+        widget.backend,
+        next.id,
+        0,
+        next.pageCount > 0 ? next.pageCount : 3,
+      );
+    }
     if (_seenPages.add(page)) {
       _statsStore.recordPages(1);
     }

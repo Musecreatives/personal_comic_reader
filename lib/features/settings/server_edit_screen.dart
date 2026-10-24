@@ -9,6 +9,7 @@ import '../../backends/komga/komga_backend.dart';
 import '../../backends/opds/opds_backend.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/backend/reader_backend.dart';
+import '../../core/sync/sync_client.dart';
 import '../shared/back_button.dart';
 
 class ServerEditScreen extends ConsumerStatefulWidget {
@@ -48,11 +49,16 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
   /// the browser CORS restriction that a bare Tailscale IP always hits.
   /// Direct IP entry still works fine for local dev. OPDS has no proxy path
   /// since it's not tied to a single fixed server the way the other two are.
+  ///
+  /// Installed apps get the public Komga address (where friends read);
+  /// Suwayomi has no public address, it stays on Tailscale.
   String? _sameOriginDefaultUrl(ServerType type) {
-    if (!const {'reader.shaddai.home', 'reader.shaddaicommunications.com'}.contains(Uri.base.host)) return null;
+    final sameOrigin = const {'reader.shaddai.home', 'reader.shaddaicommunications.com'}.contains(Uri.base.host);
     return switch (type) {
-      ServerType.komga => '${Uri.base.origin}/komga',
-      ServerType.suwayomi => '${Uri.base.origin}/suwayomi',
+      ServerType.komga => sameOrigin
+          ? '${Uri.base.origin}/komga'
+          : '${Uri.parse(SyncClient.publicUrl).origin}/komga',
+      ServerType.suwayomi => sameOrigin ? '${Uri.base.origin}/suwayomi' : null,
       ServerType.opds => null,
       ServerType.local => null, // never reachable here - not an addable type
     };
@@ -76,6 +82,8 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
     } else {
       final defaultUrl = _sameOriginDefaultUrl(_type);
       if (defaultUrl != null) _urlController.text = defaultUrl;
+      // The preset a friend needs: only their Komga login is left to type.
+      if (_type == ServerType.komga) _nameController.text = 'Shaddai Komga';
     }
   }
 
@@ -273,7 +281,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
               _FormField(
                 controller: _usernameController,
                 label: _type == ServerType.suwayomi
-                    ? 'Username / email (unused - no auth)'
+                    ? 'Username (only if Suwayomi has a login)'
                     : 'Username / email',
                 validator: (v) => _type != ServerType.suwayomi &&
                         (v == null || v.trim().isEmpty)
@@ -284,7 +292,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
               _FormField(
                 controller: _passwordController,
                 label: _type == ServerType.suwayomi
-                    ? 'Password (unused - no auth)'
+                    ? 'Password (only if Suwayomi has a login)'
                     : 'Password',
                 obscureText: true,
                 validator: (v) => _type != ServerType.suwayomi &&
