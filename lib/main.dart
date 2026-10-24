@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
@@ -37,6 +38,7 @@ import 'core/reader/reader_settings_store.dart';
 import 'core/stats/reading_stats_store.dart';
 import 'core/storage/last_route_store.dart';
 import 'core/storage/server_store.dart';
+import 'core/network/home_ca.dart';
 import 'core/sync/auth_store.dart';
 import 'core/sync/connections_sync.dart';
 import 'core/sync/sync_client.dart';
@@ -45,6 +47,12 @@ import 'features/local_library/local_library_screen.dart' show localLibraryRevis
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb) {
+    // Before any HTTP client exists: trust the home server's Caddy root
+    // (see home_ca.dart) on top of the system's roots.
+    SecurityContext.defaultContext
+        .setTrustedCertificatesBytes(utf8.encode(homeCaPem));
+  }
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     // Draw behind the status and navigation bars, as Android 15 apps do;
     // the navigation bar and pages pad themselves by the system insets.

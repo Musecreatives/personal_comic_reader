@@ -1,7 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// The release key: android/key.properties (git-ignored) on the owner's PC,
+// written from GitHub secrets in CI. Without it release builds fall back to
+// the debug key, which friends' installed copies won't accept as an update.
+val keyProperties = Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -29,6 +39,17 @@ android {
         manifestPlaceholders["appLabel"] = "Shaddai Reader"
     }
 
+    signingConfigs {
+        if (keyProperties.isNotEmpty()) {
+            create("release") {
+                storeFile = file(keyProperties.getProperty("storeFile"))
+                storePassword = keyProperties.getProperty("storePassword")
+                keyAlias = keyProperties.getProperty("keyAlias")
+                keyPassword = keyProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         // Installs next to the release build on the same device.
         debug {
@@ -36,9 +57,8 @@ android {
             manifestPlaceholders["appLabel"] = "Shaddai Reader (debug)"
         }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
         }
     }
 }
