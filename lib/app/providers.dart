@@ -391,6 +391,10 @@ Future<void> startSync(ProviderContainer c, {bool force = true}) async {
         () => c.read(appearanceProvider.notifier).state = appearance.get()),
     run(reader.reconcile, () {}),
     run(stats.reconcile, () => c.read(statsRevisionProvider.notifier).state++),
+    run(() async {
+      c.read(isOwnerProvider.notifier).state = (await client.me()).isOwner;
+      return false;
+    }, () {}),
     run(connections.reconcile, () {
       c.read(serverListRevisionProvider.notifier).state++;
       c.read(kapowarrConfigRevisionProvider.notifier).state++;
@@ -425,6 +429,13 @@ class SyncStatus {
 }
 
 final syncStatusProvider = StateProvider<SyncStatus>((ref) => const SyncStatus());
+
+/// Owner (you) or member (a friend), from `/auth/me` on each sync. Members
+/// don't see the owner tools (Kapowarr, Suwayomi maintenance, Media Pool).
+/// Hiding is tidiness, not security: those services aren't public.
+// ponytail: in memory, owner until the first sync answers; persist it in
+// AuthStore if a friend offline at launch ever sees the owner rows.
+final isOwnerProvider = StateProvider<bool>((ref) => true);
 
 /// Bumped when synced stats change so the Stats screen refetches.
 final statsRevisionProvider = StateProvider<int>((ref) => 0);

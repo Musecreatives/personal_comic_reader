@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
+import '../../core/sync/sync_client.dart';
 
 /// Sign in (or create an account) to shaddai-sync, the app's own small
 /// cross-device sync service - separate from any Komga/Kavita/Suwayomi
@@ -24,8 +25,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _inviteCodeController = TextEditingController();
+  late final _urlController =
+      TextEditingController(text: ref.read(syncClientProvider).baseUrl);
 
   bool _creatingAccount = false;
+  bool _editingUrl = false;
   bool _submitting = false;
   String? _error;
 
@@ -34,6 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _inviteCodeController.dispose();
+    _urlController.dispose();
     super.dispose();
   }
 
@@ -52,6 +57,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final client = ref.read(syncClientProvider);
     final container = ProviderScope.containerOf(context);
+    client.baseUrl = SyncClient.normalizeUrl(_urlController.text) ??
+        SyncClient.defaultBaseUrl();
     try {
       final result = _creatingAccount
           ? await client.register(
@@ -62,9 +69,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           : await client.login(username: username, password: password);
 
       client.updateToken(result.token);
-      await ref
-          .read(authStoreProvider)
-          .saveSession(token: result.token, username: result.username);
+      final auth = ref.read(authStoreProvider);
+      await auth.saveSession(token: result.token, username: result.username);
+      await auth.saveSyncUrl(client.baseUrl);
       ref.read(currentUsernameProvider.notifier).state = result.username;
 
       unawaited(startSync(container));
@@ -85,7 +92,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (message.contains('400')) {
       return 'Username required, password must be 8+ characters.';
     }
-    return "Couldn't reach the sync service - check your connection.";
+    final host = Uri.tryParse(ref.read(syncClientProvider).baseUrl)?.host;
+    return "Couldn't reach the sync server at $host - check the address "
+        'below and your connection.';
   }
 
   @override
@@ -176,6 +185,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       style: AppText.body(size: 13, color: AppColors.accentLink),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  if (_editingUrl)
+                    _Field(controller: _urlController, label: 'Sync server')
+                  else
+                    TextButton(
+                      onPressed: _submitting
+                          ? null
+                          : () => setState(() => _editingUrl = true),
+                      child: Text(
+                        'Sync server: ${Uri.tryParse(_urlController.text)?.host ?? _urlController.text} · Change',
+                        style: AppText.mono(size: 11, color: AppColors.text45),
+                      ),
+                    ),
                 ],
               ),
             ),

@@ -140,7 +140,9 @@ Future<void> main() async {
   await syncQueue.init();
 
   final syncClient =
-      SyncClient(baseUrl: SyncClient.defaultBaseUrl(), token: syncToken);
+      SyncClient(
+          baseUrl: await authStore.getSyncUrl() ?? SyncClient.defaultBaseUrl(),
+          token: syncToken);
 
   final lastRouteStore =
       LastRouteStore(activeServerId: serverStore.getActiveServerId);

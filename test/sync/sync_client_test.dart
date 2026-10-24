@@ -55,7 +55,7 @@ void main() {
       headers: {'Authorization': 'Bearer a-token'},
     );
 
-    final username = await client.me();
+    final (:username, isOwner: _) = await client.me();
 
     expect(username, 'paul');
   });
@@ -68,7 +68,7 @@ void main() {
       headers: {'Authorization': 'Bearer swapped-token'},
     );
 
-    final username = await client.me();
+    final (:username, isOwner: _) = await client.me();
 
     expect(username, 'paul');
   });
@@ -141,5 +141,41 @@ void main() {
 
     expect(result, hasLength(1));
     expect(result.single.recordId, 'book-1');
+  });
+
+  test('me() reads the role; an old server without one means owner',
+      () async {
+    adapter.onGet('/auth/me',
+        (server) => server.reply(200, {'username': 'ada', 'role': 'member'}));
+    expect((await client.me()).isOwner, isFalse);
+
+    adapter.onGet('/auth/me', (server) => server.reply(200, {'username': 'paul'}));
+    expect((await client.me()).isOwner, isTrue);
+  });
+
+  test('installed apps default to the public address, not Tailscale', () {
+    expect(SyncClient.defaultBaseUrl(), SyncClient.publicUrl);
+    expect(SyncClient.publicUrl, startsWith('https://'));
+  });
+
+  test('normalizeUrl() adds https and drops trailing slashes', () {
+    expect(SyncClient.normalizeUrl('  '), isNull);
+    expect(SyncClient.normalizeUrl('sync.example.com/sync/'),
+        'https://sync.example.com/sync');
+    expect(SyncClient.normalizeUrl('http://100.1.2.3:8600'),
+        'http://100.1.2.3:8600');
+  });
+
+  test('changing baseUrl sends later requests to the new server', () async {
+    client.baseUrl = 'http://other.local';
+    adapter.onPost(
+      '/auth/login',
+      (server) => server.reply(200, {'token': 't', 'username': 'paul'}),
+      data: {'username': 'paul', 'password': 'hunter22'},
+    );
+
+    await client.login(username: 'paul', password: 'hunter22');
+
+    expect(client.baseUrl, 'http://other.local');
   });
 }
