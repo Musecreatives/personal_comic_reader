@@ -48,6 +48,11 @@ class AppColors {
   static const kapowarr = Color(0xFFC9821F);
   static const danger = Color(0xFFD8455F);
   static const dangerText = Color(0xFFE8798D);
+  // Something is down but nothing is wrong with you or your data (a server
+  // not answering): amber, as on the canvas "offline" and "outage" boards.
+  // Danger red stays for things you must fix, like a rejected login.
+  static const warning = Color(0xFFC9821F);
+  static const warningText = Color(0xFFE0A24E);
 
   static const coverTints = [
     Color(0xFF2D2145),
