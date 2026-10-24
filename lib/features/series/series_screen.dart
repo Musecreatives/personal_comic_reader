@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
+import '../../app/platform_style.dart';
 import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
@@ -25,6 +26,7 @@ import '../collections/collections_screen.dart' show createCollection;
 import '../shared/back_button.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
+import '../shared/app_sheet.dart';
 
 class SeriesScreen extends ConsumerWidget {
   final String seriesId;
@@ -441,8 +443,9 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
   }
 
   void _showCollectionPicker(BuildContext context, String seriesId) {
-    showModalBottomSheet<void>(
+    showAppSheet<void>(
       context: context,
+      grabber: true,
       backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -955,12 +958,16 @@ class _BackButton extends StatelessWidget {
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
-        child: const SizedBox(
+        // Sits on cover art, so it keeps its scrim on every platform; only
+        // the glyph follows the platform.
+        child: SizedBox(
           width: 36,
           height: 36,
           child: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            size: 15,
+            PlatformStyle.isIOS
+                ? Icons.arrow_back_ios_new_rounded
+                : Icons.arrow_back,
+            size: PlatformStyle.isIOS ? 15 : 18,
             color: Colors.white,
           ),
         ),

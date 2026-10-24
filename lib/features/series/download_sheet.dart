@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../core/backend/models.dart';
+import '../shared/app_sheet.dart';
 
 /// What to download for a series: presets built from the reader's own state
 /// (where you left off, what's unread, what's new since) plus a checklist.
@@ -29,7 +30,7 @@ class DownloadSheet extends StatefulWidget {
     required Set<String> alreadyIds,
     required Future<void> Function(List<Book>) onConfirm,
   }) {
-    return showModalBottomSheet<void>(
+    return showAppSheet<void>(
       context: context,
       isScrollControlled: true,
       sheetAnimationStyle: Motion.sheetStyle,
@@ -100,17 +101,7 @@ class _DownloadSheetState extends State<DownloadSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 38,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 10, bottom: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.text30,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
+              const SheetGrabber(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
                 child: Text(

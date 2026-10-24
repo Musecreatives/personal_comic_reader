@@ -44,7 +44,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   Row(
                     children: [
                       Text('TRACK', style: AppText.mono(size: 9, color: AppColors.text45)),
-                      Switch(
+                      Switch.adaptive(
                         value: enabled,
                         onChanged: (v) async {
                           await store.setEnabled(v);

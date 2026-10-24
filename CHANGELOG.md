@@ -1,5 +1,43 @@
 # Changelog
 
+## Redesign Phase 0: baseline fixes
+
+- **Web start-up crash**: `ReadingStatsStore` made its device id with
+  `Random().nextInt(1 << 32)`, and `1 << 32` is `0` on the web, so a fresh
+  browser threw before the first screen. Now `1 << 31`, with a test.
+- **Nav matches the canvas**: Material bar and rail use the 32% violet pill,
+  white selected icon and bold selected label; the tablet rail is 96 wide
+  with the 48px mascot.
+- **Debug and release side by side** on Android: debug builds install as
+  `com.shaddaicommunications.reader.debug`, labelled "Shaddai Reader (debug)".
+- Analyzer clean again (an unawaited return, `file_picker`'s deprecated
+  `allowMultiple`).
+
+## Native redesign: one brand, platform chrome
+
+- **Interface style** (`lib/app/platform_style.dart`): the app resolves
+  iOS, Android, Windows or web conventions from the device, and the
+  choice can be forced per device in Settings > Appearance > Interface
+  (kept out of the synced appearance box).
+- **Navigation shell**: the iOS floating glass tab bar and iPad sidebar
+  stay; Android gets a Material 3 navigation bar, rail and extended rail;
+  Windows gets a Fluent-style navigation pane (compact or expanded,
+  Settings pinned to the foot); the web gets a bar, rail or labelled
+  sidebar by width. Ctrl+1-5 and Ctrl+F / Ctrl+K on Windows and the web.
+- **Theme per platform**: system text faces (SF Pro, Roboto, Segoe UI
+  Variable; Inter on the web) with JetBrains Mono metadata everywhere;
+  page transitions (iOS slide, predictive back, fade forward); ripples
+  only on Android; compact density and visible scrollbars on desktop;
+  platform corner radii for dialogs, buttons and sheets.
+- **Shared controls**: `AppBackButton` takes each platform's form (and
+  three private copies now delegate to it); `showAppSheet` shows a bottom
+  sheet on phones and a centred dialog on Windows and desktop web, with a
+  shared `SheetGrabber`; switches are adaptive.
+- **Native projects**: Android predictive back and edge-to-edge; the
+  Windows title bar is dark and tinted to the pane on Windows 11; the PWA
+  manifest allows any orientation, and the iOS home-screen web app draws
+  under the status bar.
+
 ## Phase 5 — OPDS backend, stats, smart panel view, wide layout, iOS prep
 
 - **`OpdsBackend`** (`lib/backends/opds/`): a fifth `ReaderBackend`,

@@ -1,45 +1,109 @@
 import 'dart:ui';
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
+import '../../app/platform_style.dart';
 import '../../app/providers.dart';
 import '../../core/history/history_entry.dart';
 import 'goofy_avatar.dart';
 
-/// Below this width the 5 root tabs sit in a floating glass bar at the
-/// bottom (phone); at or above it they move to a side rail (tablet/desktop).
-const _railBreakpoint = 900.0;
+/// Below this width the iOS tabs sit in a floating glass bar at the
+/// bottom (iPhone); at or above it they move to a sidebar (iPad).
+const _iosSidebarBreakpoint = 900.0;
 
 /// Widest the page content grows on big screens - past this, lists and
 /// forms stretch into unreadable lines.
 const _maxContentWidth = 1200.0;
 
 /// Wraps the 5 root tabs (Home, Search, Library, History, Settings) in a
-/// persistent nav: a frosted-glass floating bar on phones, a side rail on
-/// wide screens. Only these 5 screens - the `StatefulShellRoute` branch
-/// roots in `router.dart` - get it; any sub-page reached from one of them
-/// (a series, the reader, a settings detail screen) is a sibling route
+/// persistent nav that follows the platform's own convention:
+///
+/// * iOS: a floating frosted tab bar (iPhone), a sidebar (iPad).
+/// * Android: a Material 3 navigation bar, then from 600dp today's compact
+///   rail with the mascot, at every tablet width (canvas "Android tablet").
+/// * Windows: a Fluent navigation pane, compact icons below 1008px and
+///   expanded with labels above, Settings pinned to the foot like every
+///   Windows app.
+/// * Web: a navigation bar on phones, a rail on tablets, a labelled
+///   sidebar on desktop.
+///
+/// Only these 5 screens - the `StatefulShellRoute` branch roots in
+/// `router.dart` - get it; any sub-page reached from one of them (a
+/// series, the reader, a settings detail screen) is a sibling route
 /// outside the shell and renders full-screen without it, by design.
 class GlassNavScaffold extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
   const GlassNavScaffold({super.key, required this.navigationShell});
 
-  static const _tabs = [
-    (icon: Icons.home_rounded, label: 'Home'),
-    (icon: Icons.search_rounded, label: 'Search'),
-    (icon: Icons.auto_stories_rounded, label: 'Library'),
-    (icon: Icons.history_rounded, label: 'History'),
-    (icon: Icons.settings_rounded, label: 'Settings'),
-  ];
+  static List<_Tab> get _tabs => switch (PlatformStyle.current) {
+    UiPlatform.ios => const [
+      (
+        icon: CupertinoIcons.house,
+        selectedIcon: CupertinoIcons.house_fill,
+        label: 'Home',
+      ),
+      (
+        icon: CupertinoIcons.search,
+        selectedIcon: CupertinoIcons.search,
+        label: 'Search',
+      ),
+      (
+        icon: CupertinoIcons.book,
+        selectedIcon: CupertinoIcons.book_fill,
+        label: 'Library',
+      ),
+      (
+        icon: CupertinoIcons.clock,
+        selectedIcon: CupertinoIcons.clock_fill,
+        label: 'History',
+      ),
+      (
+        icon: CupertinoIcons.gear_alt,
+        selectedIcon: CupertinoIcons.gear_alt_fill,
+        label: 'Settings',
+      ),
+    ],
+    // Material and Fluent both draw outlined icons at rest and filled
+    // ones when selected.
+    _ => const [
+      (
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
+        label: 'Home',
+      ),
+      (
+        icon: Icons.search_rounded,
+        selectedIcon: Icons.search_rounded,
+        label: 'Search',
+      ),
+      (
+        icon: Icons.auto_stories_outlined,
+        selectedIcon: Icons.auto_stories_rounded,
+        label: 'Library',
+      ),
+      (
+        icon: Icons.history_rounded,
+        selectedIcon: Icons.history_rounded,
+        label: 'History',
+      ),
+      (
+        icon: Icons.settings_outlined,
+        selectedIcon: Icons.settings_rounded,
+        label: 'Settings',
+      ),
+    ],
+  };
 
   void _select(int i) => navigationShell.goBranch(
-        i,
-        initialLocation: i == navigationShell.currentIndex,
-      );
+    i,
+    initialLocation: i == navigationShell.currentIndex,
+  );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,70 +111,310 @@ class GlassNavScaffold extends ConsumerWidget {
     // Home (index 0): its hero already says the same thing, bigger.
     final latest = ref.watch(recentReadingProvider).firstOrNull;
     final dismissed = ref.watch(nowReadingDismissedProvider);
-    final showBar = navigationShell.currentIndex != 0 &&
+    final showBar =
+        navigationShell.currentIndex != 0 &&
         latest != null &&
         !latest.completed &&
         latest.timestamp != dismissed;
     final pill = _NowReadingSlot(entry: showBar ? latest : null);
     final index = navigationShell.currentIndex;
+    final tabs = _tabs;
+    final width = MediaQuery.sizeOf(context).width;
 
-    if (MediaQuery.sizeOf(context).width >= _railBreakpoint) {
-      return Scaffold(
-        backgroundColor: AppColors.page,
-        body: Row(
-          children: [
-            _SideRail(tabs: _tabs, index: index, onSelect: _select),
-            Expanded(
-              child: Stack(
-                children: [
-                  _TabFade(
-                    index: index,
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints:
-                            const BoxConstraints(maxWidth: _maxContentWidth),
-                        child: navigationShell,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 16,
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 520),
-                        child: pill,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.page,
-      extendBody: true,
-      body: _TabFade(index: index, child: navigationShell),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-        child: Center(
-          heightFactor: 1,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+    final Widget scaffold = switch (PlatformStyle.current) {
+      UiPlatform.ios =>
+        width >= _iosSidebarBreakpoint
+            ? _wide(
+                _SideRail(tabs: tabs, index: index, onSelect: _select),
                 pill,
-                _BottomBar(tabs: _tabs, index: index, onSelect: _select),
-              ],
+              )
+            : _iosPhone(tabs, index, pill),
+      UiPlatform.android || UiPlatform.web =>
+        width < Breakpoints.compact
+            ? _materialPhone(context, tabs, index, pill)
+            : PlatformStyle.isWeb && width >= Breakpoints.expanded
+            ? _wide(
+                _Sidebar(
+                  tabs: tabs,
+                  index: index,
+                  onSelect: _select,
+                  expanded: true,
+                ),
+                pill,
+              )
+            : _wide(
+                _MaterialRail(
+                  tabs: tabs,
+                  index: index,
+                  onSelect: _select,
+                ),
+                pill,
+              ),
+      UiPlatform.windows => _wide(
+        _Sidebar(
+          tabs: tabs,
+          index: index,
+          onSelect: _select,
+          expanded: width >= Breakpoints.expanded,
+        ),
+        pill,
+      ),
+    };
+
+    if (!PlatformStyle.isDesktopLike) return scaffold;
+    // Keyboard-first platforms: Ctrl+1-5 jumps between tabs, Ctrl+F (or
+    // Ctrl+K, the web convention) opens Search.
+    return CallbackShortcuts(
+      bindings: {
+        for (var i = 0; i < tabs.length; i++)
+          SingleActivator(
+            LogicalKeyboardKey(0x00000000031 + i),
+            control: true,
+          ): () =>
+              _select(i),
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
+            _select(1),
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): () =>
+            _select(1),
+      },
+      child: Focus(autofocus: true, child: scaffold),
+    );
+  }
+
+  /// Nav on the left, content capped at [_maxContentWidth], the
+  /// now-reading pill floating over the foot of the content.
+  Widget _wide(Widget nav, Widget pill) => Scaffold(
+    backgroundColor: AppColors.page,
+    body: Row(
+      children: [
+        nav,
+        Expanded(
+          child: Stack(
+            children: [
+              _TabFade(
+                index: navigationShell.currentIndex,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: _maxContentWidth,
+                    ),
+                    child: navigationShell,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 16,
+                // Edge-to-edge: keep the pill above the system nav bar.
+                child: SafeArea(
+                  top: false,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: pill,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _iosPhone(List<_Tab> tabs, int index, Widget pill) => Scaffold(
+    backgroundColor: AppColors.page,
+    extendBody: true,
+    body: _TabFade(index: index, child: navigationShell),
+    bottomNavigationBar: SafeArea(
+      minimum: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              pill,
+              _BottomBar(tabs: tabs, index: index, onSelect: _select),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  /// Material 3 navigation bar, edge to edge, with the now-reading pill
+  /// docked above it like a mini player.
+  Widget _materialPhone(
+    BuildContext context,
+    List<_Tab> tabs,
+    int index,
+    Widget pill,
+  ) => Scaffold(
+    backgroundColor: AppColors.page,
+    body: _TabFade(index: index, child: navigationShell),
+    bottomNavigationBar: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: pill,
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          child: NavigationBar(
+            selectedIndex: index,
+            onDestinationSelected: _select,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            destinations: [
+              for (final t in tabs)
+                NavigationDestination(
+                  icon: Icon(t.icon),
+                  selectedIcon: Icon(t.selectedIcon),
+                  label: t.label,
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+typedef _Tab = ({IconData icon, IconData selectedIcon, String label});
+
+/// Material 3 navigation rail (tablets, small desktop windows): icons with
+/// labels underneath, never extended.
+class _MaterialRail extends StatelessWidget {
+  final List<_Tab> tabs;
+  final int index;
+  final ValueChanged<int> onSelect;
+  const _MaterialRail({
+    required this.tabs,
+    required this.index,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(right: BorderSide(color: AppColors.border)),
+      ),
+      child: NavigationRail(
+        selectedIndex: index,
+        onDestinationSelected: onSelect,
+        labelType: NavigationRailLabelType.all,
+        groupAlignment: -0.85,
+        leading: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: GoofyAvatar(size: 48),
+        ),
+        destinations: [
+          for (final t in tabs)
+            NavigationRailDestination(
+              icon: Icon(t.icon),
+              selectedIcon: Icon(t.selectedIcon),
+              label: Text(t.label),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A Fluent-style navigation pane (Windows) and the desktop web sidebar:
+/// a column of rows with a hover fill and a short accent bar marking the
+/// selected one, the last tab (Settings) pinned to the foot. Collapsed it
+/// shows icons only, with the label as a tooltip.
+class _Sidebar extends StatelessWidget {
+  final List<_Tab> tabs;
+  final int index;
+  final ValueChanged<int> onSelect;
+  final bool expanded;
+  const _Sidebar({
+    required this.tabs,
+    required this.index,
+    required this.onSelect,
+    required this.expanded,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fluent = PlatformStyle.isWindows;
+    Widget item(int i) => _SidebarItem(
+      tab: tabs[i],
+      selected: i == index,
+      expanded: expanded,
+      fluent: fluent,
+      onTap: () => onSelect(i),
+    );
+    final last = tabs.length - 1;
+    return AnimatedContainer(
+      duration: Motion.scaled(context, Motion.base),
+      curve: Motion.easeInOut,
+      width: expanded ? (fluent ? 280 : 248) : (fluent ? 56 : 72),
+      decoration: BoxDecoration(
+        color: AppColors.canvas,
+        border: Border(right: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        right: false,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: fluent ? 4 : 8,
+            vertical: fluent ? 8 : 14,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  expanded ? 12 : 0,
+                  4,
+                  0,
+                  fluent ? 12 : 18,
+                ),
+                child: Row(
+                  mainAxisAlignment: expanded
+                      ? MainAxisAlignment.start
+                      : MainAxisAlignment.center,
+                  children: [
+                    GoofyAvatar(size: fluent ? 28 : 34),
+                    if (expanded) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Shaddai Reader',
+                          maxLines: 1,
+                          overflow: TextOverflow.clip,
+                          softWrap: false,
+                          style: AppText.body(
+                            size: fluent ? 13 : 14,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              for (var i = 0; i < last; i++) item(i),
+              const Spacer(),
+              if (fluent)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Divider(color: AppColors.border, height: 1),
+                ),
+              item(last),
+            ],
           ),
         ),
       ),
@@ -118,7 +422,128 @@ class GlassNavScaffold extends ConsumerWidget {
   }
 }
 
-typedef _Tab = ({IconData icon, String label});
+class _SidebarItem extends StatefulWidget {
+  final _Tab tab;
+  final bool selected;
+  final bool expanded;
+  final bool fluent;
+  final VoidCallback onTap;
+  const _SidebarItem({
+    required this.tab,
+    required this.selected,
+    required this.expanded,
+    required this.fluent,
+    required this.onTap,
+  });
+
+  @override
+  State<_SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  bool _hover = false;
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final w = widget;
+    final radius = BorderRadius.circular(w.fluent ? 4 : 10);
+    final fill = w.selected
+        ? (w.fluent
+              ? AppColors.fillSubtle
+              : AppColors.accent.withValues(alpha: 0.16))
+        : _down
+        ? AppColors.fillSubtle
+        : _hover
+        ? AppColors.fillHover
+        : Colors.transparent;
+    final color = w.selected ? AppColors.text : AppColors.text60;
+    final row = Semantics(
+      button: true,
+      selected: w.selected,
+      label: w.tab.label,
+      child: ExcludeSemantics(
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (_) => setState(() => _down = true),
+            onTapCancel: () => setState(() => _down = false),
+            onTapUp: (_) => setState(() => _down = false),
+            onTap: w.onTap,
+            child: AnimatedContainer(
+              duration: Motion.scaled(context, Motion.fast),
+              curve: Motion.easeOut,
+              height: w.fluent ? 40 : 44,
+              margin: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(color: fill, borderRadius: radius),
+              child: Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  // Fluent's selection mark: a short accent bar at the
+                  // leading edge. The web sidebar uses the accent fill.
+                  if (w.fluent)
+                    AnimatedOpacity(
+                      opacity: w.selected ? 1 : 0,
+                      duration: Motion.scaled(context, Motion.fast),
+                      child: Container(
+                        width: 3,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: AppColors.accentLink,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: w.expanded ? 14 : 0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: w.expanded
+                          ? MainAxisAlignment.start
+                          : MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          w.selected ? w.tab.selectedIcon : w.tab.icon,
+                          size: w.fluent ? 18 : 20,
+                          color: w.selected && !w.fluent
+                              ? AppColors.accentSoft
+                              : color,
+                        ),
+                        if (w.expanded) ...[
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              w.tab.label,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.clip,
+                              style: AppText.body(
+                                size: w.fluent ? 13.5 : 14,
+                                weight: w.selected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: color,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return w.expanded ? row : Tooltip(message: w.tab.label, child: row);
+  }
+}
 
 /// Softly fades the page in when the tab changes. The child is the same
 /// widget instance throughout, so no branch state is remounted.
@@ -133,8 +558,11 @@ class _TabFade extends StatefulWidget {
 
 class _TabFadeState extends State<_TabFade>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: Motion.fast, value: 1);
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: Motion.fast,
+    value: 1,
+  );
 
   @override
   void didUpdateWidget(_TabFade old) {
@@ -153,8 +581,10 @@ class _TabFadeState extends State<_TabFade>
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: CurvedAnimation(parent: _c, curve: Motion.easeOut)
-          .drive(Tween(begin: 0.55, end: 1)),
+      opacity: CurvedAnimation(
+        parent: _c,
+        curve: Motion.easeOut,
+      ).drive(Tween(begin: 0.55, end: 1)),
       child: widget.child,
     );
   }
@@ -166,8 +596,11 @@ class _BottomBar extends StatelessWidget {
   final List<_Tab> tabs;
   final int index;
   final ValueChanged<int> onSelect;
-  const _BottomBar(
-      {required this.tabs, required this.index, required this.onSelect});
+  const _BottomBar({
+    required this.tabs,
+    required this.index,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -182,35 +615,39 @@ class _BottomBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(26),
             border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
           ),
-          child: LayoutBuilder(builder: (context, c) {
-            final itemW = c.maxWidth / tabs.length;
-            return Stack(
-              children: [
-                AnimatedPositioned(
-                  duration: Motion.scaled(context, Motion.base),
-                  curve: Motion.easeOut,
-                  left: itemW * index + 4,
-                  top: 6,
-                  width: itemW - 8,
-                  height: 52,
-                  child: const _Capsule(),
-                ),
-                Row(
-                  children: [
-                    for (var i = 0; i < tabs.length; i++)
-                      Expanded(
-                        child: _NavItem(
-                          icon: tabs[i].icon,
-                          label: tabs[i].label,
-                          selected: index == i,
-                          onTap: () => onSelect(i),
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final itemW = c.maxWidth / tabs.length;
+              return Stack(
+                children: [
+                  AnimatedPositioned(
+                    duration: Motion.scaled(context, Motion.base),
+                    curve: Motion.easeOut,
+                    left: itemW * index + 4,
+                    top: 6,
+                    width: itemW - 8,
+                    height: 52,
+                    child: const _Capsule(),
+                  ),
+                  Row(
+                    children: [
+                      for (var i = 0; i < tabs.length; i++)
+                        Expanded(
+                          child: _NavItem(
+                            icon: index == i
+                                ? tabs[i].selectedIcon
+                                : tabs[i].icon,
+                            label: tabs[i].label,
+                            selected: index == i,
+                            onTap: () => onSelect(i),
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-              ],
-            );
-          }),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -223,8 +660,11 @@ class _SideRail extends StatelessWidget {
   final List<_Tab> tabs;
   final int index;
   final ValueChanged<int> onSelect;
-  const _SideRail(
-      {required this.tabs, required this.index, required this.onSelect});
+  const _SideRail({
+    required this.tabs,
+    required this.index,
+    required this.onSelect,
+  });
 
   static const _itemH = 60.0;
   static const _gap = 6.0;
@@ -264,7 +704,9 @@ class _SideRail extends StatelessWidget {
                           SizedBox(
                             height: _itemH,
                             child: _NavItem(
-                              icon: tabs[i].icon,
+                              icon: index == i
+                                  ? tabs[i].selectedIcon
+                                  : tabs[i].icon,
                               label: tabs[i].label,
                               selected: index == i,
                               onTap: () => onSelect(i),
@@ -289,12 +731,12 @@ class _Capsule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.accent.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.accent.withValues(alpha: 0.28)),
-        ),
-      );
+    decoration: BoxDecoration(
+      color: AppColors.accent.withValues(alpha: 0.16),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: AppColors.accent.withValues(alpha: 0.28)),
+    ),
+  );
 }
 
 class _NavItem extends StatelessWidget {
@@ -320,8 +762,9 @@ class _NavItem extends StatelessWidget {
         child: PressScale(
           child: InkWell(
             onTap: onTap,
-            customBorder:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            customBorder: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: TweenAnimationBuilder<Color?>(
               tween: ColorTween(end: color),
               duration: Motion.scaled(context, Motion.fast),
@@ -336,9 +779,14 @@ class _NavItem extends StatelessWidget {
                     child: Icon(icon, size: 22, color: c),
                   ),
                   const SizedBox(height: 3),
-                  Text(label,
-                      style: AppText.body(
-                          size: 10.5, weight: FontWeight.w600, color: c)),
+                  Text(
+                    label,
+                    style: AppText.body(
+                      size: 10.5,
+                      weight: FontWeight.w600,
+                      color: c,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -369,8 +817,10 @@ class _NowReadingSlot extends StatelessWidget {
         transitionBuilder: (child, anim) => FadeTransition(
           opacity: anim,
           child: SlideTransition(
-            position: Tween(begin: const Offset(0, 0.3), end: Offset.zero)
-                .animate(anim),
+            position: Tween(
+              begin: const Offset(0, 0.3),
+              end: Offset.zero,
+            ).animate(anim),
             child: child,
           ),
         ),
@@ -434,7 +884,8 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
                   await activateServer(ref, e.serverId);
                   if (!context.mounted) return;
                   context.push(
-                      '/read/${Uri.encodeComponent(e.bookId)}?page=${e.lastPage}');
+                    '/read/${Uri.encodeComponent(e.bookId)}?page=${e.lastPage}',
+                  );
                 },
                 child: Container(
                   height: 54,
@@ -442,7 +893,8 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: AppColors.border.withValues(alpha: 0.6)),
+                      color: AppColors.border.withValues(alpha: 0.6),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -458,7 +910,9 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppText.body(
-                                    size: 13.5, weight: FontWeight.w600),
+                                  size: 13.5,
+                                  weight: FontWeight.w600,
+                                ),
                               ),
                               const SizedBox(height: 2),
                               Text(
@@ -466,7 +920,9 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppText.mono(
-                                    size: 9.5, color: AppColors.text60),
+                                  size: 9.5,
+                                  color: AppColors.text60,
+                                ),
                               ),
                             ],
                           ),
@@ -474,11 +930,16 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
                       ),
                       IconButton(
                         tooltip: 'Dismiss',
-                        icon: Icon(Icons.close,
-                            size: 18, color: AppColors.text60),
-                        onPressed: () => ref
-                            .read(nowReadingDismissedProvider.notifier)
-                            .state = e.timestamp,
+                        icon: Icon(
+                          Icons.close,
+                          size: 18,
+                          color: AppColors.text60,
+                        ),
+                        onPressed: () =>
+                            ref
+                                    .read(nowReadingDismissedProvider.notifier)
+                                    .state =
+                                e.timestamp,
                       ),
                     ],
                   ),

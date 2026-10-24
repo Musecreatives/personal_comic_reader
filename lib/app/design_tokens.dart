@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/appearance/appearance_settings.dart';
+import 'platform_style.dart';
 
 /// Design tokens from the "Reading Now & Downloads" design package
 /// (2026-08 UI/UX pass), reconfigurable at runtime by the Appearance
@@ -75,6 +76,7 @@ class AppColors {
   /// whenever the Appearance screen changes theme mode or accent, right
   /// before the app rebuilds under a new key.
   static void configure(AppearanceSettings settings) {
+    PlatformStyle.configure(settings.interfaceStyle);
     accent = settings.accent.color;
     accentHover = Color.lerp(accent, Colors.white, 0.12)!;
     accentLink = Color.lerp(accent, Colors.white, 0.22)!;
@@ -153,37 +155,62 @@ class AppText {
         color: color ?? AppColors.text45,
       );
 
+  /// The platform's text face (see [PlatformStyle.fontFamily]).
+  static TextStyle _face({
+    required double size,
+    required FontWeight weight,
+    required Color color,
+    double? letterSpacing,
+    double? height,
+  }) {
+    final family = PlatformStyle.fontFamily;
+    if (family == null) {
+      return GoogleFonts.inter(
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        letterSpacing: letterSpacing,
+        height: height,
+      );
+    }
+    return TextStyle(
+      fontFamily: family,
+      fontFamilyFallback: PlatformStyle.fontFallback,
+      fontSize: size,
+      fontWeight: weight,
+      color: color,
+      letterSpacing: letterSpacing,
+      height: height,
+    );
+  }
+
   static TextStyle body({
     double size = 14,
     FontWeight weight = FontWeight.w400,
     Color? color,
   }) =>
-      GoogleFonts.inter(
-        fontSize: size,
-        fontWeight: weight,
-        color: color ?? AppColors.text,
-      );
+      _face(size: size, weight: weight, color: color ?? AppColors.text);
 
   static TextStyle heading({
     double size = 20,
     FontWeight weight = FontWeight.w700,
     Color? color,
   }) =>
-      GoogleFonts.inter(
-        fontSize: size,
-        fontWeight: weight,
-        letterSpacing: -0.4,
+      _face(
+        size: size,
+        // Callers ask for bold; each platform renders its own title weight.
+        weight: weight == FontWeight.w700 ? PlatformStyle.titleWeight : weight,
+        letterSpacing: PlatformStyle.titleTracking(size),
         color: color ?? AppColors.text,
         height: 1.1,
       );
 
-  /// iOS large-title style, used for the hero title on 3a.
-  static TextStyle largeTitle({double size = 30, Color? color}) => TextStyle(
-        fontFamily: 'CupertinoSystemText',
-        fontFamilyFallback: const ['.SF Pro Text', 'Roboto', 'sans-serif'],
-        fontSize: size,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.6,
+  /// Page and hero titles: an iOS large title, a Material 3 headline or a
+  /// Fluent title depending on the platform.
+  static TextStyle largeTitle({double size = 30, Color? color}) => _face(
+        size: size,
+        weight: PlatformStyle.titleWeight,
+        letterSpacing: PlatformStyle.titleTracking(size),
         height: 1.05,
         color: color ?? AppColors.text,
       );
