@@ -55,7 +55,7 @@ void main() {
       headers: {'Authorization': 'Bearer a-token'},
     );
 
-    final (:username, isOwner: _) = await client.me();
+    final username = (await client.me()).username;
 
     expect(username, 'paul');
   });
@@ -68,7 +68,7 @@ void main() {
       headers: {'Authorization': 'Bearer swapped-token'},
     );
 
-    final (:username, isOwner: _) = await client.me();
+    final username = (await client.me()).username;
 
     expect(username, 'paul');
   });
@@ -177,5 +177,26 @@ void main() {
     await client.login(username: 'paul', password: 'hunter22');
 
     expect(client.baseUrl, 'http://other.local');
+  });
+
+  test('me() hands over the Komga login made for a friend', () async {
+    adapter.onGet('/auth/me', (server) => server.reply(200, {
+          'username': 'tolu',
+          'role': 'member',
+          'komga': {'url': 'https://k.example/komga', 'username': 'tolu@friends.shaddai'},
+        }));
+    final me = await client.me();
+    expect(me.komga?.username, 'tolu@friends.shaddai');
+    expect(me.komga?.url, 'https://k.example/komga');
+  });
+
+  test('requests() parses the list, with who asked for the owner', () async {
+    adapter.onGet('/admin/requests', (server) => server.reply(200, {
+          'requests': [
+            {'id': 3, 'title': 'Nightwing', 'status': 'waiting', 'comicvine_id': 5755, 'year': 1996, 'username': 'tolu'},
+          ],
+        }));
+    final r = (await client.requests(all: true)).single;
+    expect((r.id, r.title, r.status, r.comicvineId, r.username), (3, 'Nightwing', 'waiting', 5755, 'tolu'));
   });
 }
