@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Dela Gothic One (Japanese) and Black Han Sans (Korean) are only used for
      a handful of display glyphs; Google serves just the slices the page uses. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Dela+Gothic+One&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Dela+Gothic+One&family=M+PLUS+1+Code:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
 <style>
   /* Manga page: ink on paper, one vermilion accent (the hanko seal).
      Shape rule: panels, buttons and the code ticket are square-cornered like
@@ -24,8 +24,8 @@
     --accent: #D23B3F; --on-accent: #FFF8F5; --accent-text: #FF8588;
     --jp: "Dela Gothic One", "Hiragino Sans", "Yu Gothic", sans-serif;
     --kr: "Black Han Sans", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-    --sans: Geist, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --mono: "Geist Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
+    --sans: "Zen Kaku Gothic New", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "M PLUS 1 Code", ui-monospace, "Cascadia Mono", Menlo, monospace;
     --ease: cubic-bezier(.16, 1, .3, 1);
     color-scheme: dark;
   }
@@ -69,8 +69,8 @@
     min-height: min(640px, calc(100dvh - 72px)); padding: 24px 0 48px;
   }
   h1 {
-    font: 700 clamp(44px, 6.4vw, 84px)/1.02 var(--sans); letter-spacing: -.035em; margin: 0;
-    max-width: 11ch; min-height: 2.04em;
+    font: 700 clamp(40px, 5.8vw, 78px)/1.06 var(--sans); letter-spacing: -.035em; margin: 0;
+    text-wrap: balance; min-height: 2.12em;
   }
   .lede { color: var(--ink-2); font-size: 19px; max-width: 34ch; margin: 22px 0 32px; }
   .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
