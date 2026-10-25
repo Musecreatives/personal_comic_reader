@@ -271,21 +271,35 @@
     lan.addEventListener('pointerdown', () => { vel += 0.06; kickLan(); });
   }
 
-  // ---- Ink cursor (mouse and pen only)
+  // ---- Ink cursor (mouse and pen only). It sits exactly on the pointer
+  // every frame, with no easing: a cursor that trails reads as lag. Only its
+  // size animates (a 10px dot, a 40px seal over anything clickable, smaller
+  // while pressed). It hides when the pointer leaves the window.
   const cur = $('#cursor');
   if (!reduced && matchMedia('(pointer: fine)').matches) {
     root.classList.add('inked');
-    let tx = -50, ty = -50, x = -50, y = -50, raf = 0;
-    const move = () => {
-      x += (tx - x) * 0.35; y += (ty - y) * 0.35;
-      cur.style.transform = `translate(${x}px, ${y}px)`;
-      raf = Math.abs(tx - x) + Math.abs(ty - y) > 0.3 ? requestAnimationFrame(move) : 0;
+    const clickable = 'a, button, summary, label, [role="button"]';
+    // Written straight from the event, not on the next animation frame: the
+    // browser already delivers pointer events once per frame, and waiting
+    // for rAF made the dot stall whenever the curtain and canvases kept the
+    // page busy.
+    let x = 0, y = 0;
+    const track = (e) => {
+      if (e.pointerType === 'touch') return false;
+      x = e.clientX; y = e.clientY;
+      cur.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      cur.classList.add('on');
+      return true;
     };
-    addEventListener('pointermove', (e) => {
-      if (e.pointerType === 'touch') return;
-      tx = e.clientX; ty = e.clientY; if (!raf) raf = requestAnimationFrame(move);
-      cur.classList.toggle('link', !!e.target.closest('a, button'));
-    }, { passive: true });
+    const over = (el) => cur.classList.toggle('link', !!el?.closest?.(clickable));
+    addEventListener('pointermove', (e) => { if (track(e)) over(e.target); }, { passive: true });
+    addEventListener('pointerdown', (e) => { if (track(e)) cur.classList.add('down'); }, { passive: true });
+    addEventListener('pointerup', () => cur.classList.remove('down'), { passive: true });
+    // Leaving the window (relatedTarget is null) or the tab losing focus.
+    document.addEventListener('mouseout', (e) => { if (!e.relatedTarget) cur.classList.remove('on', 'down'); });
+    addEventListener('blur', () => cur.classList.remove('on', 'down'));
+    // Scrolling moves the page under a still pointer: re-check what it is over.
+    addEventListener('scroll', () => { if (cur.classList.contains('on')) over(document.elementFromPoint(x, y)); }, { passive: true });
   }
 
   // ---- Downloads. Release files keep stable names, so these links always
