@@ -19,6 +19,7 @@ import 'app/router.dart';
 import 'app/sync_scheduler.dart';
 import 'app/theme.dart';
 import 'backends/local/local_library_store.dart';
+import 'core/appearance/appearance_settings.dart';
 import 'core/appearance/appearance_store.dart';
 import 'core/collections/collections_store.dart';
 import 'core/debug/debug_log.dart';
@@ -260,12 +261,41 @@ class _AppScrollBehavior extends MaterialScrollBehavior {
       {...super.dragDevices, PointerDeviceKind.mouse};
 }
 
-class ShaddaiReaderApp extends ConsumerWidget {
+class ShaddaiReaderApp extends ConsumerStatefulWidget {
   final GoRouter router;
   const ShaddaiReaderApp({super.key, required this.router});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShaddaiReaderApp> createState() => _ShaddaiReaderAppState();
+}
+
+class _ShaddaiReaderAppState extends ConsumerState<ShaddaiReaderApp>
+    with WidgetsBindingObserver {
+  GoRouter get router => widget.router;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // The System theme mode follows the device: repaint when it flips
+  // between light and dark.
+  @override
+  void didChangePlatformBrightness() {
+    if (ref.read(appearanceProvider).themeMode == AppThemeMode.system) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final appearance = ref.watch(appearanceProvider);
     // AppColors is a set of mutable statics (every screen reads them
     // directly rather than via Theme.of(context) for the design-package
@@ -274,7 +304,7 @@ class ShaddaiReaderApp extends ConsumerWidget {
     // of diffing against widgets built with the old colors.
     AppColors.configure(appearance);
     return MaterialApp.router(
-      key: ValueKey(appearance),
+      key: ValueKey((appearance, AppColors.resolvedMode(appearance))),
       title: 'Shaddai Reader',
       scrollBehavior: const _AppScrollBehavior(),
       theme: buildAppTheme(appearance),
