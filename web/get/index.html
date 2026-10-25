@@ -254,10 +254,12 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .reveal p { color: var(--ink-2); margin-top: 6px; }
 
 /* Ink cursor (fine pointers only, never with reduced motion) */
-.ink-cursor { position: fixed; top: 0; left: 0; z-index: 50; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: var(--ink); pointer-events: none; display: none; place-items: center; color: transparent; font: 400 20px/1 var(--jp); scale: .25; transition: scale .25s var(--ease), background-color .2s, color .2s; }
+.ink-cursor { position: fixed; top: 0; left: 0; z-index: 50; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: var(--ink); pointer-events: none; display: none; place-items: center; color: var(--on-seal); font: 400 20px/1 var(--jp); scale: .25; transition: scale .25s var(--ease), background-color .2s; }
+.ink-cursor span { opacity: 0; transition: opacity .2s; }
+.ink-cursor.link span { opacity: 1; }
 html.inked .ink-cursor { display: grid; }
 html.inked, html.inked a, html.inked button, html.inked canvas { cursor: none !important; }
-.ink-cursor.link { scale: 1; background: var(--seal); color: var(--on-seal); }
+.ink-cursor.link { scale: 1; background: var(--seal); }
 
 footer { padding-block: 64px calc(96px + env(safe-area-inset-bottom, 0px)); color: var(--ink-3); font-size: 14px; border-top: var(--hair) solid var(--line); }
 
@@ -509,7 +511,7 @@ footer { padding-block: 64px calc(96px + env(safe-area-inset-bottom, 0px)); colo
   <div class="slots"><span class="slot" data-slot="0">ドン</span><span class="slot kr" data-slot="1">쾅</span><span class="slot cn" data-slot="2">砰</span></div>
   <p id="card-text">Find the sound effect in each chapter</p>
 </div>
-<div class="ink-cursor" id="cursor" aria-hidden="true">読</div>
+<div class="ink-cursor" id="cursor" aria-hidden="true"><span>読</span></div>
 
 <script src="landing.js"></script>
 </body>
