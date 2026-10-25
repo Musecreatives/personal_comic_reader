@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../app/design_tokens.dart';
+import '../home/home_feed.dart';
 import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
@@ -409,7 +410,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
       color: AppColors.card,
       elevation: 12,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(20),
         side: BorderSide(color: AppColors.borderStrong),
       ),
       items: [
@@ -698,7 +699,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                             ),
                           ),
                           subtitle: Text(
-                            'Ch. ${b.number}',
+                            'Ch. ${formatChapterNumber(b.number)}',
                             style: const TextStyle(color: Colors.white38),
                           ),
                           onTap: () {
@@ -954,7 +955,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                   visible: _overlayVisible,
                   title: widget.book.title,
                   subtitle:
-                      'Ch. ${widget.book.number.replaceFirst(RegExp(r'^0+(?=\d)'), '')}',
+                      'Ch. ${formatChapterNumber(widget.book.number)}',
                   currentPage: _currentPage,
                   pageCount: widget.book.pageCount,
                   settings: _settings,
@@ -1053,7 +1054,7 @@ class _EndOfBookCard extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: AppColors.card,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: AppColors.borderStrong),
             ),
             child: Column(
@@ -1079,7 +1080,6 @@ class _EndOfBookCard extends StatelessWidget {
                     width: double.infinity,
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.accent,
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(13),
@@ -1087,7 +1087,7 @@ class _EndOfBookCard extends StatelessWidget {
                       ),
                       onPressed: () => onNext(nextBook!.id),
                       child: Text('Continue to next',
-                          style: AppText.body(size: 14.5, weight: FontWeight.w600)),
+                          style: AppText.body(size: 14.5, weight: FontWeight.w600, color: AppColors.page)),
                     ),
                   ),
                   const SizedBox(height: 10),

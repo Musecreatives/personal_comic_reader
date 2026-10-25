@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../app/brand_seal.dart';
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/reader_backend.dart';
@@ -139,16 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withValues(alpha: 0.24),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
-                    ),
+                    child: const BrandSeal(size: 72),
                   ),
                   const SizedBox(height: 20),
                   Text('Shaddai Reader',
@@ -185,7 +177,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   FilledButton(
                     onPressed: _submitting ? null : _submit,
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.accent,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
                     ),
@@ -193,10 +184,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Text(_creatingAccount ? 'Create account' : 'Sign in',
-                            style: AppText.body(size: 15, weight: FontWeight.w600, color: Colors.white)),
+                            style: AppText.body(size: 15, weight: FontWeight.w600, color: AppColors.page)),
                   ),
                   const SizedBox(height: 14),
                   TextButton(

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/brand_seal.dart';
 import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../app/providers.dart';
@@ -493,7 +494,7 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
                               children: [
                                 Expanded(
                                   child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.zero,
                                     child: coverBook == null
                                         ? const SeriesCover(imageUrl: null)
                                         : LocalPageThumbnail(
@@ -572,15 +573,15 @@ class _ImportMenuButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.accent,
+          color: AppColors.text,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.add_rounded, size: 18, color: Colors.white),
+            Icon(Icons.add_rounded, size: 18, color: AppColors.page),
             SizedBox(width: 6),
-            Text('Import', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            Text('Import', style: TextStyle(color: AppColors.page, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -642,7 +643,7 @@ class _WatchFolderRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -722,30 +723,14 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.folder_zip_outlined, size: 40, color: AppColors.text30),
-            const SizedBox(height: 14),
-            Text('Nothing imported yet', style: AppText.heading(size: 17)),
-            const SizedBox(height: 8),
-            Text(
-              'Import a CBZ or ZIP file of a manga chapter or comic issue '
-              'to read it here, same as anything from a server.',
-              textAlign: TextAlign.center,
-              style: AppText.body(size: 13, color: AppColors.text45),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: importing ? null : onImport,
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Import a file'),
-            ),
-          ],
-        ),
+    return EmptyState(
+      title: 'Nothing imported yet',
+      message: 'Import a CBZ or ZIP file of a manga chapter or comic issue '
+          'to read it here, same as anything from a server.',
+      action: FilledButton.icon(
+        onPressed: importing ? null : onImport,
+        icon: const Icon(Icons.add_rounded, size: 18),
+        label: const Text('Import a file'),
       ),
     );
   }

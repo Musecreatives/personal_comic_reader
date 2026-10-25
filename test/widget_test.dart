@@ -66,6 +66,8 @@ void main() {
     for (final size in const [
       Size(390, 844),
       Size(800, 1000),
+      Size(1101, 688),
+      Size(688, 1101),
       Size(1600, 900),
     ]) {
       testWidgets('nav shell builds and switches tabs: ${style.name} at '
@@ -115,6 +117,12 @@ void main() {
         await tester.tap(tab('Search'));
         await tester.pump(const Duration(milliseconds: 400));
         expect(find.text('Search your libraries'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+
+        // The keyboard takes ~400px; the rail overflowed by 112px under it
+        // on a landscape tablet. Nothing in the shell may overflow.
+        tester.view.viewInsets = const FakeViewPadding(bottom: 400);
+        await tester.pump();
         expect(tester.takeException(), isNull);
       });
     }

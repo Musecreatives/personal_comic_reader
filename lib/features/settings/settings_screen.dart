@@ -2,190 +2,193 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/brand_seal.dart';
 import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../app/providers.dart';
-import '../shared/back_button.dart';
+import '../../core/appearance/appearance_settings.dart';
+import '../../core/downloads/download_models.dart';
 
+/// Current reading streak in days, for the Reading stats row.
+final readingStreakProvider = Provider<int>((ref) {
+  ref.watch(statsRevisionProvider);
+  return ref.watch(readingStatsStoreProvider).currentStreak;
+});
+
+/// How many collections exist, for the Collections row.
+final collectionCountProvider = Provider<int>((ref) {
+  ref.watch(collectionsRevisionProvider);
+  return ref.watch(collectionsStoreProvider).list().length;
+});
+
+/// Settings as in the prototype: an account block with sync status, then
+/// hairline panels per group. Server tools are one "Server admin" group that
+/// only the owner sees, instead of being scattered through Library.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final owner = ref.watch(isOwnerProvider);
+    final mode = ref.watch(appearanceProvider).themeMode;
+    // Live status beside a row, where it is cheap to know. Storage size (a
+    // disk walk) and pending requests (a network call) stay on their pages.
+    final queued = (ref.watch(downloadQueueProvider).valueOrNull ?? const [])
+        .where(
+          (t) =>
+              t.state == DownloadState.queued ||
+              t.state == DownloadState.running,
+        )
+        .length;
+    final streak = ref.watch(readingStreakProvider);
+    final shelves = ref.watch(collectionCountProvider);
     return Scaffold(
       backgroundColor: AppColors.page,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(0, 6, 0, 24),
-          children: [
-            const AppScreenHeader(title: 'Settings', titleSize: 30),
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.accent.withValues(alpha: 0.16),
-                      AppColors.card,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withValues(alpha: 0.28),
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: ListView(
+              // Room at the foot for the now-reading pill.
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 112),
+              children: [
+                Text('Settings', style: AppText.largeTitle()),
+                const SizedBox(height: 18),
+                const _AccountBlock(),
+                const _GroupLabel('LIBRARY'),
+                _Group(
+                  rows: [
+                    _Row(
+                      'Sources & servers',
+                      'Komga, Suwayomi and OPDS',
+                      () => context.push('/settings/servers'),
                     ),
-                    const SizedBox(width: 13),
-                    Expanded(
-                      child: Text('Shaddai Reader',
-                          style: AppText.body(size: 14.5, weight: FontWeight.w600)),
+                    _Row(
+                      'Downloads',
+                      'Queue, pause and resume, Wi-Fi only',
+                      () => context.push('/settings/downloads'),
+                      meta: queued > 0 ? '$queued QUEUED' : null,
+                    ),
+                    _Row(
+                      'Storage',
+                      'Space used per series, clear the cache',
+                      () => context.push('/settings/storage'),
+                    ),
+                    _Row(
+                      'On This Device',
+                      'Import and read CBZ and ZIP files',
+                      () => context.push('/local-library'),
+                    ),
+                    _Row(
+                      'ComicVine',
+                      'API key for looking up imported comics',
+                      () => context.push('/settings/comicvine'),
+                    ),
+                    if (!owner)
+                      _Row(
+                        'My requests',
+                        'Series you asked for, and where they stand',
+                        () => context.push('/settings/requests'),
+                      ),
+                  ],
+                ),
+                const _GroupLabel('YOU'),
+                _Group(
+                  rows: [
+                    _Row(
+                      'Appearance',
+                      null,
+                      () => context.push('/settings/appearance'),
+                      meta: _modeName(mode),
+                    ),
+                    _Row(
+                      'Reading stats',
+                      'Streak and pages per day',
+                      () => context.push('/stats'),
+                      meta: streak > 0 ? '$streak-DAY STREAK' : null,
+                    ),
+                    _Row(
+                      'History',
+                      'Recently read, across your devices',
+                      () => context.push('/history'),
+                    ),
+                    _Row(
+                      'Collections',
+                      'Shelves that cross servers',
+                      () => context.push('/collections'),
+                      meta: shelves > 0 ? '$shelves' : null,
                     ),
                   ],
                 ),
-              ),
-            ),
-            _SectionLabel('SYNC'),
-            _SettingsGroup(children: [const _SyncRow()]),
-            _SectionLabel('LIBRARY'),
-            _SettingsGroup(children: [
-              _SettingsRow(
-                icon: Icons.dns_outlined,
-                title: 'Sources & servers',
-                subtitle: 'Add, edit, or switch between servers',
-                onTap: () => context.push('/settings/servers'),
-              ),
-              _SettingsRow(
-                icon: Icons.inbox_outlined,
-                title: owner ? 'Requests' : 'My requests',
-                subtitle: owner
-                    ? 'Series your friends asked for'
-                    : 'Series you asked for, and where they stand',
-                onTap: () => context.push('/settings/requests'),
-              ),
-              if (owner) ...[
-                _SettingsRow(
-                  icon: Icons.person_add_alt_outlined,
-                  title: 'Invite friends',
-                  subtitle: 'One code per friend, revoke unused ones',
-                  onTap: () => context.push('/settings/invites'),
-                ),
-                _SettingsRow(
-                  icon: Icons.download_outlined,
-                  title: 'Kapowarr',
-                  subtitle: 'Acquisition status - not a reading source',
-                  onTap: () => context.push('/settings/kapowarr'),
-                ),
-                _SettingsRow(
-                  icon: Icons.health_and_safety_outlined,
-                  title: 'Suwayomi maintenance',
-                  subtitle: 'Extension health, backup & restore',
-                  onTap: () => context.push('/settings/suwayomi'),
+                if (owner) ...[
+                  const _GroupLabel('SERVER ADMIN'),
+                  _Group(
+                    rows: [
+                      _Row(
+                        'Requests',
+                        'Series your friends asked for',
+                        () => context.push('/settings/requests'),
+                      ),
+                      _Row(
+                        'Invite friends',
+                        'One code per friend, revoke unused ones',
+                        () => context.push('/settings/invites'),
+                      ),
+                      _Row(
+                        'Kapowarr',
+                        'Acquisition status',
+                        () => context.push('/settings/kapowarr'),
+                      ),
+                      _Row(
+                        'Suwayomi maintenance',
+                        'Extension health, backup and restore',
+                        () => context.push('/settings/suwayomi'),
+                      ),
+                      _Row(
+                        'Media Pool',
+                        'Back up imported comics over WebDAV',
+                        () => context.push('/settings/media-pool'),
+                      ),
+                    ],
+                  ),
+                ],
+                const _GroupLabel('HELP'),
+                _Group(
+                  rows: [
+                    _Row(
+                      'Diagnostics & reports',
+                      'Network and logs, report a problem',
+                      () => context.push('/debug'),
+                    ),
+                  ],
                 ),
               ],
-              _SettingsRow(
-                icon: Icons.downloading_outlined,
-                title: 'Downloads',
-                subtitle: 'Queue, pause/resume, Wi-Fi-only',
-                onTap: () => context.push('/settings/downloads'),
-                isLast: false,
-              ),
-              _SettingsRow(
-                icon: Icons.storage_outlined,
-                title: 'Storage',
-                subtitle: 'Downloaded size per series, clear cache',
-                onTap: () => context.push('/settings/storage'),
-              ),
-              _SettingsRow(
-                icon: Icons.folder_zip_outlined,
-                title: 'On This Device',
-                subtitle: 'Import and read CBZ/ZIP files directly',
-                onTap: () => context.push('/local-library'),
-              ),
-              if (owner)
-                _SettingsRow(
-                  icon: Icons.cloud_upload_outlined,
-                  title: 'Media Pool',
-                  subtitle: 'Back up locally-imported comics over WebDAV',
-                  onTap: () => context.push('/settings/media-pool'),
-                ),
-              _SettingsRow(
-                icon: Icons.travel_explore_outlined,
-                title: 'ComicVine',
-                subtitle: 'API key for looking up imported comics',
-                onTap: () => context.push('/settings/comicvine'),
-                isLast: true,
-              ),
-            ]),
-            _SectionLabel('YOU'),
-            _SettingsGroup(children: [
-              _SettingsRow(
-                icon: Icons.palette_outlined,
-                title: 'Appearance',
-                subtitle: 'Theme and accent color',
-                onTap: () => context.push('/settings/appearance'),
-              ),
-              _SettingsRow(
-                icon: Icons.bar_chart_outlined,
-                title: 'Reading stats',
-                subtitle: 'Streak and pages per day, across your devices',
-                onTap: () => context.push('/stats'),
-              ),
-              _SettingsRow(
-                icon: Icons.history,
-                title: 'History',
-                subtitle: 'Recently read, across your devices',
-                onTap: () => context.push('/history'),
-              ),
-              _SettingsRow(
-                icon: Icons.collections_bookmark_outlined,
-                title: 'Collections',
-                subtitle: 'Local shelves that cross servers',
-                onTap: () => context.push('/collections'),
-                isLast: true,
-              ),
-            ]),
-            _SectionLabel('HELP'),
-            _SettingsGroup(children: [
-              _SettingsRow(
-                icon: Icons.bug_report_outlined,
-                title: 'Diagnostics & reports',
-                subtitle: 'Network and logs, report a problem, debug mode',
-                onTap: () => context.push('/debug'),
-                isLast: true,
-              ),
-            ]),
-          ],
+            ),
+          ),
         ),
       ),
     );
   }
+
+  static String _modeName(AppThemeMode m) => switch (m) {
+    AppThemeMode.midnight => 'MIDNIGHT',
+    AppThemeMode.paper => 'WASHI',
+    AppThemeMode.trueBlack => 'OLED',
+    AppThemeMode.system => 'SYSTEM',
+  };
 }
 
-/// Sync state at a glance: who is signed in, whether a sync is running or
-/// failed, and when the last good one finished. Tapping syncs now. The icon
-/// spins only while a sync is actually in flight.
-class _SyncRow extends ConsumerStatefulWidget {
-  const _SyncRow();
+/// Who is signed in and how sync stands, on screentone in a 2px ink frame
+/// with the seal. Tapping syncs now; the icon spins only while a sync runs.
+class _AccountBlock extends ConsumerStatefulWidget {
+  const _AccountBlock();
 
   @override
-  ConsumerState<_SyncRow> createState() => _SyncRowState();
+  ConsumerState<_AccountBlock> createState() => _AccountBlockState();
 }
 
-class _SyncRowState extends ConsumerState<_SyncRow>
+class _AccountBlockState extends ConsumerState<_AccountBlock>
     with SingleTickerProviderStateMixin {
   late final _spin = AnimationController(
     vsync: this,
@@ -200,10 +203,10 @@ class _SyncRowState extends ConsumerState<_SyncRow>
 
   String _ago(DateTime t) {
     final d = DateTime.now().difference(t);
-    if (d.inSeconds < 60) return 'just now';
-    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
-    if (d.inHours < 24) return '${d.inHours} h ago';
-    return '${d.inDays} d ago';
+    if (d.inSeconds < 60) return 'JUST NOW';
+    if (d.inMinutes < 60) return '${d.inMinutes} MIN AGO';
+    if (d.inHours < 24) return '${d.inHours} H AGO';
+    return '${d.inDays} D AGO';
   }
 
   @override
@@ -216,140 +219,188 @@ class _SyncRowState extends ConsumerState<_SyncRow>
     } else if (!syncing && _spin.isAnimating) {
       _spin.stop();
     }
-
+    final offline = status.phase == SyncPhase.offline;
+    // The server is changed by signing out: a session only works on the
+    // server that issued it.
+    final host = user == null
+        ? ''
+        : Uri.tryParse(ref.read(syncClientProvider).baseUrl)?.host ?? '';
     final last = status.lastOk;
-    final subtitle = switch (status.phase) {
-      SyncPhase.syncing => 'Syncing…',
-      SyncPhase.offline =>
-        "Can't reach the sync server. Your changes are kept and sent later.",
-      SyncPhase.idle => last == null
-          ? 'Tap to sync history, collections and settings'
-          : 'Up to date · synced ${_ago(last)}',
+    final line = switch (status.phase) {
+      SyncPhase.syncing => 'SYNCING',
+      SyncPhase.offline => "CAN'T REACH THE SYNC SERVER · CHANGES ARE KEPT",
+      SyncPhase.idle => last == null ? 'TAP TO SYNC' : 'SYNCED ${_ago(last)}',
     };
 
-    return InkWell(
-      onTap: user == null || syncing
-          ? null
-          : () => startSync(ProviderScope.containerOf(context)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        child: Row(
-          children: [
-            RotationTransition(
-              turns: _spin,
-              child: Icon(
-                status.phase == SyncPhase.offline
-                    ? Icons.sync_problem_outlined
-                    : Icons.sync,
-                size: 20,
-                color: status.phase == SyncPhase.offline
-                    ? Colors.orangeAccent
-                    : AppColors.text60,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    // The server is changed by signing out: a session only
-                    // works on the server that issued it.
-                    user == null
-                        ? 'Not signed in'
-                        : 'Signed in as $user · ${Uri.tryParse(ref.read(syncClientProvider).baseUrl)?.host}',
-                    style: AppText.body(size: 14, weight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(subtitle,
-                      style: AppText.body(size: 11, color: AppColors.text45)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
-      child: Text(label, style: AppText.sectionLabel()),
-    );
-  }
-}
-
-class _SettingsGroup extends StatelessWidget {
-  final List<Widget> children;
-  const _SettingsGroup({required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(children: children),
-      ),
-    );
-  }
-}
-
-class _SettingsRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final bool isLast;
-
-  const _SettingsRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.isLast = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          border: isLast
+    return Semantics(
+      button: user != null && !syncing,
+      label: 'Sync now',
+      // Pressing in, like every tappable surface (DESIGN.md motion).
+      child: PressScale(
+        child: GestureDetector(
+          onTap: user == null || syncing
               ? null
-              : Border(bottom: BorderSide(color: AppColors.border)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: AppColors.text60),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: AppText.body(size: 14, weight: FontWeight.w500)),
-                  const SizedBox(height: 3),
-                  Text(subtitle, style: AppText.body(size: 11, color: AppColors.text45)),
-                ],
+              : () => startSync(ProviderScope.containerOf(context)),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              border: Border.all(color: AppColors.text, width: 2),
+            ),
+            child: CustomPaint(
+              painter: Screentone(AppColors.text.withValues(alpha: 0.12)),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    const BrandSeal(size: 44),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user ?? 'Not signed in',
+                            style: AppText.body(
+                              size: 16,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            host.isEmpty
+                                ? line
+                                : '$line · ${host.toUpperCase()}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.mono(
+                              size: 10.5,
+                              color: offline
+                                  ? AppColors.warningText
+                                  : AppColors.text60,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    RotationTransition(
+                      turns: _spin,
+                      child: Icon(
+                        offline ? Icons.sync_problem_outlined : Icons.sync,
+                        size: 20,
+                        color: offline
+                            ? AppColors.warningText
+                            : AppColors.text60,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            Icon(Icons.chevron_right, size: 18, color: AppColors.text30),
-          ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _GroupLabel extends StatelessWidget {
+  final String label;
+  const _GroupLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(2, 24, 0, 8),
+    child: Text(label, style: AppText.sectionLabel()),
+  );
+}
+
+class _Row {
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final String? meta;
+  const _Row(this.title, this.subtitle, this.onTap, {this.meta});
+}
+
+/// One hairline panel of rows, separated by hairlines (no card per row).
+class _Group extends StatelessWidget {
+  final List<_Row> rows;
+  const _Group({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < rows.length; i++)
+            Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: rows[i].onTap,
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 56),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    border: i == 0
+                        ? null
+                        : Border(top: BorderSide(color: AppColors.border)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              rows[i].title,
+                              style: AppText.body(
+                                size: 15,
+                                weight: FontWeight.w500,
+                              ),
+                            ),
+                            if (rows[i].subtitle != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                rows[i].subtitle!,
+                                style: AppText.body(
+                                  size: 12.5,
+                                  color: AppColors.text60,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (rows[i].meta != null) ...[
+                        Text(
+                          rows[i].meta!,
+                          style: AppText.mono(
+                            size: 11,
+                            color: AppColors.text60,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: AppColors.text60,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

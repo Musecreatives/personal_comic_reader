@@ -150,13 +150,9 @@ class _StatusBodyState extends State<_StatusBody> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.kapowarr.withValues(alpha: 0.12), AppColors.card],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.kapowarr.withValues(alpha: 0.2)),
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.text, width: 2),
                 ),
                 child: _StatsGrid(stats: stats),
               ),
@@ -168,7 +164,7 @@ class _StatusBodyState extends State<_StatusBody> {
                   padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
                   decoration: BoxDecoration(
                     color: AppColors.card,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppColors.border),
                   ),
                   child: Row(
@@ -232,7 +228,7 @@ class _QueueCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(

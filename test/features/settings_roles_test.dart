@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shaddai_reader/app/providers.dart';
+import 'package:shaddai_reader/core/appearance/appearance_settings.dart';
 import 'package:shaddai_reader/core/sync/sync_client.dart';
 import 'package:shaddai_reader/features/settings/settings_screen.dart';
 
@@ -14,6 +15,12 @@ void main() {
       ProviderScope(
         overrides: [
           isOwnerProvider.overrideWith((ref) => owner),
+          // Settings shows the theme mode beside Appearance.
+          appearanceProvider.overrideWith((ref) => const AppearanceSettings()),
+          // The live counts beside rows.
+          downloadQueueProvider.overrideWith((ref) => Stream.value(const [])),
+          readingStreakProvider.overrideWith((ref) => 0),
+          collectionCountProvider.overrideWith((ref) => 0),
           currentUsernameProvider.overrideWith((ref) => 'someone'),
           syncClientProvider
               .overrideWithValue(SyncClient(baseUrl: SyncClient.publicUrl)),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/design_tokens.dart';
+import '../../home/home_feed.dart';
 import '../../../core/backend/models.dart';
 
 /// Desktop/tablet chapter navigator. It slides over the right edge of the
@@ -122,7 +123,7 @@ class _ChapterPanelState extends State<ChapterPanel> {
                                           : AppColors.text,
                                     )),
                                 const SizedBox(height: 3),
-                                Text('CH ${b.number}', style: AppText.mono(size: 9.5)),
+                                Text('CH ${formatChapterNumber(b.number)}', style: AppText.mono(size: 9.5)),
                               ],
                             ),
                           ),

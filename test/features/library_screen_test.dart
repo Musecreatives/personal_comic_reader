@@ -139,8 +139,8 @@ void main() {
   });
 
   testWidgets(
-      'on a wide screen, tapping a different library in the sidebar '
-      'reloads series for that library', (tester) async {
+      'on a wide screen, tapping a different library chip reloads series '
+      'for that library', (tester) async {
     final fakeBackend = _FakeBackend([
       const Series(
         id: 's1',
@@ -170,7 +170,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Libraries'), findsOneWidget);
+    // Libraries are a chip row at every width (no side pane).
     expect(find.text('Lib One'), findsOneWidget);
     expect(find.text('Lib Two'), findsOneWidget);
     expect(fakeBackend.requestedLibraryIds, contains('lib1'));

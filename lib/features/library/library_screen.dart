@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
-import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import '../shared/ink_chip.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 
@@ -27,7 +27,6 @@ class LibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
-  static const _wideBreakpoint = 800;
 
   _ViewMode _viewMode = _ViewMode.grid;
   bool _unreadOnly = false;
@@ -148,7 +147,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           }
         }
 
-        final wide = MediaQuery.of(context).size.width >= _wideBreakpoint;
         // Needed on phones too: the category chips under the search field.
         _librariesFuture ??= backend.listLibraries();
 
@@ -193,8 +191,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       sourceColor: AppColors.sourceColor(backend.config.type.name),
                       sourceName: backend.config.name,
                       count: _items.length,
-                      // On wide screens the sidebar already lists them.
-                      librariesFuture: wide ? null : _librariesFuture,
+                      librariesFuture: _librariesFuture,
                       selectedLibraryId: _libraryId,
                       onSelectLibrary: _selectLibrary,
                     ),
@@ -212,24 +209,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         );
 
-        if (!wide) return content;
-
-        return Scaffold(
-          body: Row(
-            children: [
-              SizedBox(
-                width: 240,
-                child: _LibrarySidebar(
-                  librariesFuture: _librariesFuture!,
-                  selectedId: _libraryId,
-                  onSelect: _selectLibrary,
-                ),
-              ),
-              const VerticalDivider(width: 1),
-              Expanded(child: content),
-            ],
-          ),
-        );
+        return content;
       },
     );
   }
@@ -267,7 +247,7 @@ class _SeriesGrid extends StatelessWidget {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             border: Border.all(color: AppColors.border),
-                            borderRadius: BorderRadius.circular(13),
+                            borderRadius: BorderRadius.zero,
                           ),
                           child: SeriesCover(
                             imageUrl: s.thumbnailUrl,
@@ -328,7 +308,7 @@ class _SeriesList extends StatelessWidget {
                     width: 46,
                     height: 66,
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.zero,
                       child: SeriesCover(
                         imageUrl: s.thumbnailUrl,
                         headers: backend.imageHeaders,
@@ -375,23 +355,27 @@ class _ServerSwitcher extends ConsumerWidget {
     final activeId = ref.watch(activeServerIdProvider);
     if (servers.length < 2) return const SizedBox.shrink();
 
-    return Padding(
+    // Servers as ink chips with their source dot. Two servers can share a
+    // display name, so the type is part of the label.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Row(
         children: [
           for (final server in servers) ...[
-            Expanded(
-              child: _ServerSwitchTile(
-                server: server,
-                selected: server.id == activeId,
-                onTap: () async {
-                  if (server.id == activeId) return;
-                  await ref.read(serverStoreProvider).setActiveServerId(server.id);
-                  ref.read(activeServerIdProvider.notifier).state = server.id;
-                },
-              ),
+            InkChip(
+              label: server.type.name == 'local'
+                  ? server.name
+                  : '${server.name} · ${server.type.name[0].toUpperCase()}${server.type.name.substring(1)}',
+              dot: AppColors.sourceColor(server.type.name),
+              selected: server.id == activeId,
+              onTap: () async {
+                if (server.id == activeId) return;
+                await ref.read(serverStoreProvider).setActiveServerId(server.id);
+                ref.read(activeServerIdProvider.notifier).state = server.id;
+              },
             ),
-            if (server != servers.last) const SizedBox(width: 8),
+            const SizedBox(width: 8),
           ],
         ],
       ),
@@ -399,57 +383,6 @@ class _ServerSwitcher extends ConsumerWidget {
   }
 }
 
-class _ServerSwitchTile extends StatelessWidget {
-  final ServerConfig server;
-  final bool selected;
-  final VoidCallback onTap;
-  const _ServerSwitchTile({required this.server, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = AppColors.sourceColor(server.type.name);
-    return Material(
-      color: selected ? color.withValues(alpha: 0.16) : AppColors.fillSubtle,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? color.withValues(alpha: 0.5) : AppColors.border),
-          ),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  server.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppText.body(
-                    size: 12.5,
-                    weight: FontWeight.w600,
-                    color: selected ? AppColors.text : AppColors.text60,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                // The two servers can share the same display name (e.g.
-                // both named after their owner rather than their purpose),
-                // so the type is what actually tells the tiles apart.
-                Text(
-                  server.type.name.toUpperCase(),
-                  style: AppText.mono(size: 8.5, color: selected ? color : AppColors.text30),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _LibraryHeader extends StatelessWidget {
   final _ViewMode viewMode;
@@ -582,8 +515,7 @@ class _LibraryHeader extends StatelessWidget {
                         if (!unreadOnly) onToggleUnread();
                       },
                     ),
-                    // The collections/categories, so a phone can switch between
-                    // them (the sidebar that lists them only exists when wide).
+                    // The collections/categories, as chips at every width.
                     if (libraries.length > 1) ...[
                       Container(
                         width: 1,
@@ -694,92 +626,11 @@ class _FilterChip extends StatelessWidget {
       this.tinted = false});
 
   @override
-  Widget build(BuildContext context) {
-    return PressScale(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: Motion.scaled(context, Motion.fast),
-          curve: Motion.easeOut,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 13),
-          decoration: BoxDecoration(
-            color: selected
-                ? (tinted ? AppColors.accent.withValues(alpha: 0.16) : AppColors.accent)
-                : AppColors.fillSubtle,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: selected && tinted ? AppColors.accent : Colors.transparent,
-            ),
-          ),
-          child: AnimatedDefaultTextStyle(
-            duration: Motion.scaled(context, Motion.fast),
-            style: AppText.body(
-              size: 11.5,
-              weight: FontWeight.w600,
-              color: selected
-                  ? (tinted ? AppColors.accentLink : Colors.white)
-                  : AppColors.text60,
-            ),
-            child: Text(label),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      InkChip(label: label, selected: selected, onTap: onTap, secondary: tinted);
 }
 
-/// Wide-screen (iPad/desktop) sidebar: every library, so switching doesn't
 /// need a full navigation round trip back through Home.
-class _LibrarySidebar extends StatelessWidget {
-  final Future<List<Library>> librariesFuture;
-  final String? selectedId;
-  final ValueChanged<String> onSelect;
-
-  const _LibrarySidebar({
-    required this.librariesFuture,
-    required this.selectedId,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text('Libraries',
-                style: Theme.of(context).textTheme.titleMedium),
-          ),
-        ),
-        Expanded(
-          child: FutureBuilder<List<Library>>(
-            future: librariesFuture,
-            builder: (context, snapshot) {
-              final libraries = snapshot.data ?? const <Library>[];
-              return ListView.builder(
-                itemCount: libraries.length,
-                itemBuilder: (context, i) {
-                  final lib = libraries[i];
-                  final selected = lib.id == selectedId;
-                  return ListTile(
-                    selected: selected,
-                    leading: const Icon(Icons.folder_outlined),
-                    title: Text(lib.name),
-                    onTap: () => onSelect(lib.id),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _UnreadBadge extends StatelessWidget {
   final int count;

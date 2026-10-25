@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/brand_seal.dart';
 import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../app/providers.dart';
@@ -13,6 +14,7 @@ import '../../core/backend/reader_backend.dart';
 import '../../core/history/history_entry.dart';
 import '../../core/discovery/recommender.dart';
 import '../discovery/discovery_providers.dart';
+import '../shared/ink_chip.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 import 'home_feed.dart';
@@ -76,28 +78,14 @@ class _NoServerState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.dns_outlined, size: 48, color: AppColors.text45),
-            const SizedBox(height: 12),
-            Text('No server configured', style: AppText.heading(size: 18)),
-            const SizedBox(height: 6),
-            Text('Sign in with the Komga account you were given.',
-                textAlign: TextAlign.center,
-                style: AppText.body(size: 13, color: AppColors.text60)),
-            const SizedBox(height: 16),
-            // The form opens pre-filled with the public Komga address;
-            // its type picker still reaches Suwayomi and OPDS.
-            FilledButton(
-              onPressed: () => context.push('/settings/servers/new'),
-              child: const Text('Add Shaddai Komga'),
-            ),
-          ],
-        ),
+    return EmptyState(
+      title: 'No server configured',
+      message: 'Sign in with the Komga account you were given.',
+      // The form opens pre-filled with the public Komga address; its type
+      // picker still reaches Suwayomi and OPDS.
+      action: FilledButton(
+        onPressed: () => context.push('/settings/servers/new'),
+        child: const Text('Add Shaddai Komga'),
       ),
     );
   }
@@ -596,37 +584,43 @@ class _HeroCard extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         FadeSlideIn(
-          // Wrap, not Row: "CONTINUE · 12M AGO" beside "SUWAYOMI · OFFLINE"
-          // doesn't fit a small phone.
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              _Pill(
-                label: entry == null
-                    ? 'CONTINUE'
-                    : 'CONTINUE · ${_ago(entry.timestamp)}',
-                color: AppColors.accentSoft,
-                background: AppColors.accent.withValues(alpha: 0.28),
-              ),
-              _Pill(
-                label: offline
-                    ? '${_typeLabel(type).toUpperCase()} · OFFLINE'
-                    : _typeLabel(type).toUpperCase(),
-                color: offline ? AppColors.warningText : sourceColor,
-                background: sourceColor.withValues(alpha: 0.16),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        FadeSlideIn(
-          delay: const Duration(milliseconds: 40),
           child: Text(
             series.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppText.largeTitle(size: 42),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Source and recency as one mono line under the title (no badges
+        // above it): a dot in the source's colour, or the offline mark.
+        FadeSlideIn(
+          delay: const Duration(milliseconds: 40),
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              if (offline)
+                Icon(Icons.cloud_off_rounded, size: 14, color: AppColors.warningText)
+              else
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: sourceColor, shape: BoxShape.circle),
+                ),
+              Text(
+                offline
+                    ? '${_typeLabel(type).toUpperCase()} · OFFLINE'
+                    : _typeLabel(type).toUpperCase(),
+                style: AppText.mono(
+                    size: 11.5, color: offline ? AppColors.warningText : AppColors.text60),
+              ),
+              Text(
+                entry == null ? '· CONTINUE' : '· CONTINUE · ${_ago(entry.timestamp)}',
+                style: AppText.mono(size: 11.5, color: AppColors.text60),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 10),
@@ -693,33 +687,18 @@ class _HeroCard extends ConsumerWidget {
     final cover = SeriesCover(
       imageUrl: offline ? null : series.thumbnailUrl,
       headers: hero.backend.imageHeaders,
+      framed: false,
     );
 
     if (split) {
-      final tint = AppColors
-          .coverTints[series.id.hashCode.abs() % AppColors.coverTints.length];
+      // Drawn depth (DESIGN.md): a flat card panel closed by a 3px ink frame
+      // line, no gradients.
       return DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [tint, AppColors.card, AppColors.page],
-            stops: const [0, 0.6, 1],
-          ),
+          color: AppColors.card,
+          border: Border(bottom: BorderSide(color: AppColors.text, width: 3)),
         ),
-        // Fade into the page at the foot, as the board does, so the hero
-        // doesn't end on a hard line above the chips.
-        position: DecorationPosition.background,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [AppColors.page.withValues(alpha: 0), AppColors.page],
-              stops: const [0.55, 1],
-            ),
-          ),
-          child: Padding(
+        child: Padding(
           padding: EdgeInsets.fromLTRB(
               48, MediaQuery.paddingOf(context).top + 40, 48, 40),
           child: Row(
@@ -732,24 +711,15 @@ class _HeroCard extends ConsumerWidget {
                 child: Container(
                   width: 230,
                   height: 330,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.text.withValues(alpha: 0.08)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.canvas.withValues(alpha: 0.55),
-                        offset: const Offset(0, 24),
-                        blurRadius: 50,
-                      ),
-                    ],
+                  // Covers stay square with a 2px ink edge.
+                  foregroundDecoration: BoxDecoration(
+                    border: Border.all(color: AppColors.text, width: 2),
                   ),
                   child: cover,
                 ),
               ),
             ],
           ),
-        ),
         ),
       );
     }
@@ -790,56 +760,13 @@ String _plainChapterLabel(Book book) {
   return redundant ? 'Ch. $n' : 'Ch. $n · $t';
 }
 
-class _Pill extends StatelessWidget {
-  final String label;
-  final Color color;
-  final Color background;
-  const _Pill({required this.label, required this.color, required this.background});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(label,
-          style: AppText.mono(size: 9, weight: FontWeight.w600, color: color)),
-    );
-  }
-}
-
 class _ResumeButton extends StatelessWidget {
   final VoidCallback? onTap;
   const _ResumeButton({this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return PressScale(
-      child: Material(
-        color: AppColors.accent,
-        borderRadius: BorderRadius.circular(13),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(13),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.play_arrow_rounded, size: 18, color: Colors.white),
-                const SizedBox(width: 6),
-                Text('Resume',
-                    style: AppText.body(
-                        size: 15, weight: FontWeight.w600, color: Colors.white)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      InkButton(icon: Icons.play_arrow_rounded, label: 'Resume', filled: true, onTap: onTap, height: 46);
 }
 
 class _IconSquareButton extends StatelessWidget {
@@ -962,54 +889,14 @@ class _Chip extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return PressScale(
-      child: Opacity(
-        opacity: down && !selected ? 0.55 : 1,
-        child: GestureDetector(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: Motion.scaled(context, Motion.fast),
-            curve: Motion.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.accent : AppColors.fillSubtle,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                  color: selected ? AppColors.accent : AppColors.border),
-            ),
-            child: Row(
-              children: [
-                if (down) ...[
-                  Icon(Icons.cloud_off_rounded,
-                      size: 13,
-                      color: selected ? Colors.white : AppColors.warningText),
-                  const SizedBox(width: 6),
-                ] else if (dot != null) ...[
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 7),
-                ],
-                AnimatedDefaultTextStyle(
-                  duration: Motion.scaled(context, Motion.fast),
-                  style: AppText.body(
-                    size: 12.5,
-                    weight: FontWeight.w600,
-                    color: selected ? Colors.white : AppColors.text60,
-                  ),
-                  child: Text(label),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => InkChip(
+        label: label,
+        selected: selected,
+        onTap: onTap,
+        dot: dot,
+        icon: down ? Icons.cloud_off_rounded : null,
+        dimmed: down,
+      );
 }
 
 /// "Suwayomi isn't answering. Komga and your downloads are fine." Says what
@@ -1095,20 +982,11 @@ class _NothingYet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 80, 32, 0),
-      child: Column(
-        children: [
-          Icon(Icons.auto_stories_rounded, size: 40, color: AppColors.text30),
-          const SizedBox(height: 14),
-          Text('Nothing in progress yet', style: AppText.heading(size: 17)),
-          const SizedBox(height: 8),
-          Text(
-            'Open something from your Library and it will show up here, ready to resume.',
-            textAlign: TextAlign.center,
-            style: AppText.body(size: 13, color: AppColors.text60),
-          ),
-        ],
+    return const Padding(
+      padding: EdgeInsets.only(top: 56),
+      child: EmptyState(
+        title: 'Nothing in progress yet',
+        message: 'Open something from your Library and it will show up here, ready to resume.',
       ),
     );
   }
@@ -1221,7 +1099,7 @@ class _RecommendedShelf extends StatelessWidget {
                           children: [
                             Expanded(
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(13),
+                                borderRadius: BorderRadius.zero,
                                 child: SizedBox.expand(
                                   child: SeriesCover(imageUrl: r.candidate.thumbnailUrl),
                                 ),
@@ -1289,7 +1167,7 @@ class SeriesShelfCard extends StatelessWidget {
             children: [
               Expanded(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius: BorderRadius.zero,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [

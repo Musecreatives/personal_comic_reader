@@ -352,7 +352,6 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
                   ),
@@ -361,9 +360,9 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : Text('Save', style: AppText.body(size: 15, weight: FontWeight.w600, color: Colors.white)),
+                      : Text('Save', style: AppText.body(size: 15, weight: FontWeight.w600, color: AppColors.page)),
                 ),
               ),
             ],

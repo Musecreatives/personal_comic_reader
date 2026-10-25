@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'app/brand_seal.dart';
 import 'app/chapter_notification_scheduler.dart';
 import 'app/connectivity_banner.dart';
 import 'app/design_tokens.dart';
@@ -310,12 +311,14 @@ class _ShaddaiReaderAppState extends ConsumerState<ShaddaiReaderApp>
       theme: buildAppTheme(appearance),
       routerConfig: router,
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => SyncScheduler(
-        child: ChapterNotificationScheduler(
-          child: ConnectivityBanner(
-            child: _DebugButton(
-              router: router,
-              child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => LaunchSplash(
+        child: SyncScheduler(
+          child: ChapterNotificationScheduler(
+            child: ConnectivityBanner(
+              child: _DebugButton(
+                router: router,
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         ),
