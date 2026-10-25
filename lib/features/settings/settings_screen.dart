@@ -78,6 +78,12 @@ class SettingsScreen extends ConsumerWidget {
               ),
               if (owner) ...[
                 _SettingsRow(
+                  icon: Icons.person_add_alt_outlined,
+                  title: 'Invite friends',
+                  subtitle: 'One code per friend, revoke unused ones',
+                  onTap: () => context.push('/settings/invites'),
+                ),
+                _SettingsRow(
                   icon: Icons.download_outlined,
                   title: 'Kapowarr',
                   subtitle: 'Acquisition status - not a reading source',

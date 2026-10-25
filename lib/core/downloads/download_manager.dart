@@ -244,6 +244,15 @@ class DownloadManager {
     _notify();
   }
 
+  /// Completes once no download is running, including the queue check each
+  /// one runs as it finishes. Tests wait on it before closing storage, so a
+  /// finishing download can't touch a closed box during the next test.
+  Future<void> get idle async {
+    while (_activeCount > 0) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+  }
+
   void dispose() {
     _changes.close();
   }
