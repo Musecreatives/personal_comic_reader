@@ -19,7 +19,7 @@ import 'platform_style.dart';
 /// (switches, dialogs, indicators) and scroll physics follow the same
 /// choice, including when the style is forced in Appearance.
 ThemeData buildAppTheme(AppearanceSettings appearance) {
-  final isLight = appearance.themeMode == AppThemeMode.paper;
+  final isLight = AppColors.resolvedMode(appearance) == AppThemeMode.paper;
   final p = PlatformStyle.current;
 
   final colorScheme = ColorScheme.fromSeed(

@@ -248,14 +248,17 @@ class _ThemeTile extends StatelessWidget {
 
   String get _label => switch (mode) {
         AppThemeMode.midnight => 'Midnight',
-        AppThemeMode.trueBlack => 'True black',
-        AppThemeMode.paper => 'Paper',
+        AppThemeMode.trueBlack => 'OLED',
+        AppThemeMode.paper => 'Washi',
+        AppThemeMode.system => 'System',
       };
 
+  // System shows its two halves: Washi by day, Midnight by night.
   List<Color> get _preview => switch (mode) {
         AppThemeMode.midnight => [const Color(0xFF0A1420), const Color(0xFF111F31)],
         AppThemeMode.trueBlack => [Colors.black, const Color(0xFF101010)],
-        AppThemeMode.paper => [const Color(0xFFF4F3F7), const Color(0xFFDDE2EA)],
+        AppThemeMode.paper => [const Color(0xFFF3F3F1), const Color(0xFFE7E7E3)],
+        AppThemeMode.system => [const Color(0xFFF3F3F1), const Color(0xFF0A1420)],
       };
 
   @override
