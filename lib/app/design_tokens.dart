@@ -46,8 +46,22 @@ class AppColors {
   static const suwayomi = Color(0xFF149E7C);
   static const suwayomiText = Color(0xFF4FD1A9);
   static const kapowarr = Color(0xFFC9821F);
-  static const danger = Color(0xFFD8455F);
-  static const dangerText = Color(0xFFE8798D);
+  // Crimson, kept clear of seal red; always shown with an icon and a label.
+  // `danger` fills, `dangerText` is the theme-aware text/stroke shade.
+  static const danger = Color(0xFFC92A5A);
+  static Color dangerText = const Color(0xFFFF6F93);
+
+  // Hanko seal ink: the logo, stamps, the cover corner mark. Identity only,
+  // never a control, and fixed whatever accent is picked (DESIGN.md).
+  static Color seal = const Color(0xFFD23B3F);
+  static Color sealText = const Color(0xFFFF8588);
+  static const onSeal = Color(0xFFFFF8F5);
+
+  /// The palette actually drawn for [settings]: System resolves to Washi
+  /// or Midnight from the device's current light/dark setting.
+  static AppThemeMode resolvedMode(AppearanceSettings settings) => settings
+      .themeMode
+      .resolve(WidgetsBinding.instance.platformDispatcher.platformBrightness);
   // Something is down but nothing is wrong with you or your data (a server
   // not answering): amber, as on the canvas "offline" and "outage" boards.
   // Danger red stays for things you must fix, like a rejected login.
@@ -82,12 +96,21 @@ class AppColors {
   /// before the app rebuilds under a new key.
   static void configure(AppearanceSettings settings) {
     PlatformStyle.configure(settings.interfaceStyle);
-    accent = settings.accent.color;
-    accentHover = Color.lerp(accent, Colors.white, 0.12)!;
-    accentLink = Color.lerp(accent, Colors.white, 0.22)!;
-    accentSoft = Color.lerp(accent, Colors.white, 0.42)!;
+    final mode = resolvedMode(settings);
+    final light = mode == AppThemeMode.paper;
+    // On paper the accent darkens a step so it keeps its contrast
+    // (violet #6E56CF becomes about #5B45B8).
+    accent = light
+        ? Color.lerp(settings.accent.color, Colors.black, 0.15)!
+        : settings.accent.color;
+    accentHover = Color.lerp(accent, light ? Colors.black : Colors.white, 0.12)!;
+    accentLink = Color.lerp(accent, light ? Colors.black : Colors.white, 0.22)!;
+    accentSoft = Color.lerp(accent, light ? Colors.black : Colors.white, 0.42)!;
+    seal = light ? const Color(0xFFC9302F) : const Color(0xFFD23B3F);
+    sealText = light ? const Color(0xFFB3261E) : const Color(0xFFFF8588);
+    dangerText = light ? const Color(0xFFA3123F) : const Color(0xFFFF6F93);
 
-    switch (settings.themeMode) {
+    switch (mode) {
       case AppThemeMode.midnight:
         page = const Color(0xFF0A1420);
         canvas = const Color(0xFF07101B);
@@ -118,14 +141,16 @@ class AppColors {
         fillSubtle = Colors.white.withValues(alpha: 0.06);
         fillHover = Colors.white.withValues(alpha: 0.04);
         track = Colors.white.withValues(alpha: 0.14);
+      // Washi (DESIGN.md): cool paper, black ink.
       case AppThemeMode.paper:
-        page = const Color(0xFFF4F1EA);
-        canvas = const Color(0xFFEDE9DF);
-        card = const Color(0xFFFFFFFF);
-        border = const Color(0xFFDDD8CC);
-        borderStrong = const Color(0xFFCFC9B8);
-        text = const Color(0xFF1A1A1A);
-        textAlt = const Color(0xFF1A1A1A);
+      case AppThemeMode.system:
+        page = const Color(0xFFF3F3F1);
+        canvas = const Color(0xFFDADAD4);
+        card = const Color(0xFFE7E7E3);
+        border = const Color(0x29141519);
+        borderStrong = const Color(0x52141519);
+        text = const Color(0xFF141519);
+        textAlt = const Color(0xFF141519);
         text60 = textAlt.withValues(alpha: 0.62);
         text45 = textAlt.withValues(alpha: 0.48);
         text42 = textAlt.withValues(alpha: 0.45);
@@ -137,12 +162,14 @@ class AppColors {
   }
 }
 
-/// JetBrains Mono is used for every piece of metadata (counts, sizes,
-/// latency, status words, section labels) - see README "Typography".
+/// M PLUS 1 Code is used for every piece of metadata (counts, sizes,
+/// latency, status words, section labels) - see DESIGN.md "Typography".
+/// It also covers kana and kanji, so Japanese series titles in metadata
+/// render in the same face.
 class AppText {
   AppText._();
 
-  static TextStyle sectionLabel({Color? color}) => GoogleFonts.jetBrainsMono(
+  static TextStyle sectionLabel({Color? color}) => GoogleFonts.mPlus1Code(
         fontSize: 9.5,
         fontWeight: FontWeight.w500,
         letterSpacing: 1.4, // ~.1em at 9.5px
@@ -154,7 +181,7 @@ class AppText {
     FontWeight weight = FontWeight.w500,
     Color? color,
   }) =>
-      GoogleFonts.jetBrainsMono(
+      GoogleFonts.mPlus1Code(
         fontSize: size,
         fontWeight: weight,
         color: color ?? AppColors.text45,
@@ -170,7 +197,7 @@ class AppText {
   }) {
     final family = PlatformStyle.fontFamily;
     if (family == null) {
-      return GoogleFonts.inter(
+      return GoogleFonts.zenKakuGothicNew(
         fontSize: size,
         fontWeight: weight,
         color: color,
@@ -221,15 +248,9 @@ class AppText {
       );
 }
 
-/// Cover-placeholder gradient recipe from the design package, used until a
+/// Cover placeholder: a flat tint (no gradients, DESIGN.md), used until a
 /// real thumbnail loads (or as a fallback when a series has none).
 BoxDecoration coverPlaceholderDecoration(int seed) {
   final tint = AppColors.coverTints[seed % AppColors.coverTints.length];
-  return BoxDecoration(
-    gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [tint, const Color(0xFF0C1A2B)],
-    ),
-  );
+  return BoxDecoration(color: tint);
 }

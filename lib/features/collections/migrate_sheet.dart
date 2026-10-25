@@ -191,7 +191,7 @@ class _MigrateSheetState extends State<_MigrateSheet> {
                           children: [
                             Expanded(
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.zero,
                                 child: SizedBox.expand(
                                   child: SeriesCover(
                                     imageUrl: m.thumbnailUrl,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/brand_seal.dart';
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../core/backend/reader_backend.dart';
@@ -25,15 +26,15 @@ class ServersScreen extends ConsumerWidget {
               title: 'Sources',
               titleSize: 30,
               trailing: Material(
-                color: AppColors.accent,
+                color: AppColors.text,
                 shape: const CircleBorder(),
                 child: InkWell(
                   customBorder: const CircleBorder(),
                   onTap: () => context.push('/settings/servers/new'),
-                  child: const SizedBox(
+                  child: SizedBox(
                     width: 34,
                     height: 34,
-                    child: Icon(Icons.add, size: 18, color: Colors.white),
+                    child: Icon(Icons.add, size: 18, color: AppColors.page),
                   ),
                 ),
               ),
@@ -121,7 +122,7 @@ class _ServerCard extends StatelessWidget {
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isActive ? color.withValues(alpha: 0.4) : AppColors.border,
         ),
@@ -182,24 +183,9 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.dns_outlined, size: 48, color: AppColors.text45),
-            const SizedBox(height: 12),
-            Text('No servers yet', style: AppText.heading(size: 18)),
-            const SizedBox(height: 4),
-            Text(
-              'Add a Komga, Suwayomi or OPDS server to get started.',
-              textAlign: TextAlign.center,
-              style: AppText.body(color: AppColors.text45),
-            ),
-          ],
-        ),
-      ),
+    return const EmptyState(
+      title: 'No servers yet',
+      message: 'Add a Komga, Suwayomi or OPDS server to get started.',
     );
   }
 }

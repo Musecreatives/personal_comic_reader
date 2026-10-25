@@ -70,9 +70,9 @@ class PlatformStyle {
       };
 
   /// Text face for everything except metadata (which is always JetBrains
-  /// Mono). Each platform gets its system face; web keeps Inter because a
-  /// browser guarantees no particular font. Null means Inter. A forced
-  /// style in a web build also keeps Inter, since the browser has none of
+  /// Mono). Each platform gets its system face; web uses Zen Kaku Gothic New
+  /// (DESIGN.md) because a browser guarantees no particular font. Null means
+  /// that face. A forced style in a web build keeps it too, since the browser has none of
   /// the system faces to hand.
   static String? get fontFamily => kIsWeb ? null : switch (current) {
         UiPlatform.ios => 'CupertinoSystemText',
@@ -127,8 +127,13 @@ class Breakpoints {
   /// compact pane.
   static const compact = 600.0;
 
-  /// From here: an expanded sidebar with labels.
+  /// From here: expanded (two-pane, wider) content layouts.
   static const expanded = 1008.0;
+
+  /// From here the Windows and web sidebar shows its labels; below it the
+  /// pane stays compact so a tablet-width window keeps its canvas for the
+  /// covers.
+  static const sidebar = 1280.0;
 
   static bool isCompact(BuildContext context) =>
       MediaQuery.sizeOf(context).width < compact;

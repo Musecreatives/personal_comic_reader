@@ -11,7 +11,9 @@ import '../../app/platform_style.dart';
 /// [showModalBottomSheet], so call sites swap one for the other; the
 /// content pops with a result exactly as it would from a sheet.
 ///
-/// [shape] is ignored on purpose: the corner radius is the platform's (28
+/// [shape] and [isScrollControlled] are ignored on purpose: sheets always
+/// size to their content up to 90% of the screen, and the corner radius is
+/// the platform's (28
 /// on Android, 16 on iOS and the web, the dialog radius on desktop).
 ///
 /// Content that draws its own [SheetGrabber] leaves [grabber] off; for
@@ -65,14 +67,24 @@ Future<T?> showAppSheet<T>({
     );
   }
 
+  final screen = MediaQuery.sizeOf(context);
   return showModalBottomSheet<T>(
     context: context,
     builder: (sheetContext) => _withGrabber(grabber, builder(sheetContext)),
-    isScrollControlled: isScrollControlled,
+    // Always scroll-controlled: otherwise Material caps a sheet at 9/16 of
+    // the screen, 450px on a landscape tablet, and a three-action sheet
+    // overflowed it. The constraints below cap it at 90% instead.
+    isScrollControlled: true,
     useSafeArea: useSafeArea,
+    // Content draws its own SheetGrabber (or asks for one via [grabber]);
+    // the theme's Android drag handle would make two.
+    showDragHandle: false,
     sheetAnimationStyle: sheetAnimationStyle ?? Motion.sheetStyle,
     backgroundColor: bg,
-    constraints: constraints ?? const BoxConstraints(maxWidth: 640),
+    constraints: BoxConstraints(
+      maxWidth: constraints?.maxWidth.isFinite == true ? constraints!.maxWidth : 640,
+      maxHeight: screen.height * 0.9,
+    ),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
         top: Radius.circular(PlatformStyle.isAndroid ? 28 : 16),

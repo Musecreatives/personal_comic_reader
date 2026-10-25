@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T04:10:00Z",
+  "title": "Design System: Shaddai Reader",
+  "extensions": {
+    "colorMeta": {
+      "violet": { "role": "primary", "displayName": "Library Violet", "tonalRamp": ["#1E1640", "#2E2163", "#3F2E88", "#5640B0", "#6E56CF", "#8F7BEA", "#B7A6F5", "#E3DCFB"] },
+      "hanko": { "role": "secondary", "displayName": "Hanko Seal", "tonalRamp": ["#3A0E10", "#5E1619", "#8E1F22", "#B52D31", "#D23B3F", "#E65A4F", "#FF8588", "#FFD6D6"] },
+      "midnight-page": { "role": "neutral", "displayName": "Midnight Page", "tonalRamp": ["#07101B", "#0A1420", "#111F31", "#1E3350", "#34507A", "#5B78A3", "#8FC1E8", "#F4F3F7"] },
+      "washi-page": { "role": "neutral", "displayName": "Washi Paper", "tonalRamp": ["#141519", "#3A3B40", "#62636A", "#8D8E94", "#B7B7B2", "#DADAD4", "#E7E7E3", "#F3F3F1"] },
+      "danger": { "role": "status", "displayName": "Crimson Danger", "tonalRamp": ["#4A0618", "#6E0B27", "#A3123F", "#C92A5A", "#E04A75", "#FF6F93", "#FF9DB5", "#FFD9E3"] }
+    },
+    "typographyMeta": {
+      "mono": { "displayName": "Brand mono", "purpose": "Every piece of metadata; covers kana and kanji in titles." },
+      "display-jp": { "displayName": "Japanese display", "purpose": "The seal glyph, 40px+ titles, empty states, splash." },
+      "display-kr": { "displayName": "Korean display", "purpose": "Big moments only." },
+      "display-cn": { "displayName": "Chinese brush", "purpose": "Big moments only." },
+      "wordmark": { "displayName": "Wordmark", "purpose": "Shaddai Reader lockup and web headlines." }
+    },
+    "shadows": [
+      { "name": "seal-offset", "value": "5px 5px 0 #6E56CF", "purpose": "The only offset shadow: under a primary action." }
+    ],
+    "motion": [
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Every manga moment: seal press, panel ink-in, tone swell." },
+      { "name": "panel-ink", "value": "240ms", "purpose": "Each logo panel inking in." },
+      { "name": "seal-press", "value": "240ms", "purpose": "Scale 1.7 to 1 with a 12° turn." },
+      { "name": "splash-total", "value": "2400ms", "purpose": "Whole logo sequence, once per launch." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "600px" },
+      { "name": "expanded", "value": "1008px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one violet action on a screen.",
+      "html": "<button class=\"ds-btn-primary\">Resume</button>",
+      "css": ".ds-btn-primary { min-height: 52px; padding: 0 24px; background: #F4F3F7; color: #0A1420; border: 2px solid #F4F3F7; font: 700 16px/1 'Zen Kaku Gothic New', system-ui, sans-serif; box-shadow: 5px 5px 0 #6E56CF; cursor: pointer; transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s cubic-bezier(.16,1,.3,1); } .ds-btn-primary:hover { transform: translate(-2px,-2px); box-shadow: 7px 7px 0 #6E56CF; } .ds-btn-primary:active { transform: translate(3px,3px); box-shadow: 2px 2px 0 #6E56CF; } .ds-btn-primary:focus-visible { outline: 3px solid #B7A6F5; outline-offset: 3px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary actions.",
+      "html": "<button class=\"ds-btn-ghost\">Chapters</button>",
+      "css": ".ds-btn-ghost { min-height: 52px; padding: 0 24px; background: transparent; color: #F4F3F7; border: 2px solid #F4F3F7; font: 700 16px/1 'Zen Kaku Gothic New', system-ui, sans-serif; cursor: pointer; } .ds-btn-ghost:hover { background: #111F31; } .ds-btn-ghost:focus-visible { outline: 3px solid #B7A6F5; outline-offset: 3px; }"
+    },
+    {
+      "name": "Seal",
+      "kind": "custom",
+      "refersTo": "seal",
+      "description": "The logo mark at rest.",
+      "html": "<div class=\"ds-seal\" role=\"img\" aria-label=\"Shaddai Reader\">読</div>",
+      "css": ".ds-seal { width: 72px; height: 72px; display: grid; place-items: center; background: #D23B3F; color: #FFF8F5; font: 400 44px/1 'Dela Gothic One', 'Hiragino Sans', sans-serif; transform: rotate(-4deg); }"
+    },
+    {
+      "name": "Now-reading Pill",
+      "kind": "card",
+      "description": "Floats above the nav on every tab except Home.",
+      "html": "<div class=\"ds-pill\"><span class=\"ds-pill-cover\"></span><span class=\"ds-pill-text\"><b>Night Garden</b><small>CH. 7 · PAGE 3 OF 40</small></span></div>",
+      "css": ".ds-pill { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: #111F31; border: 2px solid #F4F3F7; color: #F4F3F7; font-family: system-ui, sans-serif; max-width: 360px; } .ds-pill-cover { width: 34px; height: 51px; border: 2px solid #F4F3F7; background: #12303A; flex: none; } .ds-pill-text b { display: block; font-size: 14px; } .ds-pill-text small { font: 500 12px/1.4 'M PLUS 1 Code', monospace; color: rgba(243,246,250,.62); }"
+    },
+    {
+      "name": "Error",
+      "kind": "custom",
+      "description": "Danger with icon and label, never colour alone.",
+      "html": "<div class=\"ds-err\"><svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" aria-hidden=\"true\"><path d=\"M12 3 2.5 20h19z M12 10v4.5 M12 17.5v.1\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span><b>Sign-in failed.</b> The password doesn't match. Check it and try again.</span></div>",
+      "css": ".ds-err { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 2px solid #FF6F93; color: #F4F3F7; background: #0A1420; font: 14px/1.5 system-ui, sans-serif; max-width: 420px; } .ds-err svg { color: #FF6F93; flex: none; margin-top: 1px; } .ds-err b { color: #FF6F93; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Night Library",
+    "overview": "Midnight shelves, ink outlines, and a seal stamped on every book. The chrome stays calm and dark so the pages are the light source. Structure is drawn, not shaded: ink lines frame things, screentone dots give texture, and a hanko seal says whose library this is. The same world runs on the landing page and in the app; the app wears it more quietly.",
+    "keyCharacteristics": [
+      "Midnight navy by default, paper (Washi) by day, OLED black for the dark, System to follow the device.",
+      "Ink outlines at three weights carry structure; there are no soft shadows.",
+      "Violet for what you touch; hanko red only as seal ink.",
+      "Metadata in a CJK-capable mono; CJK display faces only in big moments.",
+      "The logo is a seal that reads in three scripts."
+    ],
+    "rules": [
+      { "name": "The Seal Ink Rule", "body": "Hanko red marks identity, never action. If a red thing can be tapped, it is wrong (the Hanko accent option is the user's explicit exception).", "section": "colors" },
+      { "name": "The One Violet Rule", "body": "Each screen gives violet to one action. Everything else is ink.", "section": "colors" },
+      { "name": "The Big Moments Rule", "body": "CJK display faces appear only at 40px and up, in empty states, loading, splash and marketing. Never in lists, settings, controls or the reader.", "section": "typography" },
+      { "name": "The Drawn Depth Rule", "body": "No soft drop shadows anywhere. The only offset shadow in the system is the violet one under a primary action (5px 5px, no blur), like a seal pressed off-register.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do give each screen one violet action and keep hanko red for seals and marks.",
+      "Do keep metadata in M PLUS 1 Code and everything else in the platform face.",
+      "Do outline in ink and separate with space.",
+      "Do pair danger colour with an icon and a label, every time.",
+      "Do route new back buttons, sheets and switches through AppBackButton, showAppSheet and Switch.adaptive so they follow the platform; don't hard-code an iOS chevron or a bottom sheet.",
+      "Do respect reduced motion: every manga moment becomes an instant change."
+    ],
+    "donts": [
+      "Don't add soft drop shadows or gradients to chrome.",
+      "Don't decorate the reader screen. The pages are the content.",
+      "Don't use CJK display faces for body text, lists or controls.",
+      "Don't recolour the seal, loop the logo animation in the app, or rest it on 읽 or 读.",
+      "Don't put real covers from the library on public pages.",
+      "Don't branch on Platform.isX in screens; read PlatformStyle so a forced interface style applies.",
+      "Don't animate high-frequency actions, or let wide screens stretch phone layouts edge to edge."
+    ]
+  }
+}

@@ -110,7 +110,6 @@ class _ComicVineSettingsScreenState
             const SizedBox(height: 20),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(13),
@@ -124,7 +123,7 @@ class _ComicVineSettingsScreenState
                 style: AppText.body(
                   size: 15,
                   weight: FontWeight.w600,
-                  color: Colors.white,
+                  color: AppColors.page,
                 ),
               ),
             ),

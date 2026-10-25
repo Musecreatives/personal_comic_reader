@@ -193,7 +193,7 @@ class _QueueTab extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
               decoration: BoxDecoration(
                 color: AppColors.card,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppColors.border),
               ),
               child: Row(
@@ -306,7 +306,7 @@ class _StatCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -484,7 +484,7 @@ class _OnDeviceTabState extends State<_OnDeviceTab> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: AppColors.card,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppColors.border),
           ),
           child: Row(
@@ -522,7 +522,7 @@ class _OnDeviceTabState extends State<_OnDeviceTab> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: AppColors.card,
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppColors.border),
               ),
               child: Row(
@@ -584,13 +584,9 @@ class _AcquisitionTab extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.kapowarr.withValues(alpha: 0.14), AppColors.card],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.kapowarr.withValues(alpha: 0.24)),
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.text, width: 2),
             ),
             child: Row(
               children: [

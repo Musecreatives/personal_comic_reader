@@ -12,6 +12,7 @@ import 'package:shaddai_reader/app/router.dart';
 import 'package:shaddai_reader/app/theme.dart';
 import 'package:shaddai_reader/core/appearance/appearance_settings.dart';
 import 'package:shaddai_reader/core/backend/reader_backend.dart';
+import 'package:shaddai_reader/features/settings/settings_screen.dart';
 
 void main() {
   testWidgets('tab capsule glides instead of snapping', (tester) async {
@@ -28,6 +29,10 @@ void main() {
       ProviderScope(
         overrides: [
           activeServerIdProvider.overrideWith((ref) => null),
+          appearanceProvider.overrideWith((ref) => ios),
+          downloadQueueProvider.overrideWith((ref) => Stream.value(const [])),
+          readingStreakProvider.overrideWith((ref) => 0),
+          collectionCountProvider.overrideWith((ref) => 0),
           recentReadingProvider.overrideWithValue(const []),
           currentUsernameProvider.overrideWith((ref) => null),
           activeBackendProvider

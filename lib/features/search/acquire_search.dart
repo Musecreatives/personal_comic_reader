@@ -9,6 +9,7 @@ import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/discovery/recommender.dart';
 import '../../core/kapowarr/kapowarr_client.dart';
 import '../discovery/discovery_providers.dart';
+import '../shared/ink_chip.dart';
 import '../shared/series_cover.dart';
 import 'source_showcase.dart';
 import '../shared/app_sheet.dart';
@@ -131,7 +132,7 @@ class _AcquireSheetState extends State<_AcquireSheet> {
                           width: 96,
                           height: 140,
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.zero,
                             child: SeriesCover(imageUrl: widget.coverUrl),
                           ),
                         ),
@@ -813,32 +814,8 @@ class _SourceChip extends StatelessWidget {
   const _SourceChip({required this.label, required this.selected, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return PressScale(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: Motion.scaled(context, Motion.fast),
-          curve: Motion.easeOut,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 13),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.accent.withValues(alpha: 0.16) : AppColors.fillSubtle,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: selected ? AppColors.accent : Colors.transparent),
-          ),
-          child: Text(
-            label,
-            style: AppText.body(
-              size: 11.5,
-              weight: FontWeight.w600,
-              color: selected ? AppColors.accentLink : AppColors.text60,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      InkChip(label: label, selected: selected, onTap: onTap);
 }
 
 class _HitRow extends StatelessWidget {
@@ -864,7 +841,7 @@ class _HitRow extends StatelessWidget {
                 width: 46,
                 height: 66,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.zero,
                   child: SeriesCover(imageUrl: cover),
                 ),
               ),

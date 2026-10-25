@@ -19,7 +19,7 @@ import 'platform_style.dart';
 /// (switches, dialogs, indicators) and scroll physics follow the same
 /// choice, including when the style is forced in Appearance.
 ThemeData buildAppTheme(AppearanceSettings appearance) {
-  final isLight = appearance.themeMode == AppThemeMode.paper;
+  final isLight = AppColors.resolvedMode(appearance) == AppThemeMode.paper;
   final p = PlatformStyle.current;
 
   final colorScheme = ColorScheme.fromSeed(
@@ -44,8 +44,8 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
   final family = PlatformStyle.fontFamily;
   final baseTextTheme = family == null
       ? (isLight
-          ? GoogleFonts.interTextTheme(lightBase)
-          : GoogleFonts.interTextTheme(darkBase))
+          ? GoogleFonts.zenKakuGothicNewTextTheme(lightBase)
+          : GoogleFonts.zenKakuGothicNewTextTheme(darkBase))
       : (isLight ? lightBase : darkBase).apply(
           fontFamily: family,
           fontFamilyFallback: PlatformStyle.fontFallback,
@@ -134,9 +134,13 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
       constraints: const BoxConstraints(maxWidth: 640),
     ),
     filledButtonTheme: FilledButtonThemeData(
+      // DESIGN.md primary: ink fill, page-coloured text, an ink edge.
+      // ponytail: the violet offset shadow is left out; ButtonStyle only
+      // draws blurred elevation. Add a wrapper widget if it's missed.
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.text,
+        foregroundColor: AppColors.page,
+        side: BorderSide(color: AppColors.text, width: 2),
         shape: p == UiPlatform.ios ? const StadiumBorder() : controlShape,
         textStyle: AppText.body(weight: FontWeight.w600),
       ),
@@ -203,10 +207,12 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
       width: PlatformStyle.isDesktopLike ? 420 : null,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: AppColors.card,
+      backgroundColor: AppColors.canvas,
       surfaceTintColor: Colors.transparent,
-      // Canvas "Android · Home": violet pill, filled white icon, bold label.
-      indicatorColor: AppColors.accent.withValues(alpha: 0.32),
+      // Prototype "Home": the active tab is full ink with a 3px violet bar
+      // above its icon, inactive tabs ink at 62% (DESIGN.md "Tab bar").
+      indicatorColor: AppColors.accent,
+      indicatorShape: const _TopBarIndicator(),
       height: 72,
       labelTextStyle: WidgetStateProperty.resolveWith((s) => AppText.body(
             size: 12,
@@ -224,11 +230,12 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
                 : AppColors.text60,
           )),
     ),
-    // Canvas "Android tablet · Home": 96 wide, same pill as the bar.
+    // Prototype "Home on a tablet": the same 3px violet bar as the tab bar.
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: AppColors.canvas,
       minWidth: 96,
-      indicatorColor: AppColors.accent.withValues(alpha: 0.32),
+      indicatorColor: AppColors.accent,
+      indicatorShape: const _TopBarIndicator(),
       selectedIconTheme: IconThemeData(color: AppColors.text),
       unselectedIconTheme: IconThemeData(color: AppColors.text60),
       selectedLabelTextStyle:
@@ -237,4 +244,31 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
           AppText.body(size: 12, weight: FontWeight.w500, color: AppColors.text60),
     ),
   );
+}
+
+/// The nav's selection mark: a 3px bar, 32px wide, along the top edge of
+/// the indicator's box (just above the icon) instead of Material's pill. The
+/// bar and rail fill this path with their indicator colour. It stays inside
+/// the box: the rail clips anything painted outside it.
+class _TopBarIndicator extends ShapeBorder {
+  const _TopBarIndicator();
+
+  Rect _bar(Rect r) => Rect.fromLTWH(r.center.dx - 16, r.top, 32, 3);
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) =>
+      Path()..addRect(_bar(rect));
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) =>
+      getOuterPath(rect);
+
+  @override
+  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {}
+
+  @override
+  ShapeBorder scale(double t) => this;
 }

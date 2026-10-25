@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../backends/local/local_backend.dart';
 
@@ -25,16 +26,31 @@ class SeriesCover extends ConsumerWidget {
   final Map<String, String> headers;
   final BoxFit fit;
 
+  /// Draws the 2px ink edge every cover carries (DESIGN.md). Off for
+  /// full-bleed backdrops, which aren't covers on a shelf.
+  final bool framed;
+
   const SeriesCover({
     super.key,
     required this.imageUrl,
     this.imageBytes,
     this.headers = const {},
     this.fit = BoxFit.cover,
+    this.framed = true,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final image = _image(ref);
+    if (!framed) return image;
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(border: Border.all(color: AppColors.text, width: 2)),
+      child: image,
+    );
+  }
+
+  Widget _image(WidgetRef ref) {
     var bytes = imageBytes;
     if (bytes != null) {
       return Image.memory(

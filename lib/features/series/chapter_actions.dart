@@ -40,7 +40,7 @@ Future<ChapterAction?> showChapterMenu(
     color: AppColors.card,
     elevation: 12,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(13),
+      borderRadius: BorderRadius.circular(20),
       side: BorderSide(color: AppColors.borderStrong),
     ),
     items: [
@@ -113,15 +113,8 @@ class ChapterSelectionBar extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 560),
               decoration: BoxDecoration(
                 color: AppColors.card,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.borderStrong),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x66000000),
-                    blurRadius: 24,
-                    offset: Offset(0, 8),
-                  ),
-                ],
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.text, width: 2),
               ),
               child: Row(
                 children: [

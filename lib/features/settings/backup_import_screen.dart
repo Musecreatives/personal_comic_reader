@@ -307,7 +307,7 @@ class _ReviewStep extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: applyCount == 0 ? AppColors.fillSubtle : AppColors.accent,
+                    backgroundColor: applyCount == 0 ? AppColors.fillSubtle : AppColors.text,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
                   ),
@@ -316,7 +316,7 @@ class _ReviewStep extends StatelessWidget {
                       style: AppText.body(
                           size: 15,
                           weight: FontWeight.w600,
-                          color: applyCount == 0 ? AppColors.text45 : Colors.white)),
+                          color: applyCount == 0 ? AppColors.text45 : AppColors.page)),
                 ),
               ),
               const SizedBox(height: 8),
@@ -444,12 +444,11 @@ class _DoneStep extends StatelessWidget {
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
               ),
               onPressed: onFinish,
-              child: Text('Done', style: AppText.body(size: 15, weight: FontWeight.w600, color: Colors.white)),
+              child: Text('Done', style: AppText.body(size: 15, weight: FontWeight.w600, color: AppColors.page)),
             ),
           ),
         ],

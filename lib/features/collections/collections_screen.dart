@@ -39,15 +39,15 @@ class CollectionsScreen extends ConsumerWidget {
             AppScreenHeader(
               title: 'Collections',
               trailing: Material(
-                color: AppColors.accent,
+                color: AppColors.text,
                 shape: const CircleBorder(),
                 child: InkWell(
                   customBorder: const CircleBorder(),
                   onTap: () => createCollection(context, ref),
-                  child: const SizedBox(
+                  child: SizedBox(
                     width: 34,
                     height: 34,
-                    child: Icon(Icons.add, size: 18, color: Colors.white),
+                    child: Icon(Icons.add, size: 18, color: AppColors.page),
                   ),
                 ),
               ),
@@ -228,7 +228,7 @@ class _StartedNotFinishedTile extends ConsumerWidget {
     final count = ref.watch(_inProgressCountProvider).valueOrNull;
     return Material(
       color: AppColors.card,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         hoverColor: AppColors.fillHover,

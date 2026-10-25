@@ -164,7 +164,6 @@ class _EditDetailsSheetState extends State<_EditDetailsSheet> {
               builder: (context, _) => FilledButton(
                 onPressed: _title.text.trim().isEmpty ? null : _save,
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.accent,
                   minimumSize: const Size.fromHeight(46),
                 ),
                 child: const Text('Save'),

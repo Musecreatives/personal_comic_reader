@@ -357,7 +357,7 @@ class _RecTile extends StatelessWidget {
       children: [
         Expanded(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.zero,
             child: Stack(
               fit: StackFit.expand,
               children: [
