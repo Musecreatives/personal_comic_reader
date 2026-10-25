@@ -141,7 +141,6 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
               builder: (context, _) => FilledButton(
                 onPressed: _sending || _title.text.trim().isEmpty ? null : _send,
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.accent,
                   minimumSize: const Size.fromHeight(46),
                 ),
                 child: Text(_sending ? 'Sending…' : 'Send report'),

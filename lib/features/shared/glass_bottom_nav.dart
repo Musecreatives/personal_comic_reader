@@ -7,11 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
+import '../home/home_feed.dart';
 import '../../app/motion.dart';
 import '../../app/platform_style.dart';
 import '../../app/providers.dart';
 import '../../core/history/history_entry.dart';
-import 'goofy_avatar.dart';
+import '../../app/brand_seal.dart';
 
 /// Below this width the iOS tabs sit in a floating glass bar at the
 /// bottom (iPhone); at or above it they move to a sidebar (iPad).
@@ -26,8 +27,8 @@ const _maxContentWidth = 1200.0;
 ///
 /// * iOS: a floating frosted tab bar (iPhone), a sidebar (iPad).
 /// * Android: a Material 3 navigation bar, then from 600dp today's compact
-///   rail with the mascot, at every tablet width (canvas "Android tablet").
-/// * Windows: a Fluent navigation pane, compact icons below 1008px and
+///   rail with the seal, at every tablet width (canvas "Android tablet").
+/// * Windows: a Fluent navigation pane, compact icons below 1280px and
 ///   expanded with labels above, Settings pinned to the foot like every
 ///   Windows app.
 /// * Web: a navigation bar on phones, a rail on tablets, a labelled
@@ -111,8 +112,11 @@ class GlassNavScaffold extends ConsumerWidget {
     // Home (index 0): its hero already says the same thing, bigger.
     final latest = ref.watch(recentReadingProvider).firstOrNull;
     final dismissed = ref.watch(nowReadingDismissedProvider);
+    // Hidden while typing too: with the keyboard up it would sit on the
+    // results.
     final showBar =
         navigationShell.currentIndex != 0 &&
+        MediaQuery.viewInsetsOf(context).bottom == 0 &&
         latest != null &&
         !latest.completed &&
         latest.timestamp != dismissed;
@@ -132,7 +136,7 @@ class GlassNavScaffold extends ConsumerWidget {
       UiPlatform.android || UiPlatform.web =>
         width < Breakpoints.compact
             ? _materialPhone(context, tabs, index, pill)
-            : PlatformStyle.isWeb && width >= Breakpoints.expanded
+            : PlatformStyle.isWeb && width >= Breakpoints.sidebar
             ? _wide(
                 _Sidebar(
                   tabs: tabs,
@@ -155,7 +159,7 @@ class GlassNavScaffold extends ConsumerWidget {
           tabs: tabs,
           index: index,
           onSelect: _select,
-          expanded: width >= Breakpoints.expanded,
+          expanded: width >= Breakpoints.sidebar,
         ),
         pill,
       ),
@@ -266,8 +270,9 @@ class GlassNavScaffold extends ConsumerWidget {
           child: pill,
         ),
         DecoratedBox(
+          // DESIGN.md: a 2px control line along the tab bar's top edge.
           decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: AppColors.border)),
+            border: Border(top: BorderSide(color: AppColors.text, width: 2)),
           ),
           child: NavigationBar(
             selectedIndex: index,
@@ -308,14 +313,18 @@ class _MaterialRail extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(right: BorderSide(color: AppColors.border)),
       ),
-      child: NavigationRail(
+      child: _FitOrScroll(child: _rail()),
+    );
+  }
+
+  Widget _rail() => NavigationRail(
         selectedIndex: index,
         onDestinationSelected: onSelect,
         labelType: NavigationRailLabelType.all,
         groupAlignment: -0.85,
         leading: const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
-          child: GoofyAvatar(size: 48),
+          child: BrandSeal(size: 48),
         ),
         destinations: [
           for (final t in tabs)
@@ -325,9 +334,25 @@ class _MaterialRail extends StatelessWidget {
               label: Text(t.label),
             ),
         ],
-      ),
-    );
-  }
+      );
+}
+
+/// Side navs are fixed columns. Laid out at full height when they fit, they
+/// scroll when they don't: the keyboard takes ~400px of a landscape tablet,
+/// and the rail overflowed by 112px under it.
+class _FitOrScroll extends StatelessWidget {
+  final Widget child;
+  const _FitOrScroll({required this.child});
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, box) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight),
+            child: IntrinsicHeight(child: child),
+          ),
+        ),
+      );
 }
 
 /// A Fluent-style navigation pane (Windows) and the desktop web sidebar:
@@ -367,7 +392,7 @@ class _Sidebar extends StatelessWidget {
       ),
       child: SafeArea(
         right: false,
-        child: Padding(
+        child: _FitOrScroll(child: Padding(
           padding: EdgeInsets.symmetric(
             horizontal: fluent ? 4 : 8,
             vertical: fluent ? 8 : 14,
@@ -387,7 +412,7 @@ class _Sidebar extends StatelessWidget {
                       ? MainAxisAlignment.start
                       : MainAxisAlignment.center,
                   children: [
-                    GoofyAvatar(size: fluent ? 28 : 34),
+                    BrandSeal(size: fluent ? 28 : 34),
                     if (expanded) ...[
                       const SizedBox(width: 12),
                       Expanded(
@@ -416,7 +441,7 @@ class _Sidebar extends StatelessWidget {
               item(last),
             ],
           ),
-        ),
+        )),
       ),
     );
   }
@@ -448,11 +473,9 @@ class _SidebarItemState extends State<_SidebarItem> {
   Widget build(BuildContext context) {
     final w = widget;
     final radius = BorderRadius.circular(w.fluent ? 4 : 10);
-    final fill = w.selected
-        ? (w.fluent
-              ? AppColors.fillSubtle
-              : AppColors.accent.withValues(alpha: 0.16))
-        : _down
+    // Selected is full ink plus the violet bar (DESIGN.md "Tab bar"), no
+    // tinted pill behind it; fills are only for hover and press.
+    final fill = _down
         ? AppColors.fillSubtle
         : _hover
         ? AppColors.fillHover
@@ -678,11 +701,11 @@ class _SideRail extends StatelessWidget {
         border: Border(right: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
-        child: Padding(
+        child: _FitOrScroll(child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 18),
           child: Column(
             children: [
-              const GoofyAvatar(size: 44),
+              const BrandSeal(size: 44),
               const SizedBox(height: 26),
               SizedBox(
                 height: tabs.length * _itemH + (tabs.length - 1) * _gap,
@@ -720,7 +743,7 @@ class _SideRail extends StatelessWidget {
               ),
             ],
           ),
-        ),
+        )),
       ),
     );
   }
@@ -866,7 +889,7 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
       _seriesId = e.seriesId;
       _title = _titleFor(e.serverId, e.seriesId);
     }
-    final number = e.bookNumber.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    final number = formatChapterNumber(e.bookNumber);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -892,9 +915,7 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
                   padding: const EdgeInsets.only(left: 16, right: 4),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: AppColors.border.withValues(alpha: 0.6),
-                    ),
+                    border: Border.all(color: AppColors.text, width: 2),
                   ),
                   child: Row(
                     children: [

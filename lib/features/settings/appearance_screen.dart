@@ -224,11 +224,7 @@ class _PreviewCover extends StatelessWidget {
       height: 82,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(9),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color.withValues(alpha: 0.5), AppColors.canvas],
-        ),
+        color: Color.lerp(color, AppColors.canvas, 0.5),
       ),
       child: showBar
           ? Align(
@@ -265,7 +261,7 @@ class _ThemeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.card,
-      borderRadius: BorderRadius.circular(15),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
         onTap: onTap,

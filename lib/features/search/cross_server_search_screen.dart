@@ -160,10 +160,12 @@ class _ModeSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      // An ink-outlined segmented control (DESIGN.md 2px control line); the
+      // violet block slides to what is picked.
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: AppColors.fillSubtle,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.text.withValues(alpha: 0.62), width: 2),
       ),
       child: LayoutBuilder(
         builder: (context, c) {
@@ -180,7 +182,7 @@ class _ModeSwitch extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
               ),
@@ -339,7 +341,7 @@ class _ResultRow extends StatelessWidget {
               width: 42,
               height: 60,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.zero,
                 child: SeriesCover(
                   imageUrl: series.thumbnailUrl,
                   headers: headers,

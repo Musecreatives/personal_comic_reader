@@ -34,9 +34,16 @@ class AppErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // DESIGN.md "Errors": a 2px danger edge, an alert icon and a bold label
+    // in danger colour, then the plain-language detail in ink.
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
+        constraints: const BoxConstraints(maxWidth: 420),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.dangerText, width: 2),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -44,7 +51,8 @@ class AppErrorState extends StatelessWidget {
             const SizedBox(height: 14),
             Text(_headline,
                 textAlign: TextAlign.center,
-                style: AppText.body(size: 15, weight: FontWeight.w600)),
+                style: AppText.body(
+                    size: 15, weight: FontWeight.w700, color: AppColors.dangerText)),
             const SizedBox(height: 8),
             Text('$error',
                 textAlign: TextAlign.center,

@@ -163,9 +163,10 @@ void main() {
       expect(find.text("Suwayomi isn't answering. Komga and your downloads are fine."),
           findsOneWidget);
       final cover = tester.getSize(find.byType(SeriesCover).first);
-      // Landscape tablet: the board's split, a 230x330 cover (inside a 1px
-      // border) beside the text. Otherwise the cover fills the hero's width.
-      expect(cover, split ? const Size(228, 328) : Size(size.width, cover.height));
+      // Landscape tablet: the board's split, a 230x330 cover (its 2px ink
+      // edge drawn over it) beside the text. Otherwise the cover fills the
+      // hero's width.
+      expect(cover, split ? const Size(230, 330) : Size(size.width, cover.height));
     });
   }
 }

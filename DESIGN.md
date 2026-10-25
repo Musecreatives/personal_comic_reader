@@ -191,7 +191,7 @@ The style resolves from the device (`lib/app/platform_style.dart`) and can be fo
 
 | | iOS / iPadOS | Android | Windows | Web (PWA) |
 |---|---|---|---|---|
-| Navigation | Floating frosted tab bar; sidebar from 900pt | M3 navigation bar; compact rail with the mascot from 600dp | Fluent pane: compact icons below 1008px, expanded with labels above; Settings pinned to the foot | Navigation bar; rail from 600px; labelled sidebar from 1008px, Settings at the foot |
+| Navigation | Floating frosted tab bar; sidebar from 900pt | M3 navigation bar; compact rail with the seal from 600dp | Fluent pane: compact icons below 1280px, expanded with labels above; Settings pinned to the foot | Navigation bar; rail from 600px; labelled sidebar from 1280px, Settings at the foot |
 | Icons | SF-style (Cupertino) outline, filled when selected | Material outlined, filled when selected | Same as Android | Same as Android |
 | Back | Circular glass chevron, swipe-back | Arrow icon button, predictive back gesture | Small square arrow button | Arrow icon button |
 | Page transition | Slide with parallax | Predictive back | Fade forward | Fade forward |

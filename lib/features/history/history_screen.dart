@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/design_tokens.dart';
+import '../../app/platform_style.dart';
+import '../home/home_feed.dart';
 import '../../app/providers.dart';
 import '../../core/backend/models.dart';
 import '../../core/history/history_entry.dart';
@@ -232,7 +234,6 @@ String _whenLabel(DateTime t) {
   return '${months[t.month - 1]} ${t.day}${t.year == now.year ? '' : ', ${t.year}'}';
 }
 
-String _chapterNumber(String n) => n.replaceFirst(RegExp(r'^0+(?=\d)'), '');
 
 class _SectionLabel extends StatelessWidget {
   final String text;
@@ -254,7 +255,7 @@ class _Cover extends StatelessWidget {
         width: 44,
         height: 62,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.zero,
           child: SeriesCover(
             imageUrl: info?.thumbnailUrl,
             headers: info?.headers ?? const {},
@@ -274,18 +275,20 @@ class _NewChaptersRow extends ConsumerWidget {
     final n = info.newChapters.length;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
+      // A reading-log row: card colour and a hairline (DESIGN.md "app
+      // cards"); the violet lives in the NEW stamp, the one tracked thing.
       child: Material(
-        color: AppColors.accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(PlatformStyle.controlRadius),
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(PlatformStyle.controlRadius),
           hoverColor: AppColors.fillHover,
           onTap: () => _openChapter(context, ref, group.serverId, next.id),
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.accent.withValues(alpha: 0.28)),
+              borderRadius: BorderRadius.circular(PlatformStyle.controlRadius),
+              border: Border.all(color: AppColors.border),
             ),
             child: Row(
               children: [
@@ -301,23 +304,21 @@ class _NewChaptersRow extends ConsumerWidget {
                           style: AppText.body(size: 14.5, weight: FontWeight.w600)),
                       const SizedBox(height: 4),
                       Text(
-                        'Up next: Ch. ${_chapterNumber(next.number)}',
+                        'UP NEXT · CH. ${formatChapterNumber(next.number)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppText.body(size: 12, color: AppColors.text60),
+                        style: AppText.mono(size: 11, color: AppColors.text60),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
                 Container(
+                  // Square, like a stamp, not a pill.
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+                  color: AppColors.accent,
                   child: Text('$n NEW',
-                      style: AppText.mono(size: 9.5, color: Colors.white)),
+                      style: AppText.mono(size: 10.5, color: Colors.white)),
                 ),
               ],
             ),
@@ -354,7 +355,7 @@ class _SeriesHistoryCardState extends ConsumerState<_SeriesHistoryCard> {
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(PlatformStyle.controlRadius),
         border: Border.all(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
@@ -444,7 +445,7 @@ class _ChapterRow extends ConsumerWidget {
           children: [
             SizedBox(
               width: 58,
-              child: Text('CH ${_chapterNumber(e.bookNumber)}',
+              child: Text('CH ${formatChapterNumber(e.bookNumber)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppText.mono(size: 10, color: AppColors.accentLink)),

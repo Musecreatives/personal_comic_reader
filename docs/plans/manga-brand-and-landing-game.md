@@ -39,8 +39,8 @@ Branch: `claude/manga-brand-game`. Brand approved 2026-10-25.
 - [ ] `AccentOption`: replace `danger` with `hanko`, add Ai indigo, Matcha, Yamabuki values; unknown saved names fall back to violet
 - [ ] `AppColors`: add `seal`, `sealText`, `onSeal`, `outline`; new danger crimson; Washi palette
 - [ ] Mono to M PLUS 1 Code (`google_fonts`)
-- [ ] Splash: the logo sequence, played once; static seal with reduced motion
-- [ ] App icons and favicon from the logo canvas's Icons artboard
+- [x] Splash: the logo sequence, played once; static seal with reduced motion
+- [x] App icons and favicon from the logo canvas's Icons artboard
 - [ ] `flutter analyze`, `flutter test`, tablet-size widget tests, then install on the real tablet
 
 ## Risks

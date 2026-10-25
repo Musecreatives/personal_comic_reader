@@ -450,7 +450,7 @@ class _EntryTile extends ConsumerWidget {
                   fit: StackFit.expand,
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.zero,
                       child: SeriesCover(
                         imageUrl: e?.series.thumbnailUrl,
                         headers: e?.backend.imageHeaders ?? const {},

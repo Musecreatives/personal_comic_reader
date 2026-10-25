@@ -197,7 +197,7 @@ class AppText {
   }) {
     final family = PlatformStyle.fontFamily;
     if (family == null) {
-      return GoogleFonts.inter(
+      return GoogleFonts.zenKakuGothicNew(
         fontSize: size,
         fontWeight: weight,
         color: color,
@@ -248,15 +248,9 @@ class AppText {
       );
 }
 
-/// Cover-placeholder gradient recipe from the design package, used until a
+/// Cover placeholder: a flat tint (no gradients, DESIGN.md), used until a
 /// real thumbnail loads (or as a fallback when a series has none).
 BoxDecoration coverPlaceholderDecoration(int seed) {
   final tint = AppColors.coverTints[seed % AppColors.coverTints.length];
-  return BoxDecoration(
-    gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [tint, const Color(0xFF0C1A2B)],
-    ),
-  );
+  return BoxDecoration(color: tint);
 }

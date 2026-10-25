@@ -128,7 +128,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: AppColors.card,
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppColors.border),
                   ),
                   child: Row(
