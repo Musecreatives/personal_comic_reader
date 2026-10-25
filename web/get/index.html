@@ -275,12 +275,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .reveal p { color: var(--ink-2); margin-top: 6px; }
 
 /* Ink cursor (fine pointers only, never with reduced motion) */
-.ink-cursor { position: fixed; top: 0; left: 0; z-index: 50; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: var(--ink); pointer-events: none; display: none; place-items: center; color: var(--on-seal); font: 400 20px/1 var(--jp); scale: .25; transition: scale .25s var(--ease), background-color .2s; }
+/* Position comes from JS every frame (no transition on transform, or it lags);
+   only size, colour and visibility ease. */
+.ink-cursor { position: fixed; top: 0; left: 0; z-index: 50; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: var(--ink); pointer-events: none; display: none; place-items: center; color: var(--on-seal); font: 400 20px/1 var(--jp); scale: .25; opacity: 0; will-change: transform; transition: scale .2s var(--ease), background-color .2s, opacity .15s; }
 .ink-cursor span { opacity: 0; transition: opacity .2s; }
+.ink-cursor.on { opacity: 1; }
 .ink-cursor.link span { opacity: 1; }
 html.inked .ink-cursor { display: grid; }
-html.inked, html.inked a, html.inked button, html.inked canvas { cursor: none !important; }
+html.inked, html.inked * { cursor: none !important; }
 .ink-cursor.link { scale: 1; background: var(--seal); }
+.ink-cursor.down { scale: .18; }
+.ink-cursor.link.down { scale: .82; }
 
 footer { padding-block: 64px calc(96px + env(safe-area-inset-bottom, 0px)); color: var(--ink-3); font-size: 14px; border-top: var(--hair) solid var(--line); }
 
