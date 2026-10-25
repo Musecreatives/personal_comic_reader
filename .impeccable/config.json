@@ -32,6 +32,24 @@
         "rule": "design-system-font",
         "value": "m plus 1 code",
         "createdAt": "2026-10-24T17:18:45.403Z"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "web/get/index.html"
+        ],
+        "createdAt": "2026-10-25T04:11:47.841Z",
+        "reason": "Claude: .stage and .paper are full-bleed canvases (noren curtain, ink trail) by design"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "web/get/index.html"
+        ],
+        "createdAt": "2026-10-25T04:11:49.104Z",
+        "reason": "Claude: detector reads h1 as 16px; actual h1 is clamp(42px,5.6vw,76px), h2 clamp(30px,3.6vw,46px)"
       }
     ]
   }
