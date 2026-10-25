@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -18,11 +19,22 @@ class _FakeBackend implements ReaderBackend {
   final Map<String, int> bookPages;
 
   _FakeBackend(
-      {this.delay = Duration.zero, this.id = 'srv', this.bookPages = const {}});
+      {this.delay = Duration.zero, this.id = 'srv', this.bookPages = const {}}) {
+    _backends.add(this);
+  }
+
+  /// tearDown releases slow fetches at once, so none finishes after the
+  /// test and writes into the next test's storage.
+  final _released = Completer<void>();
+  void release() {
+    if (!_released.isCompleted) _released.complete();
+  }
 
   @override
   Future<Uint8List> fetchPage(String bookId, int pageIndex) async {
-    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (delay > Duration.zero) {
+      await Future.any([Future<void>.delayed(delay), _released.future]);
+    }
     fetchCalls['${bookId}_$pageIndex'] =
         (fetchCalls['${bookId}_$pageIndex'] ?? 0) + 1;
     return Uint8List.fromList([pageIndex]);
@@ -82,6 +94,13 @@ class _FakeBackend implements ReaderBackend {
   Map<String, String> get imageHeaders => throw UnimplementedError();
 }
 
+final _backends = <_FakeBackend>[];
+final _managers = <DownloadManager>[];
+DownloadManager _track(DownloadManager m) {
+  _managers.add(m);
+  return m;
+}
+
 Future<void> _waitUntil(bool Function() condition,
     {Duration timeout = const Duration(seconds: 5)}) async {
   final deadline = DateTime.now().add(timeout);
@@ -95,12 +114,28 @@ Future<void> _waitUntil(bool Function() condition,
 
 void main() {
   setUp(() async => await setUpTestHive());
-  tearDown(() async => await tearDownTestHive());
+  // Each download still runs a last queue check after it reports done, and
+  // slow fakes keep fetching after a test ends: stop everything and wait
+  // before closing storage, or it fails whichever test runs next.
+  tearDown(() async {
+    for (final b in _backends) {
+      b.release();
+    }
+    for (final m in _managers) {
+      for (final t in m.store.listTasks()) {
+        await m.pause(t.bookId);
+      }
+      await m.idle;
+    }
+    _backends.clear();
+    _managers.clear();
+    await tearDownTestHive();
+  });
 
   test('enqueueBook downloads every page and ends in state done', () async {
     final store = DownloadStore();
     await store.init();
-    final manager = DownloadManager(store: store);
+    final manager = _track(DownloadManager(store: store));
     final backend = _FakeBackend();
 
     await manager.enqueueBook(
@@ -125,7 +160,7 @@ void main() {
   test('pause stops mid-download; resume finishes it', () async {
     final store = DownloadStore();
     await store.init();
-    final manager = DownloadManager(store: store);
+    final manager = _track(DownloadManager(store: store));
     final backend = _FakeBackend(delay: const Duration(milliseconds: 20));
 
     await manager.enqueueBook(
@@ -161,7 +196,7 @@ void main() {
   test('cancel removes the task and its downloaded pages', () async {
     final store = DownloadStore();
     await store.init();
-    final manager = DownloadManager(store: store);
+    final manager = _track(DownloadManager(store: store));
     final backend = _FakeBackend();
 
     await manager.enqueueBook(
@@ -184,7 +219,7 @@ void main() {
   test('a book already downloaded is not re-fetched on re-enqueue', () async {
     final store = DownloadStore();
     await store.init();
-    final manager = DownloadManager(store: store);
+    final manager = _track(DownloadManager(store: store));
     final backend = _FakeBackend();
 
     await manager.enqueueBook(backend,
@@ -212,7 +247,7 @@ void main() {
       () async {
     final store = DownloadStore();
     await store.init();
-    final manager = DownloadManager(store: store);
+    final manager = _track(DownloadManager(store: store));
     final backend = _FakeBackend(bookPages: {'sw1': 3});
 
     await manager.enqueueBook(backend,
@@ -230,7 +265,7 @@ void main() {
   test('each task is fetched from its own server', () async {
     final store = DownloadStore();
     await store.init();
-    final manager = DownloadManager(store: store);
+    final manager = _track(DownloadManager(store: store));
     final komga = _FakeBackend(id: 'komga');
     final suwayomi = _FakeBackend(id: 'suwayomi');
 
@@ -250,7 +285,7 @@ void main() {
   test('reorder and moveToTop change the queue order', () async {
     final store = DownloadStore();
     await store.init();
-    final manager = DownloadManager(store: store);
+    final manager = _track(DownloadManager(store: store));
     final backend = _FakeBackend(delay: const Duration(seconds: 5));
 
     // Three books in the queue; the two slow ones start running, so order
@@ -290,7 +325,7 @@ void main() {
       ));
     }
 
-    final manager = DownloadManager(store: store);
+    final manager = _track(DownloadManager(store: store));
     final backend = _FakeBackend();
     await manager.resumePending({'srv': backend});
     await _waitUntil(() =>

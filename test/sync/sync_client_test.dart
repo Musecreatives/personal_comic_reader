@@ -199,4 +199,14 @@ void main() {
     final r = (await client.requests(all: true)).single;
     expect((r.id, r.title, r.status, r.comicvineId, r.username), (3, 'Nightwing', 'waiting', 5755, 'tolu'));
   });
+
+  test('invites() parses who used each code', () async {
+    adapter.onGet('/admin/invites', (server) => server.reply(200, {
+          'invites': [
+            {'code': 'ABCD-EFGH', 'note': 'Dan', 'status': 'used', 'used_by': 'dan', 'link': 'https://x/get/?code=ABCD-EFGH'},
+          ],
+        }));
+    final i = (await client.invites()).single;
+    expect((i.code, i.note, i.status, i.usedBy), ('ABCD-EFGH', 'Dan', 'used', 'dan'));
+  });
 }

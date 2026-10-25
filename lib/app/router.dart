@@ -23,6 +23,7 @@ import '../features/kapowarr/kapowarr_volumes_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/local_library/local_library_screen.dart';
 import '../features/settings/comicvine_settings_screen.dart';
+import '../features/settings/invites_screen.dart';
 import '../features/settings/requests_screen.dart';
 import '../features/settings/media_pool_settings_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
@@ -173,6 +174,10 @@ GoRouter buildRouter({
     GoRoute(
       path: '/settings/requests',
       builder: (context, state) => const RequestsScreen(),
+    ),
+    GoRoute(
+      path: '/settings/invites',
+      builder: (context, state) => const InvitesScreen(),
     ),
     GoRoute(
       path: '/settings/suwayomi',
