@@ -23,6 +23,7 @@ import 'edit_details_sheet.dart';
 import 'series_actions_sheet.dart';
 import '../../core/collections/collection.dart';
 import '../collections/collections_screen.dart' show createCollection;
+import '../shared/ink_chip.dart';
 import '../shared/back_button.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
@@ -591,8 +592,10 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
             .where((t) => t.seriesId == widget.seriesId)
             .toList();
 
-        final header = _SeriesHeader(
+        // Built once the books are known, so Read can name the chapter.
+        Widget header([String? next]) => _SeriesHeader(
           series: series,
+          readLabel: next == null ? 'Read' : 'Read Ch. $next',
           headers: headers,
           downloadedCount: seriesTasks
               .where((t) => t.state == DownloadState.done)
@@ -619,7 +622,7 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return CustomScrollView(slivers: [
-                if (!wide) SliverToBoxAdapter(child: header),
+                if (!wide) SliverToBoxAdapter(child: header()),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -633,7 +636,7 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
             }
             if (!snapshot.hasData) {
               return CustomScrollView(slivers: [
-                if (!wide) SliverToBoxAdapter(child: header),
+                if (!wide) SliverToBoxAdapter(child: header()),
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(24),
@@ -643,6 +646,11 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
               ]);
             }
             final books = List<Book>.from(snapshot.data!);
+            final upNext = books.isEmpty
+                ? null
+                : formatChapterNumber(books
+                    .firstWhere((b) => !b.completed, orElse: () => books.first)
+                    .number);
             final ordered = _newestFirst ? books.reversed.toList() : books;
             _ordered = ordered;
 
@@ -666,13 +674,17 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
 
             if (wide) {
               return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                // Stretch, so the details pane is card-coloured full height.
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
+                  // Prototype "Series on a tablet": the details on card
+                  // colour, divided from the reading log by a 3px ink frame.
+                  Container(
                     width: 400,
-                    child: SingleChildScrollView(child: header),
+                    color: AppColors.card,
+                    child: SingleChildScrollView(child: header(upNext)),
                   ),
-                  VerticalDivider(width: 1, color: AppColors.border),
+                  Container(width: 3, color: AppColors.text),
                   Expanded(
                     child: Align(
                       alignment: Alignment.topCenter,
@@ -693,7 +705,7 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
 
             return CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(child: header),
+                SliverToBoxAdapter(child: header(upNext)),
                 ...chapterSlivers,
               ],
             );
@@ -753,10 +765,12 @@ class _SeriesHeader extends StatelessWidget {
   final VoidCallback onDownloadAll;
   final VoidCallback onRead;
   final VoidCallback onSaveToCollection;
+  final String readLabel;
   final VoidCallback onMore;
 
   const _SeriesHeader({
     required this.series,
+    this.readLabel = 'Read',
     required this.headers,
     required this.downloadedCount,
     required this.onDownloadAll,
@@ -774,12 +788,16 @@ class _SeriesHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
+        // The cover as a backdrop, closed by a 3px ink frame line.
+        Container(
           height: 326,
+          foregroundDecoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.text, width: 3)),
+          ),
           child: Stack(
             fit: StackFit.expand,
             children: [
-              SeriesCover(imageUrl: series.thumbnailUrl, headers: headers),
+              SeriesCover(imageUrl: series.thumbnailUrl, headers: headers, framed: false),
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -807,20 +825,9 @@ class _SeriesHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     SizedBox(
-                      width: 100,
-                      height: 146,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(13),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.borderStrong),
-                          ),
-                          child: SeriesCover(
-                            imageUrl: series.thumbnailUrl,
-                            headers: headers,
-                          ),
-                        ),
-                      ),
+                      width: 104,
+                      height: 152,
+                      child: SeriesCover(imageUrl: series.thumbnailUrl, headers: headers),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -847,34 +854,17 @@ class _SeriesHeader extends StatelessWidget {
                             ),
                           ],
                           const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: [
-                              _Pill(
-                                label: series.isFullyRead
-                                    ? 'COMPLETE'
-                                    : 'READING',
-                                color: series.isFullyRead
-                                    ? AppColors.suwayomiText
-                                    : AppColors.accentLink,
-                                bg: series.isFullyRead
-                                    ? AppColors.suwayomi.withValues(alpha: 0.16)
-                                    : AppColors.accent.withValues(alpha: 0.16),
-                              ),
-                              if (series.sourceName != null)
-                                _Pill(
-                                  label: series.sourceName!.toUpperCase(),
-                                  color: AppColors.text60,
-                                  bg: AppColors.fillSubtle,
-                                ),
-                              for (final tag in series.tags)
-                                _Pill(
-                                  label: tag.toUpperCase(),
-                                  color: AppColors.text60,
-                                  bg: AppColors.fillSubtle,
-                                ),
-                            ],
+                          // One mono line instead of badges: source, tags,
+                          // and where you stand.
+                          Text(
+                            [
+                              if (series.sourceName != null) series.sourceName!,
+                              ...series.tags.take(2),
+                              series.isFullyRead ? 'Complete' : 'Reading',
+                            ].map((s) => s.toUpperCase()).join(' · '),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.mono(size: 11, color: AppColors.text60),
                           ),
                         ],
                       ),
@@ -892,7 +882,7 @@ class _SeriesHeader extends StatelessWidget {
               Expanded(
                 child: _ActionButton(
                   icon: Icons.play_arrow_rounded,
-                  label: 'Read',
+                  label: readLabel,
                   filled: true,
                   onTap: onRead,
                 ),
@@ -914,15 +904,25 @@ class _SeriesHeader extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-          child: Row(
+          // One mono line and a progress rule, not a row of big numbers.
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Stat(value: '${series.booksCount}', label: 'VOLUMES'),
-              const SizedBox(width: 22),
-              _Stat(value: '${series.booksUnreadCount}', label: 'UNREAD'),
-              const SizedBox(width: 22),
-              _Stat(value: '$progressPct%', label: 'PROGRESS'),
-              const SizedBox(width: 22),
-              _Stat(value: '$downloadedCount', label: 'ON DEVICE'),
+              Text(
+                '${series.booksCount} CHAPTERS · ${series.booksUnreadCount} UNREAD · '
+                '$downloadedCount ON DEVICE · $progressPct%',
+                style: AppText.mono(size: 11, color: AppColors.text60),
+              ),
+              const SizedBox(height: 8),
+              ClipRect(
+                child: LinearProgressIndicator(
+                  value: progressPct / 100,
+                  minHeight: 4,
+                  color: AppColors.accent,
+                  backgroundColor: AppColors.border,
+                  semanticsLabel: 'Read $progressPct%',
+                ),
+              ),
             ],
           ),
         ),
@@ -976,25 +976,6 @@ class _BackButton extends StatelessWidget {
   }
 }
 
-class _Pill extends StatelessWidget {
-  final String label;
-  final Color color;
-  final Color bg;
-  const _Pill({required this.label, required this.color, required this.bg});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(label, style: AppText.mono(size: 9, color: color)),
-    );
-  }
-}
-
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1008,42 +989,8 @@ class _ActionButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: filled ? AppColors.accent : Colors.transparent,
-      borderRadius: BorderRadius.circular(13),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(13),
-        onTap: onTap,
-        child: Container(
-          height: 46,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(13),
-            border: filled ? null : Border.all(color: AppColors.borderStrong),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: filled ? Colors.white : AppColors.text,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: AppText.body(
-                  size: 15,
-                  weight: FontWeight.w600,
-                  color: filled ? Colors.white : AppColors.text,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      InkButton(icon: icon, label: label, filled: filled, onTap: onTap);
 }
 
 class _ActionIconButton extends StatelessWidget {
@@ -1052,43 +999,8 @@ class _ActionIconButton extends StatelessWidget {
   const _ActionIconButton({required this.icon, this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(13),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(13),
-        onTap: onTap,
-        child: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(color: AppColors.borderStrong),
-          ),
-          child: Icon(icon, size: 18, color: AppColors.text),
-        ),
-      ),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  final String value;
-  final String label;
-  const _Stat({required this.value, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(value, style: AppText.heading(size: 17)),
-        const SizedBox(height: 5),
-        Text(label, style: AppText.mono(size: 9)),
-      ],
-    );
-  }
+  Widget build(BuildContext context) =>
+      InkButton(icon: icon, onTap: onTap);
 }
 
 class _ChaptersHeaderRow extends StatelessWidget {
@@ -1102,34 +1014,26 @@ class _ChaptersHeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // "Chapters", the sort as an ink chip, and a 2px ink rule the reading
+    // log hangs from.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text('Chapters', style: AppText.heading(size: 17)),
-          Material(
-            color: AppColors.accent.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(999),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(999),
+      padding: const EdgeInsets.fromLTRB(20, 26, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.text, width: 2)),
+        ),
+        child: Row(
+          children: [
+            Expanded(child: Text('Chapters', style: AppText.heading(size: 20))),
+            InkChip(
+              label: newestFirst ? 'Newest first' : 'Oldest first',
+              icon: Icons.swap_vert_rounded,
+              selected: false,
               onTap: onToggleSort,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                child: Text(
-                  newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST',
-                  style: AppText.mono(
-                    size: 10,
-                    color: AppColors.accentLink,
-                  ),
-                ),
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1219,26 +1123,36 @@ class _ChapterRow extends StatelessWidget {
                 ),
               ),
             ),
+            // A reading log: the chapter you are in is violet, read ones
+            // step back.
             SizedBox(
-              width: 48,
+              width: 64,
               child: Text(
-                'CH ${book.number}',
-                style: AppText.mono(size: 10, color: AppColors.accentLink),
+                'CH ${formatChapterNumber(book.number)}',
+                style: AppText.mono(
+                    size: 12,
+                    color: isInProgress ? AppColors.accentLink : AppColors.text60),
               ),
             ),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    book.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.body(size: 15),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(meta, style: AppText.mono(size: 9.5)),
-                ],
+              child: Opacity(
+                opacity: book.completed ? 0.62 : 1,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      book.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.body(size: 15, weight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(isInProgress ? 'READING · $meta' : meta,
+                        style: AppText.mono(
+                            size: 10.5,
+                            color: isInProgress ? AppColors.accentLink : AppColors.text60)),
+                  ],
+                ),
               ),
             ),
             if (onRename != null)

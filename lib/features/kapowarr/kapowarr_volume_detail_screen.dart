@@ -64,13 +64,9 @@ class _KapowarrVolumeDetailScreenState extends ConsumerState<KapowarrVolumeDetai
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [AppColors.kapowarr.withValues(alpha: 0.14), AppColors.card],
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: AppColors.kapowarr.withValues(alpha: 0.2)),
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.text, width: 2),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

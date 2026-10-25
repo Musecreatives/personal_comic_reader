@@ -2,21 +2,41 @@ import 'package:flutter/material.dart';
 
 import '../../app/platform_style.dart';
 
-enum AppThemeMode { midnight, trueBlack, paper }
+/// Names are what's saved, so they stay: `paper` is shown as Washi and
+/// `trueBlack` as OLED black (DESIGN.md "Theme modes").
+enum AppThemeMode { midnight, trueBlack, paper, system }
 
-/// Accent options offered in the picker - the app's own purple plus each
-/// backend's identity color, matching the design package's ACCENT row.
-enum AccentOption { purple, komgaBlue, suwayomiGreen, kavitaAmber, danger }
+extension AppThemeModeResolve on AppThemeMode {
+  /// The palette actually drawn: System follows the device's light/dark
+  /// setting, picking Washi or Midnight.
+  AppThemeMode resolve(Brightness platform) => this != AppThemeMode.system
+      ? this
+      : (platform == Brightness.light ? AppThemeMode.paper : AppThemeMode.midnight);
+}
+
+/// Accent options offered in the picker (DESIGN.md "Accent options"). The
+/// accent is the colour of what you press; seal red is separate and fixed.
+enum AccentOption { purple, aiIndigo, matcha, yamabuki, hanko }
 
 extension AccentOptionColor on AccentOption {
   Color get color => switch (this) {
         AccentOption.purple => const Color(0xFF6E56CF),
-        AccentOption.komgaBlue => const Color(0xFF2E75C4),
-        AccentOption.suwayomiGreen => const Color(0xFF149E7C),
-        AccentOption.kavitaAmber => const Color(0xFFC9821F),
-        AccentOption.danger => const Color(0xFFD8455F),
+        AccentOption.aiIndigo => const Color(0xFF2E5E9E),
+        AccentOption.matcha => const Color(0xFF3D7A52),
+        AccentOption.yamabuki => const Color(0xFFB87410),
+        AccentOption.hanko => const Color(0xFFD23B3F),
       };
 }
+
+/// Saved accent names from before the brand change map to their nearest
+/// new option; anything unknown falls back to violet.
+AccentOption _accentFromName(String? name) => switch (name) {
+      'komgaBlue' => AccentOption.aiIndigo,
+      'suwayomiGreen' => AccentOption.matcha,
+      'kavitaAmber' => AccentOption.yamabuki,
+      'danger' => AccentOption.hanko,
+      _ => AccentOption.values.asNameMap()[name] ?? AccentOption.purple,
+    };
 
 class AppearanceSettings {
   final AppThemeMode themeMode;
@@ -59,7 +79,7 @@ class AppearanceSettings {
       };
 
   factory AppearanceSettings.fromJson(Map<String, dynamic> json) => AppearanceSettings(
-        themeMode: AppThemeMode.values.byName(json['themeMode'] as String? ?? 'midnight'),
-        accent: AccentOption.values.byName(json['accent'] as String? ?? 'purple'),
+        themeMode: AppThemeMode.values.asNameMap()[json['themeMode']] ?? AppThemeMode.midnight,
+        accent: _accentFromName(json['accent'] as String?),
       );
 }

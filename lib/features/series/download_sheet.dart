@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/design_tokens.dart';
+import '../home/home_feed.dart';
 import '../../app/motion.dart';
 import '../../core/backend/models.dart';
 import '../shared/app_sheet.dart';
@@ -55,7 +56,7 @@ class _DownloadSheetState extends State<DownloadSheet> {
   final Set<String> _picked = {};
 
   String _label(Book b) {
-    final n = b.number.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    final n = formatChapterNumber(b.number);
     final t = b.title.trim();
     final same =
         t.isEmpty ||

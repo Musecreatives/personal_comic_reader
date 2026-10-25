@@ -193,7 +193,7 @@ class _MatchRow extends StatelessWidget {
               width: 44,
               height: 64,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.zero,
                 child: SeriesCover(imageUrl: volume.thumbUrl),
               ),
             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/brand_seal.dart';
 import '../../app/design_tokens.dart';
 import '../../core/backend/reader_backend.dart';
 
@@ -22,16 +23,7 @@ class OnboardingScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.24),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.cover),
-              ),
+              const BrandSeal(size: 52),
               const SizedBox(height: 24),
               Text('Shaddai Reader', style: AppText.largeTitle(size: 32)),
               const SizedBox(height: 12),
@@ -104,7 +96,7 @@ class _SourceCard extends StatelessWidget {
     };
     return Material(
       color: AppColors.card,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,

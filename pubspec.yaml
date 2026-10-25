@@ -85,7 +85,7 @@ flutter_launcher_icons:
   # Android 13+ adaptive icon: the source art already has generous padding
   # (see the icon generator notes in ROADMAP.md/CHANGELOG), so the same
   # image works as the adaptive foreground on a plain background color.
-  adaptive_icon_background: "#6E56CF"
+  adaptive_icon_background: "#0A1420"
   adaptive_icon_foreground: "assets/icon/app_icon.png"
 
 # The following section is specific to Flutter packages.
@@ -96,8 +96,6 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  assets:
-    - assets/icon/app_icon.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

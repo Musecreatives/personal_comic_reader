@@ -224,11 +224,7 @@ class _PreviewCover extends StatelessWidget {
       height: 82,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(9),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color.withValues(alpha: 0.5), AppColors.canvas],
-        ),
+        color: Color.lerp(color, AppColors.canvas, 0.5),
       ),
       child: showBar
           ? Align(
@@ -248,21 +244,24 @@ class _ThemeTile extends StatelessWidget {
 
   String get _label => switch (mode) {
         AppThemeMode.midnight => 'Midnight',
-        AppThemeMode.trueBlack => 'True black',
-        AppThemeMode.paper => 'Paper',
+        AppThemeMode.trueBlack => 'OLED',
+        AppThemeMode.paper => 'Washi',
+        AppThemeMode.system => 'System',
       };
 
+  // System shows its two halves: Washi by day, Midnight by night.
   List<Color> get _preview => switch (mode) {
         AppThemeMode.midnight => [const Color(0xFF0A1420), const Color(0xFF111F31)],
         AppThemeMode.trueBlack => [Colors.black, const Color(0xFF101010)],
-        AppThemeMode.paper => [const Color(0xFFF4F3F7), const Color(0xFFDDE2EA)],
+        AppThemeMode.paper => [const Color(0xFFF3F3F1), const Color(0xFFE7E7E3)],
+        AppThemeMode.system => [const Color(0xFFF3F3F1), const Color(0xFF0A1420)],
       };
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.card,
-      borderRadius: BorderRadius.circular(15),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
         onTap: onTap,
