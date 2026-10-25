@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds need this declared here: only the debug and profile
+         manifests had it, so release APKs could not reach any server. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="${appLabel}"
         android:name="${applicationName}"
