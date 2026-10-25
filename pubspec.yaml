@@ -96,6 +96,13 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Brand fonts, bundled as subsets of just the characters drawn in them
+  # (the seal, the splash, the mono metadata), so a fresh install or an
+  # offline launch never falls back to the system font. google_fonts
+  # finds files named Family-Variant.ttf here before trying the network.
+  assets:
+    - assets/google_fonts/
+
 
   # To add assets to your application, add an assets section, like this:
   # assets:
