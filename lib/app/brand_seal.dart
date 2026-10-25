@@ -111,9 +111,14 @@ class LaunchSplash extends StatefulWidget {
   final Widget child;
 
   // The app subtree is rebuilt under a new key on every appearance change,
-  // so the clock lives here: a rebuilt splash picks up where the last left
-  // off, and one rebuilt after the 2.7s never shows.
-  static DateTime? _start;
+  // so progress lives here: a rebuilt splash resumes where the last one
+  // stopped, and once it has finished it never shows again. Progress only
+  // moves on drawn frames, so a slow first frame doesn't eat the animation
+  // (a wall clock did, in debug builds and behind the system splash).
+  static double _progress = 0;
+
+  @visibleForTesting
+  static void reset() => _progress = 0;
 
   @override
   State<LaunchSplash> createState() => _LaunchSplashState();
@@ -123,19 +128,27 @@ class _LaunchSplashState extends State<LaunchSplash> with SingleTickerProviderSt
   late final AnimationController _c =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 2700));
   bool _show = true;
+  bool _started = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_show || _c.isAnimating) return;
-    final start = LaunchSplash._start ??= DateTime.now();
-    final from = DateTime.now().difference(start).inMilliseconds / 2700;
-    if (from >= 1 || Motion.reduced(context)) {
+    if (!_show || _started) return;
+    if (LaunchSplash._progress >= 1 || Motion.reduced(context)) {
+      LaunchSplash._progress = 1;
       _show = false;
       return;
     }
-    _c.forward(from: from).whenComplete(() {
-      if (mounted) setState(() => _show = false);
+    _started = true;
+    _c.value = LaunchSplash._progress;
+    _c.addListener(() => LaunchSplash._progress = _c.value);
+    // Start once the first frame is on screen: Android holds its own launch
+    // screen until then, and the animation used to play out behind it.
+    WidgetsBinding.instance.waitUntilFirstFrameRasterized.then((_) {
+      if (!mounted) return;
+      _c.forward().whenComplete(() {
+        if (mounted) setState(() => _show = false);
+      });
     });
   }
 
@@ -159,7 +172,9 @@ class _LaunchSplashState extends State<LaunchSplash> with SingleTickerProviderSt
           animation: _c,
           builder: (context, _) => Opacity(
             opacity: 1 - _at(2400, 2700),
-            child: ColoredBox(
+            // A Material surface: the splash sits above every page, and text
+            // without one is drawn with the debug yellow underline.
+            child: Material(
               color: AppColors.page,
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 _mark(),
@@ -211,11 +226,14 @@ class _LaunchSplashState extends State<LaunchSplash> with SingleTickerProviderSt
             left: 0, bottom: 0, width: s * 0.48, height: s * 0.48,
             child: panel(480, outlined('读', GoogleFonts.maShanZheng(), s * 0.28)),
           ),
-          // The closed seal, pressing 読 (scale 1.7 to 1, a 12° turn).
+          // The closed seal, pressing 読 (scale 1.7 to 1, a 12° turn). Clipped
+          // to the seal: at 1.7x the glyph is wider than the block and spilled
+          // past its edges, where a stamp never prints.
           Opacity(
             opacity: closed,
             child: Container(
-              color: AppColors.seal,
+              clipBehavior: Clip.hardEdge,
+              decoration: BoxDecoration(color: AppColors.seal),
               alignment: Alignment.center,
               child: Opacity(
                 opacity: press,
