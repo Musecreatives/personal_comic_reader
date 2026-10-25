@@ -57,3 +57,8 @@ app.*.map.json
 # Playwright MCP session logs
 /.playwright-mcp/
 /PRODUCT.md
+
+# Impeccable: per-machine state (config.json and design.json are shared)
+/.impeccable/config.local.json
+/.impeccable/hook.cache.json
+/.impeccable/critique/

@@ -1,0 +1,38 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "geist",
+        "createdAt": "2026-10-24T17:16:46.565Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "geist mono",
+        "createdAt": "2026-10-24T17:16:47.305Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "black han sans",
+        "createdAt": "2026-10-24T17:16:48.050Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "dela gothic one",
+        "createdAt": "2026-10-24T17:16:48.834Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "zen kaku gothic new",
+        "createdAt": "2026-10-24T17:18:44.555Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "m plus 1 code",
+        "createdAt": "2026-10-24T17:18:45.403Z"
+      }
+    ]
+  }
+}

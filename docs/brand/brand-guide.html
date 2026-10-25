@@ -1,0 +1,1205 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shaddai Reader Brand</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Dela+Gothic+One&family=M+PLUS+1+Code:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<!-- Chinese brush face: only the glyphs the page uses are downloaded. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&text=%E7%AC%AC%E4%B8%89%E7%AB%A0%E6%BC%AB%E7%94%BB%E7%A0%B0%E7%A6%8F%E8%AF%BB%E5%A2%A8%E9%98%85%E6%B2%99%E4%BB%A3&display=swap">
+<style>
+/* Layout: a manga book. Outlined frames on paper, read in chapters, ending at the download page.
+   One world for the app and the landing page: Midnight (navy) by default, Washi (paper light).
+   Two reds and violets with separate jobs: violet is the accent for anything you press or track;
+   hanko red is seal ink (logo, stamps, curtain, chapter marks) and never a control.
+   Outlines carry structure; there are no soft shadows. */
+:root {
+  --paper: #0A1420; --paper-2: #111F31; --paper-3: #07101B;
+  --ink: #F4F3F7; --ink-2: rgba(243,246,250,.76); --ink-3: rgba(243,246,250,.62);
+  --line: rgba(143,193,232,.2); --dot: rgba(183,166,245,.2);
+  --accent: #6E56CF; --accent-text: #B7A6F5; --on-accent: #FFFFFF;
+  --seal: #D23B3F; --seal-text: #FF8588; --on-seal: #FFF8F5;
+  --danger: #FF6F93; --warn: #E0A24E;
+  --komga: #2E75C4; --suwayomi: #149E7C; --kavita: #C9821F;
+  --cover-1: #2D2145; --cover-2: #12303A; --cover-3: #12294A;
+  --jp: "Dela Gothic One", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --kr: "Black Han Sans", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --cn: "Ma Shan Zheng", "Kaiti SC", "STKaiti", "KaiTi", serif;
+  --sans: "Zen Kaku Gothic New", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "M PLUS 1 Code", ui-monospace, "Cascadia Mono", Menlo, monospace;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --frame: 3px; --control: 2px; --hair: 1px;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --paper: #F3F3F1; --paper-2: #E7E7E3; --paper-3: #DADAD4;
+    --ink: #141519; --ink-2: rgba(20,21,25,.78); --ink-3: rgba(20,21,25,.66);
+    --line: rgba(20,21,25,.16); --dot: rgba(20,21,25,.15);
+    --accent: #5B45B8; --accent-text: #4F3AA8;
+    --seal: #C9302F; --seal-text: #B3261E;
+    --danger: #A3123F; --warn: #9A5B0A;
+    --cover-1: #E3DCF2; --cover-2: #D3E1E6; --cover-3: #D6DEEC;
+    color-scheme: light;
+  }
+}
+/* .t-light / .t-dark scope a theme to one element, for side-by-side previews. */
+:root[data-theme="light"], .t-light {
+  --paper: #F3F3F1; --paper-2: #E7E7E3; --paper-3: #DADAD4;
+  --ink: #141519; --ink-2: rgba(20,21,25,.78); --ink-3: rgba(20,21,25,.66);
+  --line: rgba(20,21,25,.16); --dot: rgba(20,21,25,.15);
+  --accent: #5B45B8; --accent-text: #4F3AA8;
+  --seal: #C9302F; --seal-text: #B3261E;
+  --danger: #A3123F; --warn: #9A5B0A;
+  --cover-1: #E3DCF2; --cover-2: #D3E1E6; --cover-3: #D6DEEC;
+  color-scheme: light;
+}
+.t-dark {
+  --paper: #0A1420; --paper-2: #111F31; --paper-3: #07101B;
+  --ink: #F4F3F7; --ink-2: rgba(243,246,250,.76); --ink-3: rgba(243,246,250,.62);
+  --line: rgba(143,193,232,.2); --dot: rgba(183,166,245,.2);
+  --accent: #6E56CF; --accent-text: #B7A6F5;
+  --seal: #D23B3F; --seal-text: #FF8588;
+  --danger: #FF6F93; --warn: #E0A24E;
+  --cover-1: #2D2145; --cover-2: #12303A; --cover-3: #12294A;
+  color-scheme: dark;
+}
+.t-light, .t-dark { background: var(--paper); color: var(--ink); }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--paper); scroll-padding-top: 76px; }
+body {
+  margin: 0; min-height: 100dvh; background: var(--paper); color: var(--ink);
+  font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+::selection { background: var(--accent); color: var(--on-accent); }
+a { color: inherit; text-underline-offset: .2em; text-decoration-thickness: 1px; }
+:focus-visible { outline: 3px solid var(--accent-text); outline-offset: 3px; }
+::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-track { background: var(--paper); }
+::-webkit-scrollbar-thumb { background: var(--ink-3); border: 3px solid var(--paper); }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+code { font: 500 .9em var(--mono); }
+.wrap { position: relative; max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.tone-bg { background-image: radial-gradient(circle, var(--dot) 1.2px, transparent 1.7px); background-size: 8px 8px; }
+
+/* Header */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--paper); }
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--paper); border-bottom: var(--hair) solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 18px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; letter-spacing: -.01em; white-space: nowrap; }
+.mark { width: 30px; height: 30px; display: grid; place-items: center; background: var(--seal); color: var(--on-seal); font: 400 18px/1 var(--jp); transform: rotate(-4deg); }
+.chapters { display: flex; gap: 4px; margin-left: auto; }
+.chapters a { font: 500 13px/1 var(--mono); text-decoration: none; padding: 8px 10px; border: var(--control) solid transparent; color: var(--ink-2); white-space: nowrap; }
+.chapters a:hover { border-color: var(--line); color: var(--ink); }
+.chapters a.on { border-color: var(--ink); color: var(--ink); }
+.seg { display: inline-flex; border: var(--control) solid var(--ink); }
+.seg button { font: 600 13px/1 var(--sans); padding: 9px 12px; background: transparent; color: var(--ink); border: 0; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.icon-btn { width: 40px; height: 40px; flex: none; display: grid; place-items: center; background: transparent; color: var(--ink); border: var(--control) solid var(--ink); cursor: pointer; }
+.icon-btn svg { width: 18px; height: 18px; }
+body[data-view="brand"] .chapters { visibility: hidden; }
+
+/* Buttons. The one offset shadow in the system: hanko red under the primary action, like a seal pressed off-register. */
+.ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 24px;
+  border: var(--control) solid var(--ink); background: var(--ink); color: var(--paper); font: 700 16px/1 var(--sans);
+  text-decoration: none; white-space: nowrap; cursor: pointer; box-shadow: 5px 5px 0 var(--accent);
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease);
+}
+.btn:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--accent); }
+.btn:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--accent); }
+.btn.ghost { background: transparent; color: var(--ink); box-shadow: none; }
+.btn.ghost:hover { background: var(--paper-2); transform: none; }
+.btn.small { min-height: 40px; padding: 0 16px; font-size: 14px; box-shadow: none; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; padding-block: 48px 72px; }
+.hero h1 { font: 900 clamp(42px, 5.6vw, 76px)/1.04 var(--sans); letter-spacing: -.035em; }
+.hero .lede { color: var(--ink-2); font-size: 19px; max-width: 34ch; margin: 22px 0 32px; }
+.hint { margin-top: 28px; font: 500 13px/1.6 var(--mono); color: var(--ink-3); max-width: 42ch; }
+.stage { position: relative; aspect-ratio: 4 / 4.4; max-width: 100%; border: var(--frame) solid var(--ink); background: var(--paper-2); overflow: hidden; touch-action: pan-y; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; z-index: 2; }
+.stage canvas:active { cursor: grabbing; }
+.stage .rod { position: absolute; top: 0; left: 0; right: 0; height: 10px; background: var(--ink); z-index: 3; }
+.stage .part { position: absolute; right: 12px; bottom: 12px; z-index: 4; }
+.stage.open .part { display: none; }
+.stage.open canvas { pointer-events: none; }
+
+/* App preview: the real Home layout in the new brand, not a screenshot. */
+.app { position: absolute; inset: 10px 0 0; padding: 22px 20px 0; display: flex; flex-direction: column; gap: 14px; background: var(--paper); font-size: 14px; }
+.app .bar { display: flex; justify-content: space-between; align-items: center; }
+.app .title { font: 700 26px/1.05 var(--sans); letter-spacing: -.02em; }
+.label { font: 500 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.resume { display: grid; grid-template-columns: 92px 1fr; gap: 14px; padding: 12px; border: var(--control) solid var(--ink); background: var(--paper-2); }
+.cover { position: relative; aspect-ratio: 2 / 3; border: var(--control) solid var(--ink); overflow: hidden; display: grid; align-content: end; padding: 8px; }
+.cover b { position: relative; font: 400 15px/1.05 var(--jp); color: var(--ink); }
+.cover::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, var(--dot) 1.1px, transparent 1.6px) 0 0 / 6px 6px; }
+.cover i { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; background: var(--seal); }
+.c1 { background-color: var(--cover-1); } .c2 { background-color: var(--cover-2); } .c3 { background-color: var(--cover-3); }
+.resume h4 { margin: 0 0 4px; font: 700 17px/1.2 var(--sans); }
+.meta { font: 500 12px/1.4 var(--mono); color: var(--ink-3); }
+.track { height: 4px; background: var(--line); margin: 12px 0; }
+.track span { display: block; height: 100%; width: 62%; background: var(--accent); }
+.shelf { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.shelf .cover { padding: 6px; } .shelf .cover b { font-size: 12px; }
+.tabbar { margin-top: auto; display: grid; grid-template-columns: repeat(5, 1fr); border-top: var(--control) solid var(--ink); background: var(--paper); }
+.tabbar span { display: grid; justify-items: center; gap: 4px; padding: 10px 0 12px; font: 500 10px/1 var(--mono); color: var(--ink-3); }
+.tabbar span svg { width: 20px; height: 20px; }
+.tabbar span.on { color: var(--ink); }
+.tabbar span.on::after { content: ""; width: 18px; height: 3px; background: var(--accent); order: -1; }
+.phone .tabbar { margin: 4px -16px -16px; }
+.ref-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 10px; border-bottom: var(--hair) solid var(--line); }
+.ref-head b { font: 700 22px/1.1 var(--sans); letter-spacing: -.02em; }
+
+/* Chapters */
+.chapter { position: relative; padding-block: 96px; border-top: var(--frame) solid var(--ink); }
+.ch-head { display: flex; align-items: flex-end; gap: 24px; margin-bottom: 40px; }
+.ch-no { font: 400 clamp(44px, 6vw, 80px)/1 var(--jp); color: var(--seal-text); white-space: nowrap; }
+.ch-no.kr { font-family: var(--kr); } .ch-no.cn { font-family: var(--cn); }
+.ch-head h2 { font: 900 clamp(30px, 3.6vw, 46px)/1.08 var(--sans); letter-spacing: -.03em; }
+.ch-head p { color: var(--ink-2); margin-top: 8px; max-width: 52ch; }
+
+/* Chapter 1: a right-to-left page. Numbers show reading order, because order is the lesson. */
+.rtl { position: relative; direction: rtl; display: grid; gap: 12px; grid-template-columns: 1.3fr 1fr; grid-template-rows: 230px 230px; }
+.rtl > * { direction: ltr; }
+.pnl { position: relative; overflow: hidden; border: var(--frame) solid var(--ink); background-color: var(--paper); padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; }
+.rtl .pnl:first-child { grid-row: span 2; }
+.pnl .order { position: absolute; top: 12px; right: 14px; font: 600 13px/1 var(--mono); color: var(--ink-3); }
+.pnl h3 { position: relative; font: 700 21px/1.2 var(--sans); letter-spacing: -.01em; }
+.pnl p { position: relative; color: var(--ink-2); margin-top: 6px; max-width: 34ch; }
+.speed { position: absolute; inset: -60%; background: repeating-conic-gradient(from 0deg at 50% 50%, var(--ink) 0deg .5deg, transparent .5deg 4.5deg); -webkit-mask: radial-gradient(circle, transparent 18%, #000 60%); mask: radial-gradient(circle, transparent 18%, #000 60%); opacity: .2; }
+.big-glyph { position: absolute; top: 9%; left: 50%; transform: translateX(-50%); font: 400 clamp(80px, 11vw, 150px)/1 var(--jp); writing-mode: vertical-rl; color: var(--ink); }
+.arrow-rtl { display: flex; align-items: center; gap: 10px; margin-top: 18px; font: 500 13px/1 var(--mono); color: var(--ink-3); }
+.arrow-rtl svg { width: 60px; height: 14px; }
+.seal-press { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; display: grid; place-items: center; border: 4px solid var(--seal); color: var(--seal); font: 400 34px/1 var(--jp); pointer-events: none; opacity: .88; z-index: 2; }
+
+/* Hidden sound effects: real buttons, styled as part of the art. */
+.sfx { position: absolute; z-index: 3; background: none; border: 0; padding: 4px; cursor: pointer; color: var(--ink); font: 400 30px/1 var(--jp); -webkit-text-stroke: 1px var(--paper); paint-order: stroke; transition: transform .3s var(--ease), color .2s; }
+.sfx:hover { scale: 1.15; }
+.sfx.got { color: var(--seal-text); }
+.sfx.kr { font-family: var(--kr); } .sfx.cn { font-family: var(--cn); font-size: 40px; }
+
+/* Chapter 2: webtoon strip + hangul builder */
+.ch2 { display: grid; grid-template-columns: 1fr 360px; gap: 48px; align-items: start; }
+.strip { display: grid; gap: 36px; }
+.strip .pnl { min-height: 280px; }
+.strip .pnl:nth-child(2) { min-height: 360px; }
+.bubble-s { position: relative; align-self: flex-start; max-width: 30ch; padding: 14px 18px; border: var(--control) solid var(--ink); border-radius: 26px; background: var(--paper); font-weight: 500; margin-bottom: auto; color: var(--ink) !important; }
+.bubble-s::after { content: ""; position: absolute; bottom: -10px; left: 32px; width: 16px; height: 16px; background: var(--paper); border-right: var(--control) solid var(--ink); border-bottom: var(--control) solid var(--ink); transform: rotate(45deg); }
+.rain { position: absolute; inset: 0; background: repeating-linear-gradient(100deg, transparent 0 18px, var(--line) 18px 19px); }
+.sticky { position: sticky; top: 96px; display: grid; gap: 20px; }
+.hangul { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.jamo { position: relative; aspect-ratio: 1; border: var(--frame) solid var(--ink); background: var(--paper); cursor: pointer; font: inherit; color: var(--ink); overflow: hidden; }
+.jamo .parts { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6px; font: 400 44px/1 var(--kr); transition: transform .5s var(--ease), opacity .35s, letter-spacing .5s var(--ease); }
+.jamo .whole { position: absolute; inset: 0; display: grid; place-items: center; font: 400 110px/1 var(--kr); color: var(--accent-text); opacity: 0; transform: scale(.6); transition: transform .5s var(--ease), opacity .3s .1s; }
+.jamo:hover .parts, .jamo:focus-visible .parts, .jamo.built .parts { transform: scale(.4); opacity: 0; letter-spacing: -40px; }
+.jamo:hover .whole, .jamo:focus-visible .whole, .jamo.built .whole { opacity: 1; transform: none; }
+.jamo small { position: absolute; left: 10px; bottom: 8px; font: 500 11px/1 var(--mono); color: var(--ink-3); }
+
+/* Chapter 3: ink paper, lantern, chop */
+.ch3 { position: relative; display: grid; grid-template-columns: 1fr 300px; gap: 40px; align-items: stretch; }
+.paper { position: relative; min-height: 440px; border: var(--frame) solid var(--ink); background: var(--paper-2); overflow: hidden; touch-action: pan-y; }
+.paper canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.paper .verse { position: absolute; left: 28px; bottom: 26px; right: 28px; pointer-events: none; }
+.paper .verse h3 { font: 400 clamp(56px, 8vw, 104px)/1 var(--cn); color: var(--ink); }
+.paper .verse p { color: var(--ink-2); max-width: 40ch; margin-top: 10px; }
+.paper .tip { position: absolute; top: 16px; left: 20px; font: 500 12px/1 var(--mono); color: var(--ink-3); pointer-events: none; }
+.side { display: grid; grid-template-rows: auto 1fr; gap: 24px; }
+.lantern-wrap { position: relative; height: 260px; border: var(--frame) solid var(--ink); background: var(--paper); overflow: hidden; }
+.lantern { position: absolute; top: 0; left: 50%; width: 120px; margin-left: -60px; transform-origin: 50% 0; cursor: grab; touch-action: none; }
+.lantern .cord { width: 2px; height: 46px; margin: 0 auto; background: var(--ink); }
+.lantern .cap { width: 60px; height: 12px; margin: 0 auto; background: var(--ink); }
+.lantern .body { position: relative; width: 120px; height: 120px; border-radius: 46%; background: radial-gradient(circle at 50% 42%, #E65A4F, #D23B3F 62%, #8E1F22); display: grid; place-items: center; overflow: hidden; }
+.lantern .body::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 18px, rgba(0,0,0,.18) 18px 20px); }
+.lantern .body b { position: relative; font: 400 52px/1 var(--cn); color: #FFE9C7; }
+.lantern .tassel { width: 10px; height: 40px; margin: 0 auto; background: repeating-linear-gradient(90deg, var(--seal) 0 2px, transparent 2px 3px); }
+.chop-box { display: grid; gap: 14px; align-content: start; padding: 20px; border: var(--frame) solid var(--ink); background: var(--paper); }
+.chop { width: 88px; height: 88px; display: grid; place-items: center; background: var(--seal); color: var(--on-seal); font: 400 58px/1 var(--cn); border: 0; cursor: pointer; transform: rotate(3deg); transition: transform .2s var(--ease); }
+.chop:active { transform: rotate(3deg) translateY(4px) scale(.96); }
+.chops { display: flex; flex-wrap: wrap; gap: 6px; min-height: 40px; }
+.chops span { width: 38px; height: 38px; display: grid; place-items: center; background: var(--seal); color: var(--on-seal); font: 400 25px/1 var(--cn); }
+
+/* Final chapter: downloads */
+.page { display: grid; gap: 12px; grid-template-columns: 1.3fr 1fr 1fr; grid-template-areas: "android ios ios" "android windows web"; }
+.dev { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; min-height: 170px; padding: 18px 20px; border: var(--frame) solid var(--ink); background: var(--paper); color: var(--ink); text-align: left; font: inherit; cursor: pointer; transition: transform .3s var(--ease); }
+.dev[data-dl="android"] { grid-area: android; min-height: 352px; } .dev[data-dl="ios"] { grid-area: ios; }
+.dev[data-dl="windows"] { grid-area: windows; } .dev[data-dl="web"] { grid-area: web; }
+.dev:hover { transform: rotate(-.6deg) translateY(-3px); }
+.dev svg { position: absolute; top: 18px; right: 18px; width: 40px; height: 40px; }
+.dev strong { font-size: 21px; letter-spacing: -.01em; }
+.dev .meta { margin-top: 2px; }
+.dev[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.dev[aria-pressed="true"] .meta { color: var(--paper); opacity: .72; }
+.dev[aria-pressed="true"] svg { color: var(--accent); }
+.bubble { position: relative; margin: 30px 0 0 min(12%, 120px); max-width: 640px; padding: 28px 32px; border: var(--frame) solid var(--ink); border-radius: 28px; background: var(--paper); }
+.bubble::after { content: ""; position: absolute; top: -16px; left: 64px; width: 28px; height: 28px; background: var(--paper); border-left: var(--frame) solid var(--ink); border-top: var(--frame) solid var(--ink); transform: rotate(45deg); }
+.bubble h3 { font: 700 24px/1.15 var(--sans); letter-spacing: -.02em; margin-bottom: 6px; }
+.bubble p { color: var(--ink-2); } .bubble .ctas { margin-top: 18px; }
+.bubble ol { margin: 18px 0 0; padding-left: 20px; color: var(--ink-2); }
+.ticket { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; margin-bottom: 40px; padding: 26px 28px; border: var(--frame) solid var(--ink); background: var(--paper-2); }
+.ticket .kanji { writing-mode: vertical-rl; font: 400 44px/1 var(--jp); color: var(--seal-text); }
+.ticket h3 { font: 700 26px/1.15 var(--sans); }
+.ticket p { color: var(--ink-2); margin-top: 4px; }
+.code { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 16px; }
+.code span { font: 600 clamp(22px, 3.4vw, 30px)/1.1 var(--mono); letter-spacing: .06em; padding: 10px 16px; border: var(--control) dashed var(--ink); background: var(--paper); user-select: all; }
+.demo-link { background: none; border: 0; padding: 0; color: var(--ink-3); font: 500 13px/1.4 var(--mono); text-decoration: underline; text-underline-offset: .2em; cursor: pointer; margin-bottom: 20px; }
+
+/* Stamp card: fixed, never in the way of a download. */
+.card { position: fixed; z-index: 15; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: var(--control) solid var(--ink); background: var(--paper); }
+.card .slots { display: flex; gap: 6px; }
+.slot { width: 38px; height: 38px; display: grid; place-items: center; border: var(--control) dashed var(--ink-3); font: 400 13px/1 var(--jp); color: var(--ink-3); }
+.slot.kr { font-family: var(--kr); font-size: 18px; } .slot.cn { font-family: var(--cn); font-size: 22px; }
+.slot.got { border: var(--control) solid var(--seal); background: var(--seal); color: var(--on-seal); transform: rotate(-6deg); }
+.card p { font: 500 12px/1.35 var(--mono); color: var(--ink-2); max-width: 18ch; }
+body[data-view="brand"] .card { display: none; }
+.reveal { display: none; position: relative; margin-bottom: 40px; padding: 30px; border: var(--frame) solid var(--seal); background: var(--paper-2); overflow: hidden; }
+.reveal.on { display: grid; grid-template-columns: auto 1fr; gap: 26px; align-items: center; }
+.reveal .full { width: 110px; height: 110px; display: grid; place-items: center; border: 5px solid var(--seal); color: var(--seal-text); font: 400 64px/1 var(--jp); transform: rotate(-10deg); }
+.reveal h3 { font: 900 30px/1.1 var(--sans); letter-spacing: -.02em; }
+.reveal p { color: var(--ink-2); margin-top: 6px; }
+
+/* Ink cursor (fine pointers only, never with reduced motion) */
+.ink-cursor { position: fixed; top: 0; left: 0; z-index: 50; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--ink); pointer-events: none; display: none; place-items: center; color: var(--on-seal); font: 400 0px/1 var(--jp); transition: width .25s var(--ease), height .25s var(--ease), margin .25s var(--ease), background-color .2s, font-size .2s; }
+html.inked .ink-cursor { display: grid; }
+html.inked, html.inked a, html.inked button, html.inked canvas { cursor: none !important; }
+.ink-cursor.link { width: 40px; height: 40px; margin: -20px 0 0 -20px; background: var(--seal); font-size: 20px; }
+
+footer { padding-block: 64px calc(96px + env(safe-area-inset-bottom, 0px)); color: var(--ink-3); font-size: 14px; border-top: var(--hair) solid var(--line); }
+
+/* ---------- Brand guide ---------- */
+#brand { padding-block: 56px 96px; }
+.bg-hero { display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: end; padding-bottom: 48px; border-bottom: var(--frame) solid var(--ink); }
+.bg-hero h1 { font: 900 clamp(40px, 5vw, 68px)/1.05 var(--sans); letter-spacing: -.035em; }
+.bg-hero p { color: var(--ink-2); font-size: 18px; max-width: 58ch; margin-top: 16px; }
+.bg-seal { width: 132px; height: 132px; display: grid; place-items: center; background: var(--seal); color: var(--on-seal); font: 400 84px/1 var(--jp); transform: rotate(-4deg); }
+.bg-sec { display: grid; grid-template-columns: 220px 1fr; gap: 40px; padding-block: 56px; border-bottom: var(--hair) solid var(--line); }
+.bg-sec > h2 { font: 700 24px/1.2 var(--sans); letter-spacing: -.02em; }
+.bg-sec > h2 small { display: block; margin-top: 8px; font: 400 15px/1.5 var(--sans); color: var(--ink-3); letter-spacing: 0; }
+.bg-body { display: grid; gap: 28px; min-width: 0; }
+.bg-body > p { color: var(--ink-2); max-width: 64ch; }
+.modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.mode { border: var(--frame) solid; padding: 16px; display: grid; gap: 10px; min-height: 196px; align-content: space-between; }
+.mode h3 { font: 700 18px/1.1 var(--sans); }
+.mode .jp { font: 400 26px/1 var(--jp); }
+.mode .chips { display: flex; gap: 4px; }
+.mode .chips i { width: 22px; height: 22px; border: 1px solid currentColor; }
+.mode .meta { color: inherit; opacity: .75; }
+.mode.sumi { background: #0A1420; color: #F4F3F7; border-color: #F4F3F7; }
+.mode.washi { background: #F3F3F1; color: #141519; border-color: #141519; }
+.mode.oled { background: #000; color: #EDEDEA; border-color: #EDEDEA; }
+.mode.system { background: linear-gradient(135deg, #F3F3F1 50%, #0A1420 50%); color: #141519; border-color: var(--ink); }
+.mode.system .tag { background: #F3F3F1; justify-self: start; padding-right: 8px; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.sw { border: var(--control) solid var(--ink); }
+.sw div { height: 72px; border-bottom: var(--control) solid var(--ink); }
+.sw p { padding: 10px 12px; font: 500 12px/1.5 var(--mono); color: var(--ink-2); }
+.sw p b { display: block; font: 700 14px/1.3 var(--sans); color: var(--ink); }
+.accents { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 12px; }
+.acc { border: var(--control) solid var(--ink); padding: 14px; display: grid; gap: 8px; }
+.acc i { width: 100%; aspect-ratio: 1; display: grid; place-items: center; color: #fff; font: 400 34px/1 var(--jp); font-style: normal; }
+.acc b { font-weight: 700; } .acc .meta { font-size: 11px; }
+.type-row { display: grid; grid-template-columns: 180px 1fr; gap: 24px; align-items: baseline; padding-block: 18px; border-top: var(--hair) solid var(--line); }
+.type-row .meta { font-size: 12px; }
+.strokes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stroke { padding: 18px; display: grid; gap: 10px; align-content: start; background: var(--paper-2); }
+.stroke b { font-weight: 700; }
+.stroke p { color: var(--ink-2); font-size: 14px; }
+.demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.phone { border: var(--frame) solid var(--ink); background: var(--paper); padding: 16px; display: grid; gap: 14px; align-content: start; }
+.empty { display: grid; justify-items: center; text-align: center; gap: 10px; padding: 28px 16px; border: var(--control) solid var(--ink); }
+.empty .jp { font: 400 40px/1 var(--jp); color: var(--seal-text); }
+.empty p { color: var(--ink-2); font-size: 14px; max-width: 30ch; }
+.pill { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: var(--control) solid var(--ink); background: var(--paper-2); }
+.pill .cover { width: 34px; padding: 0; flex: none; }
+.pill div { flex: 1; min-width: 0; }
+.pill b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.err { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: var(--control) solid var(--danger); color: var(--ink); font-size: 14px; }
+.err svg { flex: none; width: 20px; height: 20px; color: var(--danger); margin-top: 1px; }
+.err b { color: var(--danger); }
+.picker { display: grid; grid-template-columns: repeat(4, 1fr); border: var(--control) solid var(--ink); }
+.picker span { padding: 10px 4px; text-align: center; font: 600 13px/1 var(--sans); border-left: var(--control) solid var(--ink); }
+.picker span:first-child { border-left: 0; }
+.picker span.on { background: var(--ink); color: var(--paper); }
+.dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dos > div { padding: 18px 20px; border: var(--control) solid var(--ink); }
+.dos h3 { font: 700 17px/1.2 var(--sans); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.dos h3 svg { width: 18px; height: 18px; }
+.dos ul { margin: 0; padding-left: 18px; color: var(--ink-2); display: grid; gap: 6px; font-size: 15px; }
+.map { overflow-x: auto; border: var(--control) solid var(--ink); }
+.map table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 14px; }
+.map th, .map td { text-align: left; padding: 10px 14px; border-bottom: var(--hair) solid var(--line); }
+.map th { font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.map tr:last-child td { border-bottom: 0; }
+.motion-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.motion-list > div { padding: 16px; border: var(--control) solid var(--ink); display: grid; gap: 6px; align-content: start; }
+.motion-list b { font-weight: 700; } .motion-list p { color: var(--ink-2); font-size: 14px; }
+.motion-list .demo { height: 64px; display: grid; place-items: center; background: var(--paper-2); overflow: hidden; margin-bottom: 6px; }
+.mini-seal { width: 36px; height: 36px; display: grid; place-items: center; border: 3px solid var(--seal); color: var(--seal); font: 400 18px/1 var(--jp); }
+.mini-tone { width: 100%; height: 100%; background-image: radial-gradient(circle, var(--ink) 1.4px, transparent 1.9px); background-size: 8px 8px; }
+.mini-turn { width: 30px; height: 40px; border: var(--control) solid var(--ink); background: var(--paper); transform-origin: left center; }
+
+/* Logo */
+.jpf { font-family: var(--jp); } .krf { font-family: var(--kr); } .cnf { font-family: var(--cn); }
+.lat { font: 900 46px/1 var(--sans); letter-spacing: -.035em; white-space: nowrap; }
+.logo-hero { display: flex; align-items: center; gap: 28px; padding: 40px; border: var(--frame) solid var(--ink); background: var(--paper-2); overflow: hidden; }
+/* Consolidated mark: rest state is the pressed seal; animation is opt-in below. 1em = mark width. */
+.lmk { position: relative; width: 1em; height: 1em; flex: none; font-size: 124px; transform: rotate(-4deg); }
+.lmk > * { position: absolute; box-sizing: border-box; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.l-red { inset: 0; background: var(--seal); }
+.l-gs { left: 52%; right: 0; top: 0; bottom: 0; writing-mode: vertical-rl; color: var(--on-seal); opacity: 0; }
+.l-gs span { font-size: .3em; }
+.l-pt, .l-pb { left: 0; width: 48%; height: 48%; border: .022em solid var(--ink); opacity: 0; }
+.l-pt { top: 0; } .l-pb { bottom: 0; }
+.l-pt span { font-size: .24em; } .l-pb span { font-size: .28em; }
+.l-gb { inset: 0; color: var(--on-seal); } .l-gb span { font-size: .62em; }
+.lwm { position: relative; height: 60px; flex: 1; min-width: 0; }
+.lwm > * { position: absolute; inset: 0; display: flex; align-items: center; white-space: nowrap; opacity: 0; }
+.lwm > .l-wl { opacity: 1; }
+.l-wj { font-size: 40px; } .l-wk { font-size: 46px; } .l-wc { font-size: 54px; }
+@keyframes l-mk { 0%, 54% { transform: rotate(0) scale(1); } 59% { transform: rotate(-4deg) scale(.9); } 63% { transform: rotate(-4deg) scale(1.04); } 67%, 100% { transform: rotate(-4deg) scale(1); } }
+@keyframes l-red { 0%, 4% { clip-path: inset(0 0 100% 52%); } 12%, 50% { clip-path: inset(0 0 0 52%); } 57%, 96% { clip-path: inset(0); } 100% { clip-path: inset(0 0 100% 0); } }
+@keyframes l-gs { 0%, 6% { opacity: 0; } 11%, 50% { opacity: 1; } 54%, 100% { opacity: 0; } }
+@keyframes l-pt { 0%, 16% { opacity: 1; clip-path: inset(0 0 100% 0); } 23%, 50% { opacity: 1; clip-path: inset(0); } 55%, 100% { opacity: 0; clip-path: inset(0); } }
+@keyframes l-pb { 0%, 28% { opacity: 1; clip-path: inset(0 0 100% 0); } 35%, 50% { opacity: 1; clip-path: inset(0); } 55%, 100% { opacity: 0; clip-path: inset(0); } }
+@keyframes l-gb { 0%, 56% { opacity: 0; transform: scale(1.7) rotate(-12deg); } 61%, 96% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes l-wj { 0%, 5% { opacity: 0; transform: translateY(40%); } 9%, 17% { opacity: 1; transform: none; } 20%, 100% { opacity: 0; transform: translateY(-40%); } }
+@keyframes l-wk { 0%, 18% { opacity: 0; transform: translateY(40%); } 22%, 29% { opacity: 1; transform: none; } 32%, 100% { opacity: 0; transform: translateY(-40%); } }
+@keyframes l-wc { 0%, 30% { opacity: 0; transform: translateY(40%); } 34%, 48% { opacity: 1; transform: none; } 52%, 100% { opacity: 0; transform: translateY(-40%); } }
+@keyframes l-wl { 0%, 55% { opacity: 0; transform: translateY(40%); } 61%, 96% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.cyc { position: relative; }
+.cyc > * { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; white-space: nowrap; }
+.cyc > :first-child { opacity: 1; }
+.seal-turn .cyc { width: 120px; height: 120px; }
+.seal-turn .cyc > * { justify-content: center; font-size: 76px; line-height: 1; }
+.seal-turn .cyc > .krf { font-size: 82px; } .seal-turn .cyc > .cnf { font-size: 92px; }
+.cyc.name { height: 60px; flex: 1; min-width: 0; }
+.cyc.name > .jpf { font-size: 40px; } .cyc.name > .krf { font-size: 46px; } .cyc.name > .cnf { font-size: 54px; }
+.alts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.alts > div { padding: 16px; border: var(--control) solid var(--ink); display: grid; gap: 6px; align-content: start; }
+.alts p { color: var(--ink-2); font-size: 14px; }
+.alt-demo { height: 110px; display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--paper-2); margin-bottom: 6px; overflow: hidden; }
+.panels { width: 84px; height: 84px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; }
+.panels span { display: grid; place-items: center; border: var(--control) solid var(--ink); font-size: 22px; }
+.panels .p1 { grid-column: 2; grid-row: 1 / span 2; background: var(--seal); color: var(--on-seal); }
+.panels .p2 { grid-column: 1; grid-row: 1; } .panels .p3 { grid-column: 1; grid-row: 2; font-size: 26px; }
+.bub { width: 96px; height: 76px; border: var(--frame) solid var(--ink); border-radius: 50% / 46%; color: var(--seal-text); }
+.bub .cyc { width: 100%; height: 100%; } .bub .cyc > * { justify-content: center; font-size: 40px; }
+.mini-mark { width: 44px; height: 44px; display: grid; place-items: center; background: var(--seal); color: var(--on-seal); font-size: 28px; transform: rotate(-4deg); }
+@keyframes turn { 0% { opacity: 0; transform: scale(1.7) rotate(-12deg); } 4% { opacity: 1; transform: none; } 22% { opacity: 1; } 25%, 100% { opacity: 0; } }
+@keyframes roll { 0% { opacity: 0; transform: translateY(40%); } 5% { opacity: 1; transform: none; } 22% { opacity: 1; } 25%, 100% { opacity: 0; transform: translateY(-40%); } }
+@keyframes presss { 0% { transform: rotate(-4deg) scale(1); } 3% { transform: rotate(-4deg) scale(.9); } 8% { transform: rotate(-4deg) scale(1.04); } 12%, 100% { transform: rotate(-4deg) scale(1); } }
+@keyframes ink-in { 0% { clip-path: inset(0 0 100% 0); } 8%, 86% { clip-path: inset(0); } 94%, 100% { clip-path: inset(0 0 100% 0); } }
+
+/* Motion */
+@media (prefers-reduced-motion: no-preference) {
+  .speed { animation: spin 90s linear infinite; }
+  .pop { animation: pop .45s var(--ease); }
+  .stamp-in { animation: stamp .5s var(--ease); }
+  .seal-press { animation: stamp .45s var(--ease); }
+  .mini-seal { animation: stamp 2.4s var(--ease) infinite; }
+  .mini-tone { animation: tone 2.4s var(--ease) infinite alternate; }
+  .mini-turn { animation: pageturn 2.4s var(--ease) infinite; }
+  .cyc > * { animation: turn 8s var(--ease) infinite backwards; }
+  .cyc.name > * { animation-name: roll; }
+  .cyc > :nth-child(2) { animation-delay: 2s; } .cyc > :nth-child(3) { animation-delay: 4s; } .cyc > :nth-child(4) { animation-delay: 6s; }
+  .lmk { animation: l-mk 5s var(--ease) infinite; }
+  .l-red, .l-gs, .l-pt, .l-pb, .l-gb, .lwm > * { animation: l-red 5s var(--ease) infinite; }
+  .l-gs { animation-name: l-gs; } .l-pt { animation-name: l-pt; } .l-pb { animation-name: l-pb; } .l-gb { animation-name: l-gb; }
+  .l-wj { animation-name: l-wj; } .l-wk { animation-name: l-wk; } .l-wc { animation-name: l-wc; } .lwm > .l-wl { animation-name: l-wl; }
+  @supports (animation-timeline: view()) {
+    .strip .pnl { animation: rise linear both; animation-timeline: view(); animation-range: entry 0% cover 28%; }
+  }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { from { opacity: 0; transform: scale(.96) translateY(6px); } }
+@keyframes stamp { 0% { opacity: 0; scale: 1.9; } 30%, 100% { opacity: .9; scale: 1; } }
+@keyframes rise { from { opacity: .2; transform: translateY(48px) scale(.97); } }
+@keyframes tone { from { background-size: 8px 8px; opacity: .25; } to { background-size: 5px 5px; opacity: .8; } }
+@keyframes pageturn { 0%, 20% { transform: perspective(200px) rotateY(0); } 60%, 100% { transform: perspective(200px) rotateY(-160deg); } }
+
+@media (max-width: 960px) {
+  .chapters { display: none; }
+  .seg { margin-left: auto; }
+  .hero, .ch2, .ch3 { grid-template-columns: 1fr; }
+  .hero { padding-block: 24px 56px; gap: 32px; }
+  .stage { aspect-ratio: auto; height: 560px; }
+  .sticky { position: static; }
+  .modes { grid-template-columns: repeat(2, 1fr); }
+  .bg-sec { grid-template-columns: 1fr; gap: 20px; }
+  .motion-list, .strokes, .alts { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .logo-hero { flex-direction: column; align-items: flex-start; padding: 24px; }
+  .lwm { width: 100%; flex: none; height: 48px; }
+  .lat { font-size: 34px; } .l-wj { font-size: 28px; } .l-wk { font-size: 34px; } .l-wc { font-size: 40px; }
+}
+@media (max-width: 640px) {
+  .top .wrap { gap: 10px; }
+  .brand > span:last-child { display: none; }
+  .rtl { grid-template-columns: 1fr; grid-template-rows: 300px 200px 200px; }
+  .rtl .pnl:first-child { grid-row: auto; }
+  .page { grid-template-columns: 1fr 1fr; grid-template-areas: "android android" "ios ios" "windows web"; }
+  .dev[data-dl="android"] { min-height: 200px; }
+  .bubble { margin-left: 0; padding: 24px 20px; }
+  .ticket, .reveal.on { grid-template-columns: 1fr; gap: 12px; padding: 22px 18px; }
+  .ticket .kanji { writing-mode: horizontal-tb; font-size: 30px; }
+  .ch-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .demo-grid, .dos { grid-template-columns: 1fr; }
+  .bg-hero { grid-template-columns: 1fr; } .bg-seal { width: 88px; height: 88px; font-size: 56px; order: -1; }
+  .type-row { grid-template-columns: 1fr; gap: 6px; }
+  .card p { display: none; }
+  .ctas .btn { width: 100%; }
+}
+@media (max-width: 420px) {
+  .page { grid-template-columns: 1fr; grid-template-areas: "android" "ios" "windows" "web"; }
+  .shelf { grid-template-columns: repeat(2, 1fr); } .shelf .cover:nth-child(3) { display: none; }
+  .stage { height: 520px; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 10.5 12 4l8 6.5V20h-5v-6H9v6H4z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></g></symbol>
+    <symbol id="i-lib" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="m15.5 5 3.6-.9 3 15.5-3.6.9z"/></g></symbol>
+    <symbol id="i-hist" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></g></symbol>
+    <symbol id="i-set" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></g></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></g></symbol>
+    <symbol id="i-auto" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></g></symbol>
+    <symbol id="i-android" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="1"/><path d="M10.5 18.5h3"/></g></symbol>
+    <symbol id="i-tablet" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="2.5" width="16" height="19" rx="1"/><circle cx="12" cy="18.3" r=".6" fill="currentColor"/></g></symbol>
+    <symbol id="i-win" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13"/><path d="M8 21h8M12 17v4"/></g></symbol>
+    <symbol id="i-web" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></g></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19z"/><path d="M12 10v4.5M12 17.5v.1"/></g></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.5 5 5 10-11"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m6 6 12 12M18 6 6 18"/></symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top"><span class="mark" aria-hidden="true">読</span><span>Shaddai Reader</span></a>
+    <nav class="chapters" aria-label="Chapters">
+      <a href="#ch1">第1話 Manga</a><a href="#ch2">제2화 Manhwa</a><a href="#ch3">第三章 Manhua</a><a href="#get">Get it</a>
+    </nav>
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" id="v-land" aria-pressed="true">Landing</button>
+      <button type="button" id="v-brand" aria-pressed="false">Brand guide</button>
+    </div>
+    <button type="button" class="icon-btn" id="theme" aria-label="Theme: follow system"><svg><use href="#i-auto"/></svg></button>
+  </div>
+</header>
+
+<main id="landing">
+  <div class="wrap" id="top">
+    <section class="hero">
+      <div>
+        <h1>Every chapter, on every screen.</h1>
+        <p class="lede">Comics, manga and manhwa from the shared library. Read online, or download chapters for the road.</p>
+        <div class="ctas">
+          <a class="btn" id="hero-cta" href="#get">Get the app</a>
+          <a class="btn ghost" href="#get">Other devices</a>
+        </div>
+        <p class="hint">Drag the curtain apart to step inside. Each chapter below hides a sound effect, the manga version of BOOM: ドン, 쾅 and 砰. Find all three.</p>
+      </div>
+      <div class="stage" id="stage">
+        <div class="app" aria-label="Preview of the app's Home screen">
+          <div class="bar"><span class="title">Home</span><span class="meta">3 SERVERS</span></div>
+          <span class="label">Continue reading</span>
+          <div class="resume">
+            <div class="cover c1"><i></i><b>月の<br>剣</b></div>
+            <div>
+              <h4>Moon Sword</h4>
+              <span class="meta">CH. 41 · PAGE 12 OF 19</span>
+              <div class="track"><span></span></div>
+              <a class="btn small" href="#get">Resume</a>
+            </div>
+          </div>
+          <span class="label">Also in progress</span>
+          <div class="shelf">
+            <div class="cover c2"><b>밤의<br>정원</b></div>
+            <div class="cover c3"><b>Iron<br>Tide</b></div>
+            <div class="cover c1"><b>山の<br>声</b></div>
+          </div>
+          <nav class="tabbar" aria-hidden="true">
+            <span class="on"><svg><use href="#i-home"/></svg>Home</span>
+            <span><svg><use href="#i-search"/></svg>Search</span>
+            <span><svg><use href="#i-lib"/></svg>Library</span>
+            <span><svg><use href="#i-hist"/></svg>History</span>
+            <span><svg><use href="#i-set"/></svg>Settings</span>
+          </nav>
+        </div>
+        <canvas id="noren" aria-hidden="true"></canvas>
+        <div class="rod" aria-hidden="true"></div>
+        <button type="button" class="btn small part" id="part">Part the curtain</button>
+      </div>
+    </section>
+  </div>
+
+  <section class="chapter" id="ch1" aria-labelledby="ch1-h">
+    <div class="wrap">
+      <div class="ch-head">
+        <span class="ch-no" aria-hidden="true">第1話</span>
+        <div>
+          <h2 id="ch1-h">Reads the way it was drawn.</h2>
+          <p>Manga turns right to left, comics left to right. Tap anywhere on this page to press a seal.</p>
+        </div>
+      </div>
+      <div class="rtl" id="hanko-zone">
+        <div class="pnl">
+          <span class="order">1</span>
+          <div class="speed" aria-hidden="true"></div>
+          <span class="big-glyph" aria-hidden="true">右から</span>
+          <h3>Right to left, or left to right</h3>
+          <p>Set the direction once and every page turn follows it.</p>
+        </div>
+        <div class="pnl">
+          <span class="order">2</span>
+          <h3>Double-page spreads</h3>
+          <p>Two pages side by side on a tablet, the way the artist laid them out.</p>
+        </div>
+        <div class="pnl tone-bg">
+          <span class="order">3</span>
+          <button type="button" class="sfx" data-sfx="0" style="top:22px;left:22px;rotate:-12deg" aria-label="Hidden sound effect ドン. Collect the first stamp">ドン</button>
+          <h3>Pages stay sharp</h3>
+          <p>Zoom into a panel without losing the ink.</p>
+        </div>
+      </div>
+      <p class="arrow-rtl"><svg viewBox="0 0 60 14" aria-hidden="true"><path d="M58 7H3m6-5L3 7l6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Read this page from the right</p>
+    </div>
+  </section>
+
+  <section class="chapter" id="ch2" aria-labelledby="ch2-h">
+    <div class="wrap">
+      <div class="ch-head">
+        <span class="ch-no kr" aria-hidden="true">제2화</span>
+        <div>
+          <h2 id="ch2-h">Webtoons scroll like webtoons.</h2>
+          <p>Vertical strips run as one long page. Hover a tile to put its letters together.</p>
+        </div>
+      </div>
+      <div class="ch2">
+        <div class="strip">
+          <div class="pnl tone-bg"><p class="bubble-s">You stopped on page 12 last night.</p><h3>It remembers your place</h3><p>On every device you use.</p></div>
+          <div class="pnl"><div class="rain" aria-hidden="true"></div><p class="bubble-s">No signal on the train?</p><h3>Download chapters first</h3><p>They read offline, wherever you are.</p></div>
+          <div class="pnl">
+            <button type="button" class="sfx kr" data-sfx="1" style="top:30%;right:16%;rotate:9deg;font-size:46px" aria-label="Hidden sound effect 쾅. Collect the second stamp">쾅</button>
+            <p class="bubble-s">A new chapter is out.</p><h3>New chapters find you</h3><p>A notification when a series you follow updates.</p>
+          </div>
+        </div>
+        <div class="sticky">
+          <div class="hangul">
+            <button type="button" class="jamo" aria-label="ㅁ plus ㅏ plus ㄴ makes 만"><span class="parts" aria-hidden="true">ㅁㅏㄴ</span><span class="whole" aria-hidden="true">만</span><small>man</small></button>
+            <button type="button" class="jamo" aria-label="ㅎ plus ㅘ makes 화"><span class="parts" aria-hidden="true">ㅎㅘ</span><span class="whole" aria-hidden="true">화</span><small>hwa</small></button>
+          </div>
+          <p class="meta">만화 (manhwa): Korean comics. On a phone, tap a tile.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" id="ch3" aria-labelledby="ch3-h">
+    <div class="wrap">
+      <div class="ch-head">
+        <span class="ch-no cn" aria-hidden="true">第三章</span>
+        <div>
+          <h2 id="ch3-h">One library, every tradition.</h2>
+          <p>Komga, Kavita and Suwayomi shelves sit side by side. Paint on the paper, swing the lantern, press the chop.</p>
+        </div>
+      </div>
+      <div class="ch3">
+        <div class="paper" id="paper">
+          <canvas id="ink" aria-hidden="true"></canvas>
+          <span class="tip">Move across the paper to paint</span>
+          <div class="verse"><h3 aria-hidden="true">漫画</h3><p>Manhua, manga and manhwa share one word, written three ways.</p></div>
+        </div>
+        <div class="side">
+          <div class="lantern-wrap" id="lantern-wrap">
+            <div class="lantern" id="lantern" aria-hidden="true"><div class="cord"></div><div class="cap"></div><div class="body"><b>福</b></div><div class="cap"></div><div class="tassel"></div></div>
+            <button type="button" class="sfx cn" data-sfx="2" style="bottom:14px;left:14px;rotate:-8deg" aria-label="Hidden sound effect 砰. Collect the third stamp">砰</button>
+          </div>
+          <div class="chop-box">
+            <button type="button" class="chop" id="chop" aria-label="Press the chop">读</button>
+            <div class="chops" id="chops"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" id="get" aria-labelledby="get-h">
+    <div class="wrap">
+      <div class="reveal" id="reveal" aria-live="polite">
+        <div class="full" aria-hidden="true">満</div>
+        <div><h3>All three stamps.</h3><p>You read every chapter. The app is the next one.</p><div class="ctas" style="margin-top:18px;align-items:center"><a class="btn" id="reveal-cta" href="#get">Get the app</a><button type="button" class="demo-link" id="reset" style="margin:0">Reset the stamp card</button></div></div>
+      </div>
+      <button type="button" class="demo-link" id="demo-invite">Preview how the page looks from an invite link</button>
+      <section class="ticket" id="invite" hidden aria-labelledby="invite-h">
+        <p class="kanji" aria-hidden="true">招待</p>
+        <div>
+          <h3 id="invite-h">You're invited</h3>
+          <p>This code is yours. It works once, when you create your account. (Example code.)</p>
+          <div class="code"><span id="code">MOON-4821</span><button type="button" class="btn ghost small" id="copy">Copy code</button></div>
+        </div>
+      </section>
+      <div class="ch-head">
+        <span class="ch-no" aria-hidden="true">終</span>
+        <div><h2 id="get-h">Pick your screen</h2></div>
+      </div>
+      <div class="page">
+        <button type="button" class="dev" data-dl="android" aria-pressed="false"><svg aria-hidden="true"><use href="#i-android"/></svg><strong>Android</strong><span class="meta">PHONE OR TABLET · APK</span></button>
+        <button type="button" class="dev" data-dl="ios" aria-pressed="false"><svg aria-hidden="true"><use href="#i-tablet"/></svg><strong>iPhone or iPad</strong><span class="meta">WEB APP FOR NOW</span></button>
+        <button type="button" class="dev" data-dl="windows" aria-pressed="false"><svg aria-hidden="true"><use href="#i-win"/></svg><strong>Windows</strong><span class="meta">ZIP</span></button>
+        <button type="button" class="dev" data-dl="web" aria-pressed="false"><svg aria-hidden="true"><use href="#i-web"/></svg><strong>Any browser</strong><span class="meta">WEB APP</span></button>
+      </div>
+      <div class="bubble" id="primary" aria-live="polite">
+        <h3 id="primary-h"></h3><p id="primary-note"></p>
+        <div class="ctas" id="primary-actions"></div>
+        <ol id="primary-steps"></ol>
+      </div>
+    </div>
+  </section>
+  <footer><div class="wrap">A private library. Creating an account needs an invite code from the owner.</div></footer>
+</main>
+
+<main id="brand" hidden>
+  <div class="wrap">
+    <section class="bg-hero">
+      <div>
+        <h1>One book, two covers.</h1>
+        <p>The app and the landing page share one brand: Midnight navy at night, paper by day, ink outlines, violet for what you touch and a hanko seal for who we are. The app keeps each platform's own controls and text face. The brand lives in colour, outline, metadata and the moments around reading.</p>
+      </div>
+      <div class="bg-seal" aria-hidden="true">読</div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>Logo<small>One seal, three ways to read. <a href="https://claude.ai/artifact/M9eersS1UMyxVE2BSnafxJ">Open the logo canvas</a></small></h2>
+      <div class="bg-body">
+        <div class="logo-hero">
+          <div class="lmk" role="img" aria-label="Shaddai Reader seal">
+            <div class="l-red"></div>
+            <div class="l-gs"><span class="jpf">読</span></div>
+            <div class="l-pt"><span class="krf">읽</span></div>
+            <div class="l-pb"><span class="cnf">读</span></div>
+            <div class="l-gb"><span class="jpf">読</span></div>
+          </div>
+          <div class="lwm"><span class="lat l-wl">Shaddai Reader</span><span class="jpf l-wj">シャダイ リーダー</span><span class="krf l-wk">샤다이 리더</span><span class="cnf l-wc">沙代阅读</span></div>
+        </div>
+        <p>Three panels ink in manga order, right first: 読 for Japanese, 읽 for Korean, 读 for Chinese, each in its own lettering. As each panel lands, the name appears in that language: シャダイ リーダー, 샤다이 리더, 沙代阅读. Then the gutters close, the panels become one hanko seal, it presses 読 and "Shaddai Reader" lands. In the app it plays once on the splash screen, in 2.4 seconds. Everywhere else the logo is the pressed seal.</p>
+        <div class="alts">
+          <div><div class="alt-demo"><div class="bub"><div class="cyc"><span class="jpf">読</span><span class="krf">읽</span><span class="cnf">读</span><span class="jpf">読</span></div></div></div><b>Speech bubble</b><p>Not chosen: reads as chat before comics.</p></div>
+          <div><div class="alt-demo"><span class="mini-mark jpf">読</span><span class="lat" style="font-size:22px">Shaddai Reader</span></div><b>Rest state</b><p>The logo everywhere that doesn't animate, and with reduced motion on.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>Theme modes<small>Midnight stays the dark default, with the new outlines.</small></h2>
+      <div class="bg-body">
+        <div class="modes">
+          <div class="mode sumi"><span class="jp">夜</span><div><h3>Midnight</h3><span class="meta">Navy dark. Default.</span></div><div class="chips"><i style="background:#0A1420"></i><i style="background:#111F31"></i><i style="background:#F4F3F7"></i><i style="background:#6E56CF"></i></div></div>
+          <div class="mode washi"><span class="jp">和紙</span><div><h3>Washi</h3><span class="meta">Paper light. Was "paper".</span></div><div class="chips"><i style="background:#F3F3F1"></i><i style="background:#E7E7E3"></i><i style="background:#141519"></i><i style="background:#5B45B8"></i></div></div>
+          <div class="mode oled"><span class="jp">黒</span><div><h3>OLED black</h3><span class="meta">For reading in the dark.</span></div><div class="chips"><i style="background:#000"></i><i style="background:#0B0B0C"></i><i style="background:#F4F3F7"></i><i style="background:#6E56CF"></i></div></div>
+          <div class="mode system"><span class="jp tag">自動</span><div class="tag"><h3>System</h3><span class="meta">Midnight or Washi, by device.</span></div><div class="chips"><i style="background:#F3F3F1"></i><i style="background:#0A1420"></i></div></div>
+        </div>
+        <p>Saved settings keep working: <code>midnight</code> and <code>trueBlack</code> load as they are, <code>paper</code> loads as Washi. System is the one new mode.</p>
+      </div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>Colour<small>Values switch with the theme button above.</small></h2>
+      <div class="bg-body">
+        <div class="swatches">
+          <div class="sw"><div style="background:var(--paper)"></div><p><b>Paper</b>page, canvas</p></div>
+          <div class="sw"><div style="background:var(--paper-2)"></div><p><b>Paper 2</b>cards, sheets</p></div>
+          <div class="sw"><div style="background:var(--ink)"></div><p><b>Ink</b>text, outlines</p></div>
+          <div class="sw"><div style="background:var(--ink-3)"></div><p><b>Ink 60</b>secondary text</p></div>
+          <div class="sw"><div class="tone-bg" style="background-color:var(--paper)"></div><p><b>Screentone</b>headers, empty states</p></div>
+          <div class="sw"><div style="background:var(--accent)"></div><p><b>Violet</b>accent: press, select, progress</p></div>
+          <div class="sw"><div style="background:var(--seal)"></div><p><b>Hanko</b>seal ink: logo, stamps, marks</p></div>
+        </div>
+        <p>Violet is the accent: buttons, selection, focus and progress. Hanko red is seal ink. It marks the brand (the logo, stamps, the noren, chapter numbers) and is never on a control, so nobody confuses it with an error. Danger is crimson, always with an icon and a label. Source colours stay fixed because they name a service, not the app.</p>
+        <div class="swatches">
+          <div class="sw"><div style="background:var(--danger)"></div><p><b>Danger</b>with icon + label</p></div>
+          <div class="sw"><div style="background:var(--warn)"></div><p><b>Warning</b>server down, not your fault</p></div>
+          <div class="sw"><div style="background:var(--komga)"></div><p><b>Komga</b>#2E75C4</p></div>
+          <div class="sw"><div style="background:var(--suwayomi)"></div><p><b>Suwayomi</b>#149E7C</p></div>
+          <div class="sw"><div style="background:var(--kavita)"></div><p><b>Kavita</b>#C9821F</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>Accent choices<small>Still five. Violet is the default.</small></h2>
+      <div class="bg-body">
+        <div class="accents">
+          <div class="acc"><i style="background:#6E56CF">藤</i><b>Fuji violet</b><span class="meta">#6E56CF · DEFAULT</span></div>
+          <div class="acc"><i style="background:#2E5E9E">藍</i><b>Ai indigo</b><span class="meta">#2E5E9E</span></div>
+          <div class="acc"><i style="background:#3D7A52">抹</i><b>Matcha</b><span class="meta">#3D7A52</span></div>
+          <div class="acc"><i style="background:#B87410">黄</i><b>Yamabuki</b><span class="meta">#B87410</span></div>
+          <div class="acc"><i style="background:#D23B3F">朱</i><b>Hanko</b><span class="meta">#D23B3F · ALL RED</span></div>
+        </div>
+        <p>The accent picker changes the violet only. Seal ink stays hanko red whatever you pick. Choosing Hanko makes the whole app red, for anyone who likes the landing page look. The "danger" accent option goes: an error colour should never be the chrome.</p>
+      </div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>Type<small>Native text, branded edges.</small></h2>
+      <div class="bg-body">
+        <div>
+          <div class="type-row"><span class="meta">TEXT · PLATFORM FACE</span><span style="font:700 26px/1.2 var(--sans);letter-spacing:-.02em">SF Pro, Roboto and Segoe UI Variable in the app. Zen Kaku Gothic New on the web.</span></div>
+          <div class="type-row"><span class="meta">METADATA · BRAND MONO</span><span style="font:500 15px/1.5 var(--mono)">CH. 41 · PAGE 12 OF 19 · 38 MB · 月の剣. M PLUS 1 Code covers kana and kanji in titles, which JetBrains Mono can't.</span></div>
+          <div class="type-row"><span class="meta">DISPLAY · JAPANESE</span><span style="font:400 44px/1.1 var(--jp)">読む ドン</span></div>
+          <div class="type-row"><span class="meta">DISPLAY · KOREAN</span><span style="font:400 44px/1.1 var(--kr)">만화 쾅</span></div>
+          <div class="type-row"><span class="meta">DISPLAY · CHINESE</span><span style="font:400 48px/1.1 var(--cn)">漫画 砰</span></div>
+        </div>
+        <p>CJK display faces appear only in large titles, empty states, loading screens and the landing page. Never in lists, settings or the reader.</p>
+      </div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>Outlines<small>The ink line is the structure.</small></h2>
+      <div class="bg-body">
+        <div class="strokes">
+          <div class="stroke" style="border:var(--hair) solid var(--ink)"><b>1px hairline</b><p>Rows, dividers and app cards. Ink at 16% inside lists, full ink around cards.</p></div>
+          <div class="stroke" style="border:var(--control) solid var(--ink)"><b>2px control</b><p>Buttons, inputs, pills, covers and the tab bar's top edge.</p></div>
+          <div class="stroke" style="border:var(--frame) solid var(--ink)"><b>3px frame</b><p>Manga panels on the landing page; the Home hero and empty states in the app.</p></div>
+        </div>
+        <p>Outlines are ink: white on Midnight, black on Washi. No soft drop shadows anywhere. The only offset shadow is the violet one under a primary action. iOS glass blur stays where the platform expects it, edged in 2px ink.</p>
+      </div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>In the app<small>The reference for the app's screens, in both themes. This is what Phase 3 builds.</small></h2>
+      <div class="bg-body">
+        <div class="demo-grid" id="app-ref">
+          <div class="phone t-dark">
+            <div class="ref-head"><b>Midnight</b><span class="meta">DARK · DEFAULT</span></div>
+            <div class="resume">
+              <div class="cover c1"><i></i><b>月の<br>剣</b></div>
+              <div><h4>Moon Sword</h4><span class="meta">CH. 41 · PAGE 12 OF 19</span><div class="track"><span></span></div><a class="btn small" href="#" style="box-shadow:4px 4px 0 var(--accent)">Resume</a></div>
+            </div>
+            <span class="label">Now reading pill</span>
+            <div class="pill"><div class="cover c2"></div><div><b>Night Garden</b><span class="meta">CH. 7 · PAGE 3 OF 40</span></div><button type="button" class="icon-btn" aria-label="Dismiss" style="width:32px;height:32px"><svg><use href="#i-x"/></svg></button></div>
+            <span class="label">Appearance</span>
+            <div class="picker" role="img" aria-label="Theme picker with Midnight selected"><span class="on">Midnight</span><span>Washi</span><span>OLED</span><span>System</span></div>
+            <span class="label">Error</span>
+            <div class="err"><svg aria-hidden="true"><use href="#i-alert"/></svg><span><b>Sign-in failed.</b> The password doesn't match. Check it and try again.</span></div>
+            <span class="label">Empty state</span>
+            <div class="empty tone-bg"><span class="jp" aria-hidden="true">空</span><b>Nothing downloaded yet</b><p>Open a chapter and tap Download to read it offline.</p><a class="btn ghost small" href="#">Browse the library</a></div>
+            <nav class="tabbar" aria-hidden="true">
+              <span class="on"><svg><use href="#i-home"/></svg>Home</span>
+              <span><svg><use href="#i-search"/></svg>Search</span>
+              <span><svg><use href="#i-lib"/></svg>Library</span>
+              <span><svg><use href="#i-hist"/></svg>History</span>
+              <span><svg><use href="#i-set"/></svg>Settings</span>
+            </nav>
+          </div>
+        </div>
+        <p>The tab bar's active item is ink with a violet bar; inactive items are ink at 62%. The seal red appears only in the cover's corner mark and the empty-state glyph.</p>
+      </div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>Motion<small>Three manga moments. Nothing in the reader.</small></h2>
+      <div class="bg-body">
+        <div class="motion-list">
+          <div><div class="demo"><span class="mini-seal">済</span></div><b>Seal press</b><p>Download finished, invite copied, series completed.</p></div>
+          <div><div class="demo"><div class="mini-tone"></div></div><b>Tone swell</b><p>Screentone dots tighten under a header as it scrolls away.</p></div>
+          <div><div class="demo"><div class="mini-turn"></div></div><b>Page turn</b><p>Opening a chapter from Home. Platform transitions everywhere else.</p></div>
+        </div>
+        <p>With reduced motion on, every moment becomes an instant change.</p>
+      </div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>Do and don't</h2>
+      <div class="bg-body">
+        <div class="dos">
+          <div><h3><svg aria-hidden="true"><use href="#i-check"/></svg>Do</h3><ul><li>Give each screen one violet action. Keep hanko red for seals and marks.</li><li>Keep metadata in the brand mono.</li><li>Outline in ink, separate with space.</li><li>Leave the reader screen bare. The pages are the content.</li></ul></div>
+          <div><h3><svg aria-hidden="true"><use href="#i-x"/></svg>Don't</h3><ul><li>Put real covers from the library on public pages.</li><li>Use CJK display faces for body text or controls.</li><li>Show danger without an icon and a label.</li><li>Add soft shadows or gradients to chrome.</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-sec">
+      <h2>Token map<small>For DESIGN.md and design_tokens.dart.</small></h2>
+      <div class="bg-body">
+        <div class="map"><table>
+          <thead><tr><th>Brand token</th><th>Midnight</th><th>Washi</th><th>AppColors</th></tr></thead>
+          <tbody>
+            <tr><td>Paper</td><td><code>#0A1420</code></td><td><code>#F3F3F1</code></td><td><code>page</code> (unchanged in Midnight)</td></tr>
+            <tr><td>Paper 2</td><td><code>#111F31</code></td><td><code>#E7E7E3</code></td><td><code>card</code></td></tr>
+            <tr><td>Paper 3</td><td><code>#07101B</code></td><td><code>#DADAD4</code></td><td><code>canvas</code></td></tr>
+            <tr><td>Ink</td><td><code>#F4F3F7</code></td><td><code>#141519</code></td><td><code>text</code>; new <code>outline</code></td></tr>
+            <tr><td>Line</td><td><code>rgba(143,193,232,.2)</code></td><td><code>rgba(20,21,25,.16)</code></td><td><code>border</code>, <code>track</code></td></tr>
+            <tr><td>Accent</td><td><code>#6E56CF</code></td><td><code>#5B45B8</code></td><td><code>accent</code> (unchanged default)</td></tr>
+            <tr><td>Accent text</td><td><code>#B7A6F5</code></td><td><code>#4F3AA8</code></td><td><code>accentSoft</code> / <code>accentLink</code></td></tr>
+            <tr><td>Seal</td><td><code>#D23B3F</code></td><td><code>#C9302F</code></td><td>new <code>seal</code>, fixed across accents</td></tr>
+            <tr><td>Danger</td><td><code>#FF6F93</code></td><td><code>#A3123F</code></td><td><code>danger</code> (was <code>#D8455F</code>)</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="card" id="card" role="status" aria-label="Stamp card">
+  <div class="slots"><span class="slot" data-slot="0">ドン</span><span class="slot kr" data-slot="1">쾅</span><span class="slot cn" data-slot="2">砰</span></div>
+  <p id="card-text">Find the sound effect in each chapter</p>
+</div>
+<div class="ink-cursor" id="cursor" aria-hidden="true">読</div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const root = document.documentElement;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+  const css = (name) => getComputedStyle(root).getPropertyValue(name).trim();
+
+  // ---- Theme: system, light, dark
+  const themes = [['system', 'i-auto', 'follow system'], ['light', 'i-sun', 'Washi (light)'], ['dark', 'i-moon', 'Midnight (dark)']];
+  let ti = Math.max(0, themes.findIndex((t) => t[0] === store.get('sr-theme', 'system')));
+  const themeBtn = $('#theme');
+  function applyTheme() {
+    const [name, icon, label] = themes[ti];
+    if (name === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', name);
+    themeBtn.innerHTML = `<svg><use href="#${icon}"/></svg>`;
+    themeBtn.setAttribute('aria-label', 'Theme: ' + label);
+    store.set('sr-theme', name);
+    dispatchEvent(new Event('themechange'));
+  }
+  themeBtn.addEventListener('click', () => { ti = (ti + 1) % themes.length; applyTheme(); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => dispatchEvent(new Event('themechange')));
+  applyTheme();
+
+  // ---- View: landing or brand guide
+  function setView(v) {
+    $('#landing').hidden = v !== 'landing';
+    $('#brand').hidden = v !== 'brand';
+    document.body.dataset.view = v;
+    $('#v-land').setAttribute('aria-pressed', v === 'landing');
+    $('#v-brand').setAttribute('aria-pressed', v === 'brand');
+    scrollTo(0, 0);
+  }
+  $('#v-land').addEventListener('click', () => setView('landing'));
+  $('#v-brand').addEventListener('click', () => setView('brand'));
+  setView(location.hash === '#brand' ? 'brand' : 'landing');
+
+  // ---- Chapter nav highlight
+  const links = $$('.chapters a');
+  const io = new IntersectionObserver((es) => es.forEach((e) => {
+    if (e.isIntersecting) links.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id));
+  }), { rootMargin: '-45% 0px -50% 0px' });
+  $$('.chapter').forEach((s) => io.observe(s));
+
+  // ---- Stamp rally
+  const found = new Set(store.get('sr-stamps', []));
+  const restamp = (el) => { el.classList.remove('stamp-in'); void el.offsetWidth; el.classList.add('stamp-in'); };
+  function renderStamps(justGot) {
+    $$('.slot').forEach((s) => {
+      const i = +s.dataset.slot;
+      s.classList.toggle('got', found.has(i));
+      if (i === justGot) restamp(s);
+    });
+    $$('.sfx').forEach((b) => b.classList.toggle('got', found.has(+b.dataset.sfx)));
+    const n = found.size;
+    $('#card-text').textContent = n === 3 ? 'Card complete. See the last chapter.' : n ? `${n} of 3 found. Keep reading.` : 'Find the sound effect in each chapter';
+    const rev = $('#reveal'), was = rev.classList.contains('on');
+    rev.classList.toggle('on', n === 3);
+    if (n === 3 && !was && justGot !== undefined) restamp($('.full', rev));
+  }
+  $$('.sfx').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const i = +b.dataset.sfx;
+    if (found.has(i)) return;
+    found.add(i); store.set('sr-stamps', [...found]); renderStamps(i);
+  }));
+  $('#reset').addEventListener('click', () => { found.clear(); store.set('sr-stamps', []); renderStamps(); });
+  renderStamps();
+  // The card waits until the hero is behind you, so it never covers the hero's download button on a phone.
+  const card = $('#card');
+  card.hidden = !found.size;
+  new IntersectionObserver(([e]) => { card.hidden = e.isIntersecting && !found.size; }).observe($('.hero'));
+
+  // Light version of the app reference, cloned so the two themes can't drift apart.
+  const refDark = $('#app-ref .phone'), refLight = refDark.cloneNode(true);
+  refLight.className = 'phone t-light';
+  $('.ref-head b', refLight).textContent = 'Washi';
+  $('.ref-head .meta', refLight).textContent = 'LIGHT';
+  $('.picker', refLight).setAttribute('aria-label', 'Theme picker with Washi selected');
+  $$('.picker span', refLight).forEach((s) => s.classList.toggle('on', s.textContent === 'Washi'));
+  refDark.after(refLight);
+
+  // ---- Hanko press (chapter 1)
+  const zone = $('#hanko-zone');
+  zone.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button, a')) return;
+    const r = zone.getBoundingClientRect();
+    const s = document.createElement('span');
+    s.className = 'seal-press'; s.textContent = '読';
+    s.style.left = (e.clientX - r.left) + 'px'; s.style.top = (e.clientY - r.top) + 'px';
+    s.style.rotate = (Math.random() * 24 - 12) + 'deg';
+    zone.appendChild(s);
+    const seals = $$('.seal-press', zone);
+    if (seals.length > 6) seals[0].remove();
+  });
+
+  // ---- Hangul tiles: tap toggles on touch
+  $$('.jamo').forEach((j) => j.addEventListener('click', () => j.classList.toggle('built')));
+
+  // ---- Chop (chapter 3)
+  $('#chop').addEventListener('click', () => {
+    const box = $('#chops');
+    const s = document.createElement('span'); s.textContent = '读'; s.className = 'stamp-in';
+    s.style.rotate = (Math.random() * 16 - 8) + 'deg';
+    box.appendChild(s);
+    if (box.children.length > 10) box.firstElementChild.remove();
+  });
+
+  // Runs `step` at most 30 times a second, only while `el` is on screen.
+  // `step` returns false when there is nothing left to animate; call the
+  // returned kick() to wake it again.
+  function loop(el, step) {
+    let visible = false, raf = 0, last = 0;
+    const tick = (t) => {
+      raf = 0;
+      if (!visible) return;
+      if (t - last >= 33) { last = t; if (step() === false) return; }
+      raf = requestAnimationFrame(tick);
+    };
+    const kick = () => { if (!raf && visible) raf = requestAnimationFrame(tick); };
+    new IntersectionObserver(([e]) => { visible = e.isIntersecting; kick(); }).observe(el);
+    return kick;
+  }
+
+  // ---- Noren: a verlet cloth, four panels hung from a rod.
+  const stage = $('#stage'), cv = $('#noren'), cx = cv.getContext('2d');
+  const PANELS = 4, COLS = 5, ROWS = 11, GAP = 6, crest = ['漫', '画', '読', '処'];
+  let W = 0, H = 0, pts = [], ties = [], opened = false, openT = 0, dragAmount = 0, toneP = null, restW = 1;
+  let pointer = null, kick = () => {}, idle = 0;
+  function build() {
+    const r = stage.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+    W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const t = document.createElement('canvas'); t.width = t.height = 8;
+    const g = t.getContext('2d'); g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.arc(4, 4, 1.3, 0, 7); g.fill();
+    toneP = cx.createPattern(t, 'repeat');
+    pts = []; ties = [];
+    const pw = (W - GAP * (PANELS - 1)) / PANELS, rh = (H * 0.8) / (ROWS - 1);
+    restW = pw / (COLS - 1);
+    for (let p = 0; p < PANELS; p++) {
+      const x0 = p * (pw + GAP);
+      for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+        const px = x0 + x * restW, py = 8 + y * rh;
+        pts.push({ x: px, y: py, ox: px, oy: py, hx: px, pin: y === 0, p });
+        const i = pts.length - 1;
+        if (x) ties.push([i - 1, i, restW]);
+        if (y) ties.push([i - COLS, i, rh]);
+      }
+    }
+  }
+  const shift = (p, t) => (p < PANELS / 2 ? -1 : 1) * W * 0.62 * t;
+  const pos = (e) => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  let touched = false;
+  cv.addEventListener('pointerdown', (e) => { touched = true; const [x, y] = pos(e); pointer = { x, y, vx: 0, vy: 0, down: true }; kick(); });
+  // Visitors who never drag still get to see the app.
+  setTimeout(() => { if (!touched) openCurtain(); }, 7000);
+  cv.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'touch' && !pointer) return;
+    const [x, y] = pos(e), p = pointer || { x, y };
+    pointer = { x, y, vx: x - p.x, vy: y - p.y, down: e.buttons > 0 || e.pointerType === 'touch' };
+    if (pointer.down) dragAmount += Math.abs(pointer.vx);
+    if (dragAmount > W * 0.45) openCurtain();
+    kick();
+  });
+  cv.addEventListener('pointerleave', () => { pointer = null; });
+  cv.addEventListener('pointerup', () => { pointer = null; });
+  cv.addEventListener('pointercancel', () => { pointer = null; });
+  function openCurtain() { if (opened) return; opened = true; openT = 0; stage.classList.add('open'); kick(); }
+  $('#part').addEventListener('click', openCurtain);
+  function step() {
+    if (opened && openT < 1) openT = Math.min(1, openT + 0.03);
+    const e = 1 - Math.pow(1 - openT, 3);
+    let energy = 0;
+    for (const q of pts) {
+      if (q.pin) { q.x = q.hx + (opened ? shift(q.p, e) : 0); continue; }
+      const vx = (q.x - q.ox) * 0.97, vy = (q.y - q.oy) * 0.97;
+      q.ox = q.x; q.oy = q.y; q.x += vx; q.y += vy + 0.55;
+      energy += Math.abs(vx) + Math.abs(vy);
+      if (pointer && Math.abs(pointer.vx) + Math.abs(pointer.vy) > 0.5) {
+        const dx = q.x - pointer.x, dy = q.y - pointer.y, d2 = dx * dx + dy * dy;
+        if (d2 < 3600) { const f = 1 - d2 / 3600; q.x += pointer.vx * 0.55 * f; q.y += pointer.vy * 0.25 * f; }
+      }
+    }
+    if (pointer) { pointer.vx *= 0.5; pointer.vy *= 0.5; }
+    for (let k = 0; k < 3; k++) for (const [a, b, len] of ties) {
+      const A = pts[a], B = pts[b], dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || 1, diff = (d - len) / d / 2;
+      if (!A.pin) { A.x += dx * diff; A.y += dy * diff; }
+      if (!B.pin) { B.x -= dx * diff; B.y -= dy * diff; }
+    }
+    draw();
+    idle = energy < 0.4 && !pointer && (!opened || openT >= 1) ? idle + 1 : 0;
+    return idle < 20;
+  }
+  function draw() {
+    cx.clearRect(0, 0, W, H);
+    const red = css('--seal'), on = css('--on-seal');
+    for (let p = 0; p < PANELS; p++) {
+      const off = p * ROWS * COLS;
+      for (let y = 0; y < ROWS - 1; y++) for (let x = 0; x < COLS - 1; x++) {
+        const a = pts[off + y * COLS + x], b = pts[off + y * COLS + x + 1], c = pts[off + (y + 1) * COLS + x + 1], d = pts[off + (y + 1) * COLS + x];
+        cx.beginPath(); cx.moveTo(a.x, a.y); cx.lineTo(b.x, b.y); cx.lineTo(c.x, c.y); cx.lineTo(d.x, d.y); cx.closePath();
+        cx.fillStyle = red; cx.fill();
+        // Folds: cells squeezed narrower than rest read darker.
+        const squeeze = 1 - Math.min(1, Math.hypot(b.x - a.x, b.y - a.y) / restW);
+        if (squeeze > 0.02) { cx.fillStyle = `rgba(0,0,0,${Math.min(0.45, squeeze * 1.2)})`; cx.fill(); }
+        cx.fillStyle = toneP; cx.fill();
+      }
+      // Crest at the panel's middle, turned with the cloth.
+      const m = pts[off + 3 * COLS + 2], n = pts[off + 4 * COLS + 2];
+      cx.save(); cx.translate(m.x, m.y); cx.rotate(-Math.atan2(n.x - m.x, n.y - m.y));
+      cx.fillStyle = on; cx.font = `400 ${Math.round(Math.min(60, W / 7.5))}px "Dela Gothic One", sans-serif`;
+      cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(crest[p], 0, 0); cx.restore();
+      // Hem line.
+      cx.strokeStyle = on; cx.lineWidth = 2; cx.beginPath();
+      for (let x = 0; x < COLS; x++) { const q = pts[off + (ROWS - 2) * COLS + x]; x ? cx.lineTo(q.x, q.y) : cx.moveTo(q.x, q.y); }
+      cx.stroke();
+    }
+  }
+  if (reduced) {
+    stage.classList.add('open'); cv.remove();
+  } else {
+    build(); draw(); kick = loop(stage, step);
+    // A small breeze on load so the cloth reads as cloth.
+    setTimeout(() => { pts.forEach((q) => { if (!q.pin) q.ox -= (q.y / H) * 7; }); kick(); }, 500);
+    let lastW = W;
+    new ResizeObserver(() => {
+      const r = stage.getBoundingClientRect();
+      if (Math.abs(r.width - lastW) < 1 && Math.abs(r.height - H) < 1) return;
+      lastW = r.width; build(); draw(); kick();
+    }).observe(stage);
+    addEventListener('themechange', () => draw());
+    if (document.fonts) document.fonts.ready.then(() => draw());
+  }
+
+  // ---- Ink trail that bleeds into the paper (chapter 3)
+  const paper = $('#paper'), ink = $('#ink'), ic = ink.getContext('2d');
+  let blobs = [], last = null, PW = 0, PH = 0;
+  function sizeInk() {
+    const r = paper.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+    PW = r.width; PH = r.height; ink.width = PW * dpr; ink.height = PH * dpr; ic.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function inkStep() {
+    ic.clearRect(0, 0, PW, PH);
+    const col = css('--ink');
+    blobs = blobs.filter((b) => b.a > 0.01);
+    ic.fillStyle = col;
+    for (const b of blobs) {
+      b.r += (b.max - b.r) * 0.08; b.a *= 0.985;
+      // Hard core plus a soft halo: the halo is the bleed into the paper fibres.
+      ic.globalAlpha = b.a * 0.25; ic.beginPath(); ic.arc(b.x, b.y, b.r * 1.7, 0, 7); ic.fill();
+      ic.globalAlpha = b.a; ic.beginPath(); ic.arc(b.x, b.y, b.r, 0, 7); ic.fill();
+    }
+    ic.globalAlpha = 1;
+    return blobs.length > 0;
+  }
+  if (!reduced) {
+    sizeInk(); new ResizeObserver(sizeInk).observe(paper);
+    const kickInk = loop(paper, inkStep);
+    paper.addEventListener('pointermove', (e) => {
+      const r = paper.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      const sp = last ? Math.hypot(x - last.x, y - last.y) : 0;
+      const n = Math.max(1, Math.ceil(sp / 8));
+      for (let i = 1; i <= n; i++) {
+        const t = i / n, px = last ? last.x + (x - last.x) * t : x, py = last ? last.y + (y - last.y) * t : y;
+        blobs.push({ x: px, y: py, r: 2, max: Math.max(4, 14 - sp * 0.2) + Math.random() * 5, a: 0.8 });
+      }
+      if (blobs.length > 500) blobs.splice(0, blobs.length - 500);
+      last = { x, y }; kickInk();
+    });
+    paper.addEventListener('pointerleave', () => { last = null; });
+  } else { ink.remove(); $('.tip', paper).remove(); }
+
+  // ---- Lantern: a damped pendulum you can push
+  const lan = $('#lantern'), lw = $('#lantern-wrap');
+  let ang = 0, vel = 0, lastX = null;
+  const swing = () => {
+    vel += -ang * 0.012; vel *= 0.985; ang += vel;
+    lan.style.transform = `rotate(${ang}rad)`;
+    return Math.abs(ang) + Math.abs(vel) > 0.0008;
+  };
+  if (!reduced) {
+    const kickLan = loop(lw, swing);
+    lw.addEventListener('pointermove', (e) => {
+      if (lastX !== null) { vel = Math.max(-0.08, Math.min(0.08, vel + (e.clientX - lastX) * 0.0016)); kickLan(); }
+      lastX = e.clientX;
+    });
+    lw.addEventListener('pointerleave', () => { lastX = null; });
+    lan.addEventListener('pointerdown', () => { vel += 0.06; kickLan(); });
+  }
+
+  // ---- Ink cursor (mouse and pen only)
+  const cur = $('#cursor');
+  if (!reduced && matchMedia('(pointer: fine)').matches) {
+    root.classList.add('inked');
+    let tx = -50, ty = -50, x = -50, y = -50, raf = 0;
+    const move = () => {
+      x += (tx - x) * 0.35; y += (ty - y) * 0.35;
+      cur.style.transform = `translate(${x}px, ${y}px)`;
+      raf = Math.abs(tx - x) + Math.abs(ty - y) > 0.3 ? requestAnimationFrame(move) : 0;
+    };
+    addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') return;
+      tx = e.clientX; ty = e.clientY; if (!raf) raf = requestAnimationFrame(move);
+      cur.classList.toggle('link', !!e.target.closest('a, button'));
+    }, { passive: true });
+  }
+
+  // ---- Downloads (same logic as web/get)
+  const REL = 'https://github.com/Musecreatives/personal_comic_reader/releases/latest/download/';
+  const WEB_APP = '#get'; // the live page points at ../ (the installed web app)
+  const platforms = {
+    android: { title: 'Download for Android', note: 'For Android phones and tablets.', actions: [['Download the APK', REL + 'ShaddaiReader.apk']], steps: ['Open the downloaded file. If Android asks, allow installs from your browser.', 'Tap Install. Updates install the same way, over the top.'] },
+    ios: { title: 'Use it on iPhone and iPad', note: 'The iPhone app is on its way. Until then, the web app works the same.', actions: [['Open the web app', WEB_APP]], steps: ['In Safari, tap Share, then Add to Home Screen.', 'Open it from your home screen like any app.'] },
+    windows: { title: 'Download for Windows', note: 'Windows 10 or 11.', actions: [['Download for Windows', REL + 'ShaddaiReader-windows.zip']], steps: ['Right-click the file and choose Extract All.', 'Open shaddai_reader.exe. If Windows warns you, choose More info, then Run anyway.'] },
+    web: { title: 'Open in your browser', note: "Works on any device. Install it from your browser's menu to get its own window.", actions: [['Open the web app', WEB_APP]], steps: [] },
+  };
+  const ua = navigator.userAgent;
+  const detected = /Android/i.test(ua) ? 'android' : (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) ? 'ios' : /Windows/.test(ua) ? 'windows' : 'web';
+  const bubble = $('#primary');
+  function show(key) {
+    const p = platforms[key];
+    $('#primary-h').textContent = p.title; $('#primary-note').textContent = p.note;
+    $('#primary-actions').replaceChildren(...p.actions.map(([label, href]) => Object.assign(document.createElement('a'), { className: 'btn', href, textContent: label })));
+    const ol = $('#primary-steps');
+    ol.replaceChildren(...p.steps.map((s) => Object.assign(document.createElement('li'), { textContent: s })));
+    ol.hidden = !p.steps.length;
+    $$('.dev').forEach((b) => b.setAttribute('aria-pressed', b.dataset.dl === key));
+    bubble.classList.remove('pop'); void bubble.offsetWidth; bubble.classList.add('pop');
+  }
+  show(detected);
+  ['#hero-cta', '#reveal-cta'].forEach((s) => Object.assign($(s), { href: platforms[detected].actions[0][1], textContent: platforms[detected].actions[0][0] }));
+  $$('.dev').forEach((b) => b.addEventListener('click', () => show(b.dataset.dl)));
+
+  // ---- Invite ticket preview
+  $('#demo-invite').addEventListener('click', (e) => {
+    const t = $('#invite'); t.hidden = !t.hidden;
+    e.currentTarget.textContent = t.hidden ? 'Preview how the page looks from an invite link' : 'Hide the invite preview';
+  });
+  $('#copy').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    try { await navigator.clipboard.writeText($('#code').textContent); btn.textContent = 'Copied'; }
+    catch { getSelection().selectAllChildren($('#code')); btn.textContent = 'Selected. Press Ctrl+C'; }
+    setTimeout(() => { btn.textContent = 'Copy code'; }, 2400);
+  });
+})();
+</script>
+</html>
