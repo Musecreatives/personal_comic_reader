@@ -340,4 +340,12 @@
       setTimeout(() => { btn.textContent = 'Copy code'; }, 2400);
     });
   }
+
+  // ---- Self-host chapter: copy the compose file.
+  $('#copy-compose')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    try { await navigator.clipboard.writeText($('#compose-text').textContent); btn.textContent = 'Copied'; }
+    catch { getSelection().selectAllChildren($('#compose-text')); btn.textContent = 'Selected. Press Ctrl+C'; }
+    setTimeout(() => { btn.textContent = 'Copy file'; }, 2400);
+  });
 })();

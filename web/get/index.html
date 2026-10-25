@@ -232,6 +232,27 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .bubble h3 { font: 700 24px/1.15 var(--sans); letter-spacing: -.02em; margin-bottom: 6px; }
 .bubble p { color: var(--ink-2); } .bubble .ctas { margin-top: 18px; }
 .bubble ol { margin: 18px 0 0; padding-left: 20px; color: var(--ink-2); }
+
+/* Bonus chapter: self-hosting. Servers stand as book spines of different heights on one shelf. */
+.shelf-row { display: grid; grid-template-columns: 1.2fr 1fr .9fr; gap: 12px; align-items: end; padding-bottom: 12px; border-bottom: var(--frame) solid var(--ink); }
+.spine { position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; padding: 84px 20px 20px; border: var(--frame) solid var(--ink); background: var(--paper); }
+.spine:nth-child(1) { min-height: 270px; } .spine:nth-child(2) { min-height: 220px; } .spine:nth-child(3) { min-height: 245px; }
+.spine .glyph { position: absolute; top: 16px; right: 16px; font: 400 48px/1 var(--jp); color: var(--seal-text); writing-mode: vertical-rl; }
+.spine h3 { font: 700 21px/1.2 var(--sans); letter-spacing: -.01em; }
+.spine p { color: var(--ink-2); max-width: 34ch; }
+.own-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: 32px; margin-top: 48px; align-items: start; }
+.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 22px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 36px 1fr; gap: 4px 14px; color: var(--ink-2); }
+.steps li::before { content: counter(s); grid-row: span 2; width: 36px; height: 36px; display: grid; place-items: center; border: var(--control) solid var(--ink); font: 600 14px/1 var(--mono); color: var(--ink); }
+.steps strong { color: var(--ink); font-size: 17px; }
+.compose { position: relative; border: var(--frame) solid var(--ink); background: var(--paper-3); }
+.compose .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 10px 16px; border-bottom: var(--hair) solid var(--line); }
+.compose pre { margin: 0; padding: 16px; overflow-x: auto; font: 500 13px/1.65 var(--mono); color: var(--ink); tab-size: 2; }
+.own-note { margin-top: 32px; max-width: 70ch; color: var(--ink-2); }
+@media (max-width: 960px) {
+  .own-grid, .shelf-row { grid-template-columns: 1fr; }
+  .spine:nth-child(n) { min-height: 0; }
+}
 .ticket { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; margin-bottom: 40px; padding: 26px 28px; border: var(--frame) solid var(--ink); background: var(--paper-2); }
 .ticket .kanji { writing-mode: vertical-rl; font: 400 44px/1 var(--jp); color: var(--seal-text); }
 .ticket h3 { font: 700 26px/1.15 var(--sans); }
@@ -291,8 +312,7 @@ footer { padding-block: 64px calc(96px + env(safe-area-inset-bottom, 0px)); colo
   .brand > span:last-child { display: none; }
   .rtl { grid-template-columns: 1fr; grid-template-rows: 300px 200px 200px; }
   .rtl .pnl:first-child { grid-row: auto; }
-  .page { grid-template-columns: 1fr 1fr; grid-template-areas: "android android" "ios ios" "windows web"; }
-  .dev[data-dl="android"] { min-height: 200px; }
+  .page { grid-template-columns: 1fr 1fr; grid-template-areas: "android android" "ios ios" "windows web"; }  .dev[data-dl="android"] { min-height: 200px; }
   .bubble { margin-left: 0; padding: 24px 20px; }
   .ticket, .reveal.on { grid-template-columns: 1fr; gap: 12px; padding: 22px 18px; }
   .ticket .kanji { writing-mode: horizontal-tb; font-size: 30px; }
@@ -330,7 +350,7 @@ footer { padding-block: 64px calc(96px + env(safe-area-inset-bottom, 0px)); colo
   <div class="wrap">
     <a class="brand" href="#top"><span class="mark" aria-hidden="true">読</span><span>Shaddai Reader</span></a>
     <nav class="chapters" aria-label="Chapters">
-      <a href="#ch1">第1話 Manga</a><a href="#ch2">제2화 Manhwa</a><a href="#ch3">第三章 Manhua</a><a href="#get">Get it</a>
+      <a href="#ch1">第1話 Manga</a><a href="#ch2">제2화 Manhwa</a><a href="#ch3">第三章 Manhua</a><a href="#get">Get it</a><a href="#own">Self-host</a>
     </nav>
     <button type="button" class="icon-btn" id="theme" aria-label="Theme: follow system"><svg><use href="#i-auto"/></svg></button>
   </div>
@@ -502,6 +522,75 @@ footer { padding-block: 64px calc(96px + env(safe-area-inset-bottom, 0px)); colo
         <div class="ctas" id="primary-actions"></div>
         <ol id="primary-steps"></ol>
       </div>
+    </div>
+  </section>
+
+  <section class="chapter" id="own" aria-labelledby="own-h">
+    <div class="wrap">
+      <div class="ch-head">
+        <span class="ch-no" aria-hidden="true">番外編</span>
+        <div>
+          <h2 id="own-h">Run your own library.</h2>
+          <p>Keep your comics, manga and manhwa on a computer at home and read them in the app. Your files stay on that computer.</p>
+        </div>
+      </div>
+      <div class="shelf-row">
+        <article class="spine">
+          <span class="glyph" aria-hidden="true">本</span>
+          <h3>Komga</h3>
+          <p>Serves the files you already have: CBZ, CBR, PDF and EPUB. The best place to start.</p>
+          <span class="meta">PORT 25600 · ADD AS KOMGA</span>
+        </article>
+        <article class="spine">
+          <span class="glyph" aria-hidden="true">棚</span>
+          <h3>Kavita</h3>
+          <p>Another server for the same files, if you prefer its library. The app reads it through OPDS.</p>
+          <span class="meta">PORT 5000 · ADD AS OPDS</span>
+        </article>
+        <article class="spine">
+          <span class="glyph" aria-hidden="true">新</span>
+          <h3>Suwayomi</h3>
+          <p>Follows series from online sources and downloads new chapters as they come out.</p>
+          <span class="meta">PORT 4567 · ADD AS SUWAYOMI</span>
+        </article>
+      </div>
+      <div class="own-grid">
+        <ol class="steps">
+          <li><strong>Pick a computer that stays on</strong><span>A spare PC, a NAS or a mini PC. Install Docker Desktop on Windows or Mac, or Docker Engine on Linux.</span></li>
+          <li><strong>Sort your files</strong><span>One folder per series, chapters inside it as CBZ, CBR or PDF, for example <code>Comics/Moon Sword/Ch 041.cbz</code>.</span></li>
+          <li><strong>Start the servers</strong><span>Copy the compose file on this page into <code>docker-compose.yml</code>, change <code>/path/to/Comics</code> to your folder, delete any server you don't want, then run <code>docker compose up -d</code>.</span></li>
+          <li><strong>Create your logins</strong><span>Open each server in a browser once (Komga at <code>http://localhost:25600</code>), make an account and add your comics folder as a library.</span></li>
+          <li><strong>Reach it away from home</strong><span>Install <a href="https://tailscale.com/download">Tailscale</a> on the server and on each phone or tablet, signed in to the same account. The server gets an address like <code>100.x.y.z</code> that works anywhere.</span></li>
+          <li><strong>Add it in the app</strong><span>Settings, Servers, Add server. Pick the type and enter <code>http://100.x.y.z:25600</code> with your login. For Kavita, turn on OPDS in its server settings and paste the OPDS link from your account page.</span></li>
+        </ol>
+        <div class="compose">
+          <div class="bar"><span class="meta">docker-compose.yml</span><button type="button" class="btn ghost small" id="copy-compose">Copy file</button></div>
+<pre id="compose-text"><code>services:
+  komga:
+    image: gotson/komga
+    ports: ["25600:25600"]
+    volumes:
+      - ./komga:/config
+      - /path/to/Comics:/data
+    restart: unless-stopped
+
+  kavita:
+    image: jvmilazz0/kavita:latest
+    ports: ["5000:5000"]
+    volumes:
+      - ./kavita:/kavita/config
+      - /path/to/Comics:/comics
+    restart: unless-stopped
+
+  suwayomi:
+    image: ghcr.io/suwayomi/suwayomi-server:stable
+    ports: ["4567:4567"]
+    volumes:
+      - ./suwayomi:/home/suwayomi/.local/share/Tachidesk
+    restart: unless-stopped</code></pre>
+        </div>
+      </div>
+      <p class="own-note">Signing in to Shaddai Reader still takes an invite code from the owner. The account syncs your place in each series and your settings, never your files.</p>
     </div>
   </section>
   <footer><div class="wrap">A private library. Creating an account needs an invite code from the owner.</div></footer>
