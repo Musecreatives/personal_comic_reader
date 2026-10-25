@@ -13,6 +13,7 @@ import '../../app/platform_style.dart';
 import '../../app/providers.dart';
 import '../../core/history/history_entry.dart';
 import '../../app/brand_seal.dart';
+import 'series_cover.dart';
 
 /// Below this width the iOS tabs sit in a floating glass bar at the
 /// bottom (iPhone); at or above it they move to a sidebar (iPad).
@@ -147,11 +148,7 @@ class GlassNavScaffold extends ConsumerWidget {
                 pill,
               )
             : _wide(
-                _MaterialRail(
-                  tabs: tabs,
-                  index: index,
-                  onSelect: _select,
-                ),
+                _MaterialRail(tabs: tabs, index: index, onSelect: _select),
                 pill,
               ),
       UiPlatform.windows => _wide(
@@ -318,23 +315,23 @@ class _MaterialRail extends StatelessWidget {
   }
 
   Widget _rail() => NavigationRail(
-        selectedIndex: index,
-        onDestinationSelected: onSelect,
-        labelType: NavigationRailLabelType.all,
-        groupAlignment: -0.85,
-        leading: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: BrandSeal(size: 48),
+    selectedIndex: index,
+    onDestinationSelected: onSelect,
+    labelType: NavigationRailLabelType.all,
+    groupAlignment: -0.85,
+    leading: const Padding(
+      padding: EdgeInsets.symmetric(vertical: 12),
+      child: BrandSeal(size: 48),
+    ),
+    destinations: [
+      for (final t in tabs)
+        NavigationRailDestination(
+          icon: Icon(t.icon),
+          selectedIcon: Icon(t.selectedIcon),
+          label: Text(t.label),
         ),
-        destinations: [
-          for (final t in tabs)
-            NavigationRailDestination(
-              icon: Icon(t.icon),
-              selectedIcon: Icon(t.selectedIcon),
-              label: Text(t.label),
-            ),
-        ],
-      );
+    ],
+  );
 }
 
 /// Side navs are fixed columns. Laid out at full height when they fit, they
@@ -346,13 +343,13 @@ class _FitOrScroll extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, box) => SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: box.maxHeight),
-            child: IntrinsicHeight(child: child),
-          ),
-        ),
-      );
+    builder: (context, box) => SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: box.maxHeight),
+        child: IntrinsicHeight(child: child),
+      ),
+    ),
+  );
 }
 
 /// A Fluent-style navigation pane (Windows) and the desktop web sidebar:
@@ -392,56 +389,58 @@ class _Sidebar extends StatelessWidget {
       ),
       child: SafeArea(
         right: false,
-        child: _FitOrScroll(child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: fluent ? 4 : 8,
-            vertical: fluent ? 8 : 14,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  expanded ? 12 : 0,
-                  4,
-                  0,
-                  fluent ? 12 : 18,
-                ),
-                child: Row(
-                  mainAxisAlignment: expanded
-                      ? MainAxisAlignment.start
-                      : MainAxisAlignment.center,
-                  children: [
-                    BrandSeal(size: fluent ? 28 : 34),
-                    if (expanded) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Shaddai Reader',
-                          maxLines: 1,
-                          overflow: TextOverflow.clip,
-                          softWrap: false,
-                          style: AppText.body(
-                            size: fluent ? 13 : 14,
-                            weight: FontWeight.w600,
+        child: _FitOrScroll(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: fluent ? 4 : 8,
+              vertical: fluent ? 8 : 14,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    expanded ? 12 : 0,
+                    4,
+                    0,
+                    fluent ? 12 : 18,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: expanded
+                        ? MainAxisAlignment.start
+                        : MainAxisAlignment.center,
+                    children: [
+                      BrandSeal(size: fluent ? 28 : 34),
+                      if (expanded) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Shaddai Reader',
+                            maxLines: 1,
+                            overflow: TextOverflow.clip,
+                            softWrap: false,
+                            style: AppText.body(
+                              size: fluent ? 13 : 14,
+                              weight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              for (var i = 0; i < last; i++) item(i),
-              const Spacer(),
-              if (fluent)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Divider(color: AppColors.border, height: 1),
-                ),
-              item(last),
-            ],
+                for (var i = 0; i < last; i++) item(i),
+                const Spacer(),
+                if (fluent)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Divider(color: AppColors.border, height: 1),
+                  ),
+                item(last),
+              ],
+            ),
           ),
-        )),
+        ),
       ),
     );
   }
@@ -701,49 +700,51 @@ class _SideRail extends StatelessWidget {
         border: Border(right: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
-        child: _FitOrScroll(child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 18),
-          child: Column(
-            children: [
-              const BrandSeal(size: 44),
-              const SizedBox(height: 26),
-              SizedBox(
-                height: tabs.length * _itemH + (tabs.length - 1) * _gap,
-                child: Stack(
-                  children: [
-                    AnimatedPositioned(
-                      duration: Motion.scaled(context, Motion.base),
-                      curve: Motion.easeOut,
-                      top: index * (_itemH + _gap),
-                      left: 0,
-                      right: 0,
-                      height: _itemH,
-                      child: const _Capsule(),
-                    ),
-                    Column(
-                      children: [
-                        for (var i = 0; i < tabs.length; i++) ...[
-                          if (i > 0) const SizedBox(height: _gap),
-                          SizedBox(
-                            height: _itemH,
-                            child: _NavItem(
-                              icon: index == i
-                                  ? tabs[i].selectedIcon
-                                  : tabs[i].icon,
-                              label: tabs[i].label,
-                              selected: index == i,
-                              onTap: () => onSelect(i),
+        child: _FitOrScroll(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 18),
+            child: Column(
+              children: [
+                const BrandSeal(size: 44),
+                const SizedBox(height: 26),
+                SizedBox(
+                  height: tabs.length * _itemH + (tabs.length - 1) * _gap,
+                  child: Stack(
+                    children: [
+                      AnimatedPositioned(
+                        duration: Motion.scaled(context, Motion.base),
+                        curve: Motion.easeOut,
+                        top: index * (_itemH + _gap),
+                        left: 0,
+                        right: 0,
+                        height: _itemH,
+                        child: const _Capsule(),
+                      ),
+                      Column(
+                        children: [
+                          for (var i = 0; i < tabs.length; i++) ...[
+                            if (i > 0) const SizedBox(height: _gap),
+                            SizedBox(
+                              height: _itemH,
+                              child: _NavItem(
+                                icon: index == i
+                                    ? tabs[i].selectedIcon
+                                    : tabs[i].icon,
+                                label: tabs[i].label,
+                                selected: index == i,
+                                onTap: () => onSelect(i),
+                              ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        )),
+        ),
       ),
     );
   }
@@ -866,17 +867,29 @@ class _NowReadingBar extends ConsumerStatefulWidget {
   ConsumerState<_NowReadingBar> createState() => _NowReadingBarState();
 }
 
+/// What the now-reading bar shows of a series: its title and cover.
+typedef _SeriesLook = ({
+  String title,
+  String? cover,
+  Map<String, String> headers,
+});
+
 class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
   String? _seriesId;
-  Future<String?>? _title;
+  Future<_SeriesLook?>? _series;
 
-  // History stores the chapter title, not the series - look the series up
-  // once per series rather than on every rebuild.
-  Future<String?> _titleFor(String? serverId, String seriesId) async {
+  // History stores the chapter, not the series - look the series up once
+  // per series (its title and cover) rather than on every rebuild.
+  Future<_SeriesLook?> _seriesFor(String? serverId, String seriesId) async {
     try {
       final backend = await ref.read(backendForServerProvider(serverId).future);
       if (backend == null) return null;
-      return (await backend.getSeries(seriesId)).title;
+      final s = await backend.getSeries(seriesId);
+      return (
+        title: s.title,
+        cover: s.thumbnailUrl,
+        headers: backend.imageHeaders,
+      );
     } catch (_) {
       return null;
     }
@@ -887,7 +900,7 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
     final e = widget.entry;
     if (_seriesId != e.seriesId) {
       _seriesId = e.seriesId;
-      _title = _titleFor(e.serverId, e.seriesId);
+      _series = _seriesFor(e.serverId, e.seriesId);
     }
     final number = formatChapterNumber(e.bookNumber);
 
@@ -912,22 +925,33 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
                 },
                 child: Container(
                   height: 54,
-                  padding: const EdgeInsets.only(left: 16, right: 4),
+                  padding: const EdgeInsets.only(left: 6, right: 4),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppColors.text, width: 2),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: FutureBuilder<String?>(
-                          future: _title,
-                          builder: (context, snap) => Column(
+                  child: FutureBuilder<_SeriesLook?>(
+                    future: _series,
+                    builder: (context, snap) => Row(
+                      children: [
+                        // The cover, as DESIGN.md's now-reading pill asks for:
+                        // the book you are in, recognisable at a glance.
+                        SizedBox(
+                          width: 30,
+                          height: 42,
+                          child: SeriesCover(
+                            imageUrl: snap.data?.cover,
+                            headers: snap.data?.headers ?? const {},
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                snap.data ?? e.bookTitle,
+                                snap.data?.title ?? e.bookTitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppText.body(
@@ -948,21 +972,21 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
                             ],
                           ),
                         ),
-                      ),
-                      IconButton(
-                        tooltip: 'Dismiss',
-                        icon: Icon(
-                          Icons.close,
-                          size: 18,
-                          color: AppColors.text60,
+                        IconButton(
+                          tooltip: 'Dismiss',
+                          icon: Icon(
+                            Icons.close,
+                            size: 18,
+                            color: AppColors.text60,
+                          ),
+                          onPressed: () =>
+                              ref
+                                  .read(nowReadingDismissedProvider.notifier)
+                                  .state = e
+                                  .timestamp,
                         ),
-                        onPressed: () =>
-                            ref
-                                    .read(nowReadingDismissedProvider.notifier)
-                                    .state =
-                                e.timestamp,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
