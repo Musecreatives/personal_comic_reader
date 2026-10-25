@@ -29,9 +29,9 @@ Branch: `claude/manga-brand-game`. Brand approved 2026-10-25.
 - [x] DESIGN.md merged with the approved brand
 
 ### Phase 2: landing page
-- [ ] Port the prototype's landing view into `web/get/index.html`, with the script in `web/get/landing.js`. Keep the real download links, the `?code=` invite ticket and `TESTFLIGHT_URL`.
-- [ ] Noren curtain, chapters, toys, stamp rally, ink cursor, theme toggle (all in the prototype)
-- [ ] Load the Chinese display font with the Google Fonts `&text=` subset. Canvases pause off screen and run at 30 fps at most. Reduced motion means static.
+- [x] Port the prototype's landing view into `web/get/index.html`, with the script in `web/get/landing.js`. Keep the real download links, the `?code=` invite ticket and `TESTFLIGHT_URL`.
+- [x] Noren curtain, chapters, toys, stamp rally, ink cursor, theme toggle (all in the prototype)
+- [x] Load the Chinese display font with the Google Fonts `&text=` subset. Canvases pause off screen and run at 30 fps at most. Reduced motion means static.
 - [ ] Check at 1101×688, 688×1101 and 390×844 (headless Chrome won't go below 512 px wide, so check phone width on a real phone)
 
 ### Phase 3: app theme (needs this PC for the tablet)
