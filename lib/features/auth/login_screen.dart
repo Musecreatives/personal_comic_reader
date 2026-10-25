@@ -76,7 +76,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await auth.saveSession(token: result.token, username: result.username);
       await auth.saveSyncUrl(client.baseUrl);
       ref.read(currentUsernameProvider.notifier).state = result.username;
-      if (_creatingAccount) await _addPresetKomga(client, password);
+      // On a new account, and on any sign-in with no servers yet (a second
+      // device before sync has carried them over): otherwise a friend lands
+      // on "No server configured" asking for a Komga login they never set.
+      if (_creatingAccount || ref.read(serverStoreProvider).listServers().isEmpty) {
+        await _addPresetKomga(client, password);
+      }
 
       unawaited(startSync(container));
 
