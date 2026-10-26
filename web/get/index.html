@@ -7,7 +7,9 @@
 <meta name="theme-color" content="#F3F3F1" media="(prefers-color-scheme: light)">
 <meta name="robots" content="noindex">
 <title>Get Shaddai Reader</title>
-<link rel="icon" href="../favicon.png">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon.png">
+<link rel="apple-touch-icon" href="../icons/Icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Dela+Gothic+One&family=M+PLUS+1+Code:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
@@ -275,9 +277,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .reveal p { color: var(--ink-2); margin-top: 6px; }
 
 /* Ink cursor (fine pointers only, never with reduced motion) */
-/* Position comes from JS every frame (no transition on transform, or it lags);
+/* Position comes from JS on `translate` (scale-independent, never transitioned);
    only size, colour and visibility ease. */
-.ink-cursor { position: fixed; top: 0; left: 0; z-index: 50; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: var(--ink); pointer-events: none; display: none; place-items: center; color: var(--on-seal); font: 400 20px/1 var(--jp); scale: .25; opacity: 0; will-change: transform; transition: scale .2s var(--ease), background-color .2s, opacity .15s; }
+.ink-cursor { position: fixed; top: 0; left: 0; z-index: 50; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: var(--ink); pointer-events: none; display: none; place-items: center; color: var(--on-seal); font: 400 20px/1 var(--jp); scale: .25; opacity: 0; will-change: translate; transition: scale .2s var(--ease), background-color .2s, opacity .15s; }
 .ink-cursor span { opacity: 0; transition: opacity .2s; }
 .ink-cursor.on { opacity: 1; }
 .ink-cursor.link span { opacity: 1; }
@@ -607,6 +609,7 @@ footer { padding-block: 64px calc(96px + env(safe-area-inset-bottom, 0px)); colo
 </div>
 <div class="ink-cursor" id="cursor" aria-hidden="true"><span>読</span></div>
 
-<script src="landing.js"></script>
+<!-- Bump ?v= on every landing.js change: Cloudflare caches it for 4 hours. -->
+<script src="landing.js?v=2"></script>
 </body>
 </html>
