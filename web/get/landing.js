@@ -287,7 +287,9 @@
     const track = (e) => {
       if (e.pointerType === 'touch') return false;
       x = e.clientX; y = e.clientY;
-      cur.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      // `translate`, not `transform`: the CSS `scale` is applied after
+      // `transform` and would shrink the offset too, pinning the dot near 0,0.
+      cur.style.translate = `${x}px ${y}px`;
       cur.classList.add('on');
       return true;
     };
