@@ -20,6 +20,7 @@ class SeriesActionsSheet {
     Future<void> Function()? onEditDetails,
     Future<void> Function()? onFindOnComicVine,
     Future<void> Function()? onManageSources,
+    VoidCallback? onSearchTitle,
   }) {
     return showAppSheet<void>(
       context: context,
@@ -77,6 +78,16 @@ class SeriesActionsSheet {
                   style: AppText.heading(size: 18),
                 ),
               ),
+              if (onSearchTitle != null)
+                _Action(
+                  icon: Icons.travel_explore_rounded,
+                  title: 'Search for this title',
+                  hint: 'Find it elsewhere to add, back up or migrate',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    onSearchTitle();
+                  },
+                ),
               if (onManageSources != null)
                 _Action(
                   icon: Icons.alt_route_rounded,

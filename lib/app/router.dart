@@ -78,7 +78,10 @@ GoRouter buildRouter({
         StatefulShellBranch(routes: [
           GoRoute(
             path: '/search',
-            builder: (context, state) => const CrossServerSearchScreen(),
+            builder: (context, state) => CrossServerSearchScreen(
+              initialQuery: state.uri.queryParameters['q'],
+              initialMode: state.uri.queryParameters['mode'],
+            ),
           ),
         ]),
         StatefulShellBranch(routes: [
