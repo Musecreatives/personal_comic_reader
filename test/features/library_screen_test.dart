@@ -13,7 +13,8 @@ import 'package:shaddai_reader/features/library/library_screen.dart';
 
 class _FakeBackend implements ReaderBackend {
   final List<Series> series;
-  _FakeBackend(this.series);
+  final Object? failWith;
+  _FakeBackend(this.series, {this.failWith});
 
   @override
   ServerConfig get config => const ServerConfig(
@@ -37,6 +38,7 @@ class _FakeBackend implements ReaderBackend {
     String? search,
   }) async {
     if (libraryId != null) requestedLibraryIds.add(libraryId);
+    if (failWith != null) throw failWith!;
     return PagedResult(
       items: series,
       page: 0,
@@ -179,5 +181,58 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakeBackend.requestedLibraryIds.last, 'lib2');
+  });
+
+  Future<void> pumpLibrary(WidgetTester tester, _FakeBackend backend) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          activeBackendProvider.overrideWith((ref) async => backend),
+          collectionsStoreProvider.overrideWithValue(collections),
+        ],
+        child: const MaterialApp(home: LibraryScreen(libraryId: 'lib1')),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  // Phone, tablet landscape, tablet portrait (DESIGN.md: check both).
+  for (final size in const [Size(390, 844), Size(1101, 688), Size(688, 1101)]) {
+    testWidgets('lays out a full shelf without overflow at $size', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await pumpLibrary(
+        tester,
+        _FakeBackend([
+          for (var i = 0; i < 30; i++)
+            Series(
+              id: 's$i',
+              libraryId: 'lib1',
+              title: 'A rather long series title number $i',
+              booksCount: 10,
+              booksReadCount: i % 11,
+              booksUnreadCount: 10 - i % 11,
+            ),
+        ]),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('A rather long series title number 0'), findsOneWidget);
+    });
+  }
+
+  testWidgets('an empty library shows the empty state', (tester) async {
+    await pumpLibrary(tester, _FakeBackend(const []));
+    expect(find.text('This shelf is empty'), findsOneWidget);
+  });
+
+  testWidgets('a failed load shows the error with a retry', (tester) async {
+    await pumpLibrary(
+        tester, _FakeBackend(const [], failWith: Exception('SocketException')));
+    expect(find.text("Can't reach the server"), findsWidgets);
+    expect(find.text('This shelf is empty'), findsNothing);
   });
 }
