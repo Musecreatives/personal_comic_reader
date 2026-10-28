@@ -170,7 +170,7 @@ class _RefreshCoverSheetState extends State<_RefreshCoverSheet> {
                   );
                 }
                 return SizedBox(
-                  height: 262,
+                  height: 276,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: list.length,
@@ -348,10 +348,11 @@ class _ImageSizeState extends State<_ImageSize> {
     super.dispose();
   }
 
+  // Two lines: on a 132px card one line cut the size off.
   @override
   Widget build(BuildContext context) => Text(
-        [widget.prefix, ?_size].join(' · '),
-        maxLines: 1,
+        [widget.prefix, ?_size].join('\n'),
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: AppText.mono(size: 9.5),
       );

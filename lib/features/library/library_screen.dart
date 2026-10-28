@@ -532,15 +532,13 @@ class _ReadProgress extends StatelessWidget {
     final value = count == 0 ? 0.0 : series.booksReadCount / count;
     return Semantics(
       label: '${series.booksReadCount} of $count read',
-      child: SizedBox(
-        height: 4,
-        child: Stack(children: [
-          Positioned.fill(child: ColoredBox(color: AppColors.track)),
-          FractionallySizedBox(
-            widthFactor: value.clamp(0.0, 1.0),
-            child: ColoredBox(color: AppColors.accent),
-          ),
-        ]),
+      child: ExcludeSemantics(
+        child: LinearProgressIndicator(
+          value: value.clamp(0.0, 1.0),
+          minHeight: 4,
+          color: AppColors.accent,
+          backgroundColor: AppColors.track,
+        ),
       ),
     );
   }

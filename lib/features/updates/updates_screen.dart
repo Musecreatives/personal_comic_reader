@@ -348,8 +348,14 @@ class UpdatesStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final feed = ref.watch(updatesProvider).valueOrNull;
     if (feed == null) return const SizedBox.shrink();
-    final groups =
-        feed.groups.where((g) => serverId == null || g.serverId == serverId).take(4).toList();
+    // One row per series here (its newest day); the full screen keeps
+    // every day, so a weekly series doesn't fill the whole strip.
+    final seen = <String>{};
+    final groups = feed.groups
+        .where((g) => serverId == null || g.serverId == serverId)
+        .where((g) => seen.add('${g.serverId}|${g.seriesId}'))
+        .take(4)
+        .toList();
     if (groups.isEmpty) return const SizedBox.shrink();
     final now = DateTime.now();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
