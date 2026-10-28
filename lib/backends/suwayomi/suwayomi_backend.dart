@@ -44,7 +44,14 @@ Map<String, String> metaMap(Object? nodes) => {
 }
 
 /// One copy of a title in the Sources sheet: the main series or a backup.
-typedef SourceCopy = ({int id, String title, String source, int chapters, String? newest});
+typedef SourceCopy = ({
+  int id,
+  String title,
+  String source,
+  int chapters,
+  String? newest,
+  CopyStats stats,
+});
 
 /// Suwayomi's optional basic-auth login as request headers; empty when no
 /// username is set, so an open server keeps working unchanged.
@@ -806,8 +813,9 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     }
   }
 
-  /// Adds [linkedId] as the last backup for [seriesId] and fetches its
-  /// chapter list, so a fallback later doesn't start from nothing.
+  /// Adds [linkedId] as a backup for [seriesId], fetches its chapter list
+  /// (so a fallback doesn't start from nothing) and puts it in its ranked
+  /// place among the backups.
   Future<void> linkSource(String seriesId, int linkedId) async {
     final ids = await linkedSourceIds(seriesId);
     if ('$linkedId' == seriesId || ids.contains(linkedId)) return;
@@ -817,6 +825,31 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     } catch (_) {
       // Its site is down right now; the fallback fetches again when needed.
     }
+    await rankBackups(seriesId);
+  }
+
+  /// Copies the owner marked as well translated (see [SourceStrength]).
+  Future<Set<int>> goodTranslations(String seriesId) async =>
+      parseLinkedIds((await _meta(seriesId))[goodTranslationMetaKey]).toSet();
+
+  Future<void> setGoodTranslation(String seriesId, int copyId, bool good) async {
+    final marked = await goodTranslations(seriesId);
+    good ? marked.add(copyId) : marked.remove(copyId);
+    marked.isEmpty
+        ? await _deleteMeta(seriesId, goodTranslationMetaKey)
+        : await _setMeta(seriesId, goodTranslationMetaKey, jsonEncode(marked.toList()));
+  }
+
+  /// Puts the backups with the most strengths first (ties keep their order)
+  /// and saves that as the fallback order. The main source stays as it is:
+  /// switching it moves the series in the library, which the owner decides.
+  Future<void> rankBackups(String seriesId) async {
+    final copies = await sourceCopies(seriesId);
+    final backups = copies.skip(1).toList();
+    if (backups.length < 2) return;
+    final strengths = sourceStrengths([for (final c in copies) c.stats]).skip(1).toList();
+    await setLinkedSourceIds(
+        seriesId, rankByStrength([for (final b in backups) b.id], strengths));
   }
 
   Future<void> unlinkSource(String seriesId, int linkedId) async {
@@ -825,15 +858,19 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   }
 
   /// [seriesId] and its backups as stored on the server: source, chapter
-  /// count and newest chapter. Nothing is fetched from the sites, so this
-  /// is quick; the counts are as of each title's last fetch.
+  /// count, newest chapter and the stats they are ranked on. Nothing is
+  /// fetched from the sites, so this is quick; it is as of each title's
+  /// last fetch.
   Future<List<SourceCopy>> sourceCopies(String seriesId) async {
-    final ids = [int.parse(seriesId), ...await linkedSourceIds(seriesId)];
+    final meta = await _meta(seriesId);
+    final ids = [int.parse(seriesId), ...parseLinkedIds(meta[linkedSourcesMetaKey])];
+    final good = parseLinkedIds(meta[goodTranslationMetaKey]).toSet();
     return Future.wait(ids.map((id) async {
       try {
         final data = await _gql(
           'query(\$id: Int!) { manga(id: \$id) { id title source { displayName } '
-          'chapters { totalCount } highestNumberedChapter { name } } }',
+          'chapters { totalCount nodes { chapterNumber uploadDate } } '
+          'highestNumberedChapter { name } } }',
           {'id': id},
         );
         final m = data['manga'] as Map<String, dynamic>;
@@ -843,11 +880,28 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
           source: m['source']?['displayName'] as String? ?? 'Unknown source',
           chapters: m['chapters']?['totalCount'] as int? ?? 0,
           newest: m['highestNumberedChapter']?['name'] as String?,
+          stats: CopyStats.fromChapters(
+            [
+              for (final c in (m['chapters']?['nodes'] as List?) ?? const [])
+                (
+                  (c['chapterNumber'] as num?)?.toDouble() ?? -1,
+                  int.tryParse('${c['uploadDate'] ?? ''}') ?? 0,
+                ),
+            ],
+            goodTranslation: good.contains(id),
+          ),
         );
       } catch (_) {
         // A linked title the server no longer knows (its extension was
         // removed): still listed, so it can be unlinked.
-        return (id: id, title: '', source: 'Unavailable', chapters: 0, newest: null);
+        return (
+          id: id,
+          title: '',
+          source: 'Unavailable',
+          chapters: 0,
+          newest: null,
+          stats: const CopyStats(newestNumber: 0, newestUpload: null, gaps: 0),
+        );
       }
     }));
   }
@@ -886,10 +940,15 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// with the old main as the first backup. Returns the new series id.
   Future<String> makeMain(String fromId, int toId) async {
     final links = await linkedSourceIds(fromId);
+    final good = await goodTranslations(fromId);
     await migrate(fromId, toId);
     await setLinkedSourceIds(
         '$toId', [int.parse(fromId), ...links.where((i) => i != toId)]);
     await setLinkedSourceIds(fromId, const []);
+    if (good.isNotEmpty) {
+      await _setMeta('$toId', goodTranslationMetaKey, jsonEncode(good.toList()));
+      await _deleteMeta(fromId, goodTranslationMetaKey);
+    }
     return '$toId';
   }
 
