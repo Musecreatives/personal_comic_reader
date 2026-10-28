@@ -212,6 +212,7 @@ class KomgaBackend implements ReaderBackend, SeriesMetadataEditor {
       },
       completed: readProgress?['completed'] as bool? ?? false,
       thumbnailUrl: thumbnailUrlForBook(e['id'] as String),
+      addedAt: DateTime.tryParse(e['created'] as String? ?? ''),
     );
   }
 

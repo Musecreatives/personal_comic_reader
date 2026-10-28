@@ -256,6 +256,7 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     if (sourceOrder != null) _chapterSourceOrder[id] = sourceOrder;
     final pages = e['pageCount'] as int? ?? -1;
     final lastPageRead = e['lastPageRead'] as int? ?? 0;
+    final uploaded = int.tryParse('${e['uploadDate'] ?? ''}');
     return Book(
       id: id,
       seriesId: mangaId,
@@ -265,6 +266,11 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
       readProgressPage: lastPageRead == 0 ? null : lastPageRead,
       completed: e['isRead'] as bool? ?? false,
       thumbnailUrl: thumbnailUrlForSeries(mangaId),
+      // The source's release date, in milliseconds. (fetchedAt is no use:
+      // on a real library it mostly records when a whole series was added.)
+      addedAt: uploaded == null || uploaded == 0
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(uploaded),
     );
   }
 
@@ -374,6 +380,60 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     );
     final nodes = data['chapters']['nodes'] as List;
     return nodes.map((e) => _bookFromJson(e)).toList();
+  }
+
+  // ---------------------------------------------------------------------
+  // Updates (plan item 4)
+  // ---------------------------------------------------------------------
+
+  /// The newest released chapters of manga you have started or finished
+  /// (at least one chapter read), with their series titles. Newest first.
+  /// The followed manga are picked first and the chapters asked for by id:
+  /// filtering the newest chapters afterwards found nothing on a real
+  /// library, where a freshly added back catalogue took every slot.
+  Future<List<({Book book, String seriesTitle})>> recentUpdates({int first = 200}) async {
+    final mangas = await _gql(
+      '{ mangas(condition: {inLibrary: true}) { nodes { id title unreadCount chapters { totalCount } } } }',
+    );
+    final titles = {
+      for (final m in (mangas['mangas']['nodes'] as List).cast<Map<String, dynamic>>())
+        if (((m['chapters']?['totalCount'] as int?) ?? 0) - ((m['unreadCount'] as int?) ?? 0) > 0)
+          m['id'] as int: m['title'] as String? ?? 'Untitled',
+    };
+    if (titles.isEmpty) return const [];
+    final data = await _gql(
+      'query(\$ids: [Int!]) { chapters(filter: {mangaId: {in: \$ids}}, '
+      'order: [{by: UPLOAD_DATE, byType: DESC}], first: $first) { nodes { '
+      'id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder uploadDate } } }',
+      {'ids': titles.keys.toList()},
+    );
+    return [
+      for (final n in (data['chapters']['nodes'] as List).cast<Map<String, dynamic>>())
+        (book: _bookFromJson(n), seriesTitle: titles[n['mangaId']] ?? 'Untitled'),
+    ];
+  }
+
+  /// When Suwayomi last checked the library's sources for new chapters.
+  Future<DateTime?> lastUpdateCheck() async {
+    final data = await _gql('{ lastUpdateTimestamp { timestamp } }');
+    final ms = int.tryParse('${data['lastUpdateTimestamp']?['timestamp'] ?? ''}');
+    return ms == null || ms == 0 ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  /// Asks Suwayomi to check every library title's source for new chapters.
+  /// It runs on the server; follow it with [libraryUpdateProgress].
+  Future<void> startLibraryUpdate() =>
+      _gql('mutation { updateLibrary(input: {}) { clientMutationId } }');
+
+  Future<({bool running, int done, int total})> libraryUpdateProgress() async {
+    final data = await _gql(
+        '{ libraryUpdateStatus { jobsInfo { isRunning finishedJobs totalJobs } } }');
+    final j = data['libraryUpdateStatus']['jobsInfo'] as Map<String, dynamic>;
+    return (
+      running: j['isRunning'] as bool? ?? false,
+      done: j['finishedJobs'] as int? ?? 0,
+      total: j['totalJobs'] as int? ?? 0,
+    );
   }
 
   /// Takes a series out of the Suwayomi library. It only stops being a library
