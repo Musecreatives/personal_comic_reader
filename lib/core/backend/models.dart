@@ -43,6 +43,10 @@ class Series {
   /// Suwayomi extension, e.g. "Read Comics Online (EN)". Null elsewhere.
   final String? sourceName;
 
+  /// A wide image for the series page backdrop, picked in "Refresh cover &
+  /// details" (Suwayomi only). Null means the cover is used.
+  final String? bannerUrl;
+
   /// "Writer · Artist" - only imported comics with a ComicInfo.xml so far.
   final String? credits;
 
@@ -59,6 +63,7 @@ class Series {
     required this.booksUnreadCount,
     this.thumbnailUrl,
     this.sourceName,
+    this.bannerUrl,
     this.credits,
     this.tags = const [],
   });
@@ -76,6 +81,11 @@ class Book {
   final bool completed;
   final String? thumbnailUrl;
 
+  /// When the server got this chapter (Komga: added to the library;
+  /// Suwayomi: released by the source). Null where unknown. Updates
+  /// sorts and groups by it.
+  final DateTime? addedAt;
+
   const Book({
     required this.id,
     required this.seriesId,
@@ -85,6 +95,7 @@ class Book {
     this.readProgressPage,
     required this.completed,
     this.thumbnailUrl,
+    this.addedAt,
   });
 
   double get progressRatio =>

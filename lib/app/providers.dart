@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backends/komga/komga_backend.dart';
+import '../core/network/image_origins.dart';
 import '../backends/local/local_backend.dart';
 import '../backends/local/local_library_store.dart';
 import '../backends/opds/opds_backend.dart';
@@ -103,6 +104,8 @@ ReaderBackend buildBackend(
   String password, {
   required LocalLibraryStore localStore,
 }) {
+  // Its covers may carry its login; outside covers must not (see there).
+  trustImageOrigin(config.baseUrl);
   switch (config.type) {
     case ServerType.komga:
       return KomgaBackend(config: config, password: password);

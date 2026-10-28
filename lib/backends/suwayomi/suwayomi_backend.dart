@@ -9,6 +9,42 @@ import '../../core/backend/models.dart';
 import '../../core/discovery/recommender.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/network/retry_interceptor.dart';
+import '../../core/metadata/cover_candidates.dart';
+import '../../core/sources/linked_sources.dart';
+
+/// Manga meta keys for a cover and details picked in "Refresh cover &
+/// details". Suwayomi can't take an uploaded cover, so the picked image's
+/// address is kept here and read back by this app (other Suwayomi clients
+/// keep showing the source's cover).
+const coverMetaKey = 'shaddai.cover';
+const bannerMetaKey = 'shaddai.banner';
+const detailsMetaKey = 'shaddai.details';
+
+/// The `meta { key value }` nodes of a manga as a map.
+Map<String, String> metaMap(Object? nodes) => {
+      for (final n in (nodes as List?) ?? const [])
+        if (n is Map && n['key'] is String && n['value'] is String)
+          n['key'] as String: n['value'] as String,
+    };
+
+/// The summary, genres and status saved over the source's own, from the
+/// details meta value. Missing or unreadable means none.
+({String? summary, List<String>? genres, String? status}) parseDetailsOverride(String? raw) {
+  if (raw == null) return (summary: null, genres: null, status: null);
+  try {
+    final j = jsonDecode(raw) as Map<String, dynamic>;
+    return (
+      summary: j['summary'] as String?,
+      genres: (j['genres'] as List?)?.whereType<String>().toList(),
+      status: j['status'] as String?,
+    );
+  } catch (_) {
+    return (summary: null, genres: null, status: null);
+  }
+}
+
+/// One copy of a title in the Sources sheet: the main series or a backup.
+typedef SourceCopy = ({int id, String title, String source, int chapters, String? newest});
 
 /// Suwayomi's optional basic-auth login as request headers; empty when no
 /// username is set, so an open server keeps working unchanged.
@@ -31,7 +67,7 @@ Map<String, String> suwayomiAuthHeaders(String username, String password) =>
 /// is a Manga, and a [Book] is a Chapter. Collections and reading lists
 /// have no Suwayomi equivalent distinct from categories (already used as
 /// libraries), so both return empty lists.
-class SuwayomiBackend implements ReaderBackend {
+class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   @override
   final ServerConfig config;
   final Dio _dio;
@@ -47,6 +83,11 @@ class SuwayomiBackend implements ReaderBackend {
   // .../chapter/23/... where 23 is its sourceOrder, and 404s at any other
   // path segment.
   final Map<String, int> _chapterSourceOrder = {};
+
+  /// Picked covers by series id, learned whenever a series is read with its
+  /// meta, so [thumbnailUrlForSeries] (which can't wait on the server)
+  /// shows them.
+  final Map<String, String> _coverOverrides = {};
 
   SuwayomiBackend({required this.config, required String password, Dio? dio})
       : imageHeaders = suwayomiAuthHeaders(config.username, password),
@@ -95,7 +136,7 @@ class SuwayomiBackend implements ReaderBackend {
   }
 
   static const _mangaFields =
-      'id title thumbnailUrl inLibrary unreadCount chapters { totalCount }';
+      'id title thumbnailUrl inLibrary unreadCount chapters { totalCount } meta { key value }';
 
   @override
   Future<PagedResult<Series>> listSeries({
@@ -145,23 +186,36 @@ class SuwayomiBackend implements ReaderBackend {
     final total = e['chapters']?['totalCount'] as int? ?? 0;
     final unread = e['unreadCount'] as int? ?? 0;
     final id = '${e['id']}';
+    final meta = metaMap(e['meta']);
+    // Only a read that asked for meta can say an override is gone.
+    if (e.containsKey('meta')) {
+      final cover = meta[coverMetaKey];
+      if (cover == null) {
+        _coverOverrides.remove(id);
+      } else {
+        _coverOverrides[id] = cover;
+      }
+    }
+    final details = parseDetailsOverride(meta[detailsMetaKey]);
     return Series(
       id: id,
       libraryId: '',
       title: e['title'] as String? ?? 'Untitled',
-      summary: e['description'] as String?,
+      summary: details.summary ?? e['description'] as String?,
       booksCount: total,
       booksReadCount: total - unread,
       booksUnreadCount: unread,
       thumbnailUrl: thumbnailUrlForSeries(id),
+      bannerUrl: meta[bannerMetaKey],
       sourceName: e['source']?['displayName'] as String?,
+      tags: details.genres ?? const [],
     );
   }
 
   @override
   Future<Series> getSeries(String id) async {
     final data = await _gql(
-      'query(\$id: Int!) { manga(id: \$id) { id title description thumbnailUrl unreadCount chapters { totalCount } source { displayName } } }',
+      'query(\$id: Int!) { manga(id: \$id) { id title description thumbnailUrl unreadCount chapters { totalCount } source { displayName } meta { key value } } }',
       {'id': int.parse(id)},
     );
     return _seriesFromJson(data['manga'] as Map<String, dynamic>);
@@ -202,6 +256,7 @@ class SuwayomiBackend implements ReaderBackend {
     if (sourceOrder != null) _chapterSourceOrder[id] = sourceOrder;
     final pages = e['pageCount'] as int? ?? -1;
     final lastPageRead = e['lastPageRead'] as int? ?? 0;
+    final uploaded = int.tryParse('${e['uploadDate'] ?? ''}');
     return Book(
       id: id,
       seriesId: mangaId,
@@ -211,6 +266,11 @@ class SuwayomiBackend implements ReaderBackend {
       readProgressPage: lastPageRead == 0 ? null : lastPageRead,
       completed: e['isRead'] as bool? ?? false,
       thumbnailUrl: thumbnailUrlForSeries(mangaId),
+      // The source's release date, in milliseconds. (fetchedAt is no use:
+      // on a real library it mostly records when a whole series was added.)
+      addedAt: uploaded == null || uploaded == 0
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(uploaded),
     );
   }
 
@@ -322,6 +382,60 @@ class SuwayomiBackend implements ReaderBackend {
     return nodes.map((e) => _bookFromJson(e)).toList();
   }
 
+  // ---------------------------------------------------------------------
+  // Updates (plan item 4)
+  // ---------------------------------------------------------------------
+
+  /// The newest released chapters of manga you have started or finished
+  /// (at least one chapter read), with their series titles. Newest first.
+  /// The followed manga are picked first and the chapters asked for by id:
+  /// filtering the newest chapters afterwards found nothing on a real
+  /// library, where a freshly added back catalogue took every slot.
+  Future<List<({Book book, String seriesTitle})>> recentUpdates({int first = 200}) async {
+    final mangas = await _gql(
+      '{ mangas(condition: {inLibrary: true}) { nodes { id title unreadCount chapters { totalCount } } } }',
+    );
+    final titles = {
+      for (final m in (mangas['mangas']['nodes'] as List).cast<Map<String, dynamic>>())
+        if (((m['chapters']?['totalCount'] as int?) ?? 0) - ((m['unreadCount'] as int?) ?? 0) > 0)
+          m['id'] as int: m['title'] as String? ?? 'Untitled',
+    };
+    if (titles.isEmpty) return const [];
+    final data = await _gql(
+      'query(\$ids: [Int!]) { chapters(filter: {mangaId: {in: \$ids}}, '
+      'order: [{by: UPLOAD_DATE, byType: DESC}], first: $first) { nodes { '
+      'id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder uploadDate } } }',
+      {'ids': titles.keys.toList()},
+    );
+    return [
+      for (final n in (data['chapters']['nodes'] as List).cast<Map<String, dynamic>>())
+        (book: _bookFromJson(n), seriesTitle: titles[n['mangaId']] ?? 'Untitled'),
+    ];
+  }
+
+  /// When Suwayomi last checked the library's sources for new chapters.
+  Future<DateTime?> lastUpdateCheck() async {
+    final data = await _gql('{ lastUpdateTimestamp { timestamp } }');
+    final ms = int.tryParse('${data['lastUpdateTimestamp']?['timestamp'] ?? ''}');
+    return ms == null || ms == 0 ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  /// Asks Suwayomi to check every library title's source for new chapters.
+  /// It runs on the server; follow it with [libraryUpdateProgress].
+  Future<void> startLibraryUpdate() =>
+      _gql('mutation { updateLibrary(input: {}) { clientMutationId } }');
+
+  Future<({bool running, int done, int total})> libraryUpdateProgress() async {
+    final data = await _gql(
+        '{ libraryUpdateStatus { jobsInfo { isRunning finishedJobs totalJobs } } }');
+    final j = data['libraryUpdateStatus']['jobsInfo'] as Map<String, dynamic>;
+    return (
+      running: j['isRunning'] as bool? ?? false,
+      done: j['finishedJobs'] as int? ?? 0,
+      total: j['totalJobs'] as int? ?? 0,
+    );
+  }
+
   /// Takes a series out of the Suwayomi library. It only stops being a library
   /// entry (so it leaves Library, updates and Continue reading); nothing is
   /// deleted from the source, and it can be added again from Browse sources.
@@ -343,7 +457,7 @@ class SuwayomiBackend implements ReaderBackend {
 
   @override
   String thumbnailUrlForSeries(String seriesId) =>
-      '${config.baseUrl}/api/v1/manga/$seriesId/thumbnail';
+      _coverOverrides[seriesId] ?? '${config.baseUrl}/api/v1/manga/$seriesId/thumbnail';
 
   @override
   String thumbnailUrlForBook(String bookId) =>
@@ -612,6 +726,171 @@ class SuwayomiBackend implements ReaderBackend {
       byNumber[chapNum] = n['id'] as int;
     }
     return byNumber;
+  }
+
+  // ---------------------------------------------------------------------
+  // Linked backup sources (plan item 1): the same title on other extensions,
+  // kept in the main series' meta and used when the main source can't load
+  // a chapter. Linked titles are fetched but never added to the library, so
+  // nothing shows up twice.
+  // ---------------------------------------------------------------------
+
+  /// The backup sources linked to [seriesId], in fallback order.
+  Future<List<int>> linkedSourceIds(String seriesId) async =>
+      parseLinkedIds((await _meta(seriesId))[linkedSourcesMetaKey]);
+
+  Future<void> setLinkedSourceIds(String seriesId, List<int> ids) => ids.isEmpty
+      ? _deleteMeta(seriesId, linkedSourcesMetaKey)
+      : _setMeta(seriesId, linkedSourcesMetaKey, jsonEncode(ids));
+
+  Future<Map<String, String>> _meta(String seriesId) async {
+    final data = await _gql(
+      'query(\$id: Int!) { manga(id: \$id) { meta { key value } } }',
+      {'id': int.parse(seriesId)},
+    );
+    return metaMap(data['manga']['meta']);
+  }
+
+  Future<void> _setMeta(String seriesId, String key, String value) => _gql(
+        'mutation(\$id: Int!, \$key: String!, \$value: String!) { '
+        'setMangaMeta(input: {meta: {mangaId: \$id, key: \$key, value: \$value}}) { clientMutationId } }',
+        {'id': int.parse(seriesId), 'key': key, 'value': value},
+      );
+
+  Future<void> _deleteMeta(String seriesId, String key) => _gql(
+        'mutation(\$id: Int!, \$key: String!) { '
+        'deleteMangaMeta(input: {mangaId: \$id, key: \$key}) { clientMutationId } }',
+        {'id': int.parse(seriesId), 'key': key},
+      );
+
+  // ---------------------------------------------------------------------
+  // Refresh cover & details (plan item 2). Kept in manga meta and shared by
+  // every app user; only the owner is offered the sheet.
+  // ---------------------------------------------------------------------
+
+  @override
+  bool get supportsBanner => true;
+
+  @override
+  Future<void> applyMetadata(String seriesId, MetadataUpdate update) async {
+    final cover = update.coverUrl;
+    if (cover != null) {
+      await _setMeta(seriesId, coverMetaKey, cover);
+      _coverOverrides[seriesId] = cover;
+    }
+    final banner = update.bannerUrl;
+    if (banner != null) await _setMeta(seriesId, bannerMetaKey, banner);
+    if (update.summary != null || update.genres != null || update.status != null) {
+      final old = parseDetailsOverride((await _meta(seriesId))[detailsMetaKey]);
+      await _setMeta(seriesId, detailsMetaKey, jsonEncode({
+        'summary': ?(update.summary ?? old.summary),
+        'genres': ?(update.genres ?? old.genres),
+        'status': ?(update.status?.name ?? old.status),
+      }));
+    }
+  }
+
+  /// Drops the picked cover and banner and asks the source for its own
+  /// cover again.
+  Future<void> resetCover(String seriesId) async {
+    await _deleteMeta(seriesId, coverMetaKey);
+    await _deleteMeta(seriesId, bannerMetaKey);
+    _coverOverrides.remove(seriesId);
+    try {
+      await _gql(
+        'mutation(\$id: Int!) { fetchManga(input: {id: \$id}) { manga { id } } }',
+        {'id': int.parse(seriesId)},
+      );
+    } catch (_) {
+      // The source is down; its last cover stays.
+    }
+  }
+
+  /// Adds [linkedId] as the last backup for [seriesId] and fetches its
+  /// chapter list, so a fallback later doesn't start from nothing.
+  Future<void> linkSource(String seriesId, int linkedId) async {
+    final ids = await linkedSourceIds(seriesId);
+    if ('$linkedId' == seriesId || ids.contains(linkedId)) return;
+    await setLinkedSourceIds(seriesId, [...ids, linkedId]);
+    try {
+      await _fetchChaptersFromSource(linkedId);
+    } catch (_) {
+      // Its site is down right now; the fallback fetches again when needed.
+    }
+  }
+
+  Future<void> unlinkSource(String seriesId, int linkedId) async {
+    final ids = await linkedSourceIds(seriesId);
+    await setLinkedSourceIds(seriesId, [...ids.where((i) => i != linkedId)]);
+  }
+
+  /// [seriesId] and its backups as stored on the server: source, chapter
+  /// count and newest chapter. Nothing is fetched from the sites, so this
+  /// is quick; the counts are as of each title's last fetch.
+  Future<List<SourceCopy>> sourceCopies(String seriesId) async {
+    final ids = [int.parse(seriesId), ...await linkedSourceIds(seriesId)];
+    return Future.wait(ids.map((id) async {
+      try {
+        final data = await _gql(
+          'query(\$id: Int!) { manga(id: \$id) { id title source { displayName } '
+          'chapters { totalCount } highestNumberedChapter { name } } }',
+          {'id': id},
+        );
+        final m = data['manga'] as Map<String, dynamic>;
+        return (
+          id: id,
+          title: m['title'] as String? ?? '',
+          source: m['source']?['displayName'] as String? ?? 'Unknown source',
+          chapters: m['chapters']?['totalCount'] as int? ?? 0,
+          newest: m['highestNumberedChapter']?['name'] as String?,
+        );
+      } catch (_) {
+        // A linked title the server no longer knows (its extension was
+        // removed): still listed, so it can be unlinked.
+        return (id: id, title: '', source: 'Unavailable', chapters: 0, newest: null);
+      }
+    }));
+  }
+
+  /// The same chapter as [main] on the first backup source that has it,
+  /// with the names of both sources for the reader's banner. Null when the
+  /// series has no backups or none of them has this chapter number.
+  Future<({Book book, String source, String? mainSource})?> fallbackFor(Book main) async {
+    final ids = await linkedSourceIds(main.seriesId);
+    if (ids.isEmpty) return null;
+    final hit = await findFallbackChapter(ids, main.number, fetchChapterIdsByNumber);
+    if (hit == null) return null;
+    final book = await getBook('${hit.chapterId}');
+    if (book.pageCount == 0) return null;
+    Future<String?> sourceOf(int id) async {
+      try {
+        final data = await _gql(
+          'query(\$id: Int!) { manga(id: \$id) { source { displayName } } }',
+          {'id': id},
+        );
+        return data['manga']['source']?['displayName'] as String?;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return (
+      book: book,
+      source: await sourceOf(hit.mangaId) ?? 'another source',
+      mainSource: await sourceOf(int.parse(main.seriesId)),
+    );
+  }
+
+  /// Swaps the main source: migrates [fromId] to the backup [toId] (read
+  /// chapters and categories come along) and carries the backup list over,
+  /// with the old main as the first backup. Returns the new series id.
+  Future<String> makeMain(String fromId, int toId) async {
+    final links = await linkedSourceIds(fromId);
+    await migrate(fromId, toId);
+    await setLinkedSourceIds(
+        '$toId', [int.parse(fromId), ...links.where((i) => i != toId)]);
+    await setLinkedSourceIds(fromId, const []);
+    return '$toId';
   }
 
   /// Marks a batch of chapters read, chunked to keep individual mutations
