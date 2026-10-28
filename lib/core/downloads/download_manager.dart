@@ -8,6 +8,9 @@ import '../backend/reader_backend.dart';
 import 'download_models.dart';
 import 'download_store.dart';
 
+typedef ChapterFallback = Future<({String bookId, int pageCount})?> Function(
+    ReaderBackend backend, String bookId);
+
 /// Drives the download queue: up to [concurrency] books download at once,
 /// each fetching pages sequentially through the same [ReaderBackend] the
 /// reader uses. Pause/resume/cancel just flip queue state; the pump loop
@@ -25,7 +28,12 @@ class DownloadManager {
   final Set<String> _running = {};
   final StreamController<void> _changes = StreamController.broadcast();
 
-  DownloadManager({required this.store});
+  /// Finds a chapter's copy on a backup source when its own source can't
+  /// serve it: that copy's book id and page count, or null. Supplied by the
+  /// app for Suwayomi; without it a failed page fails the download.
+  final ChapterFallback? findFallback;
+
+  DownloadManager({required this.store, this.findFallback});
 
   /// Fires on every queue/progress change - UI providers watch this.
   Stream<void> get changes => _changes.stream;
@@ -107,8 +115,10 @@ class DownloadManager {
   /// Removes a book from the queue and deletes whatever pages were saved.
   Future<void> cancel(String bookId) async {
     _backends.remove(bookId);
+    final source = store.getTask(bookId)?.sourceBookId;
     await store.deleteTask(bookId);
     await store.deletePagesForBook(bookId);
+    if (source != null) await store.deletePagesForBook(source);
     _notify();
   }
 
@@ -199,42 +209,29 @@ class DownloadManager {
   Future<void> _runTask(ReaderBackend backend, String bookId) async {
     final initial = store.getTask(bookId);
     if (initial == null) return;
-
-    DownloadTask latest = initial.copyWith(state: DownloadState.running);
-    await store.saveTask(latest);
+    await store.saveTask(initial.copyWith(state: DownloadState.running));
     _notify();
 
     try {
-      // Suwayomi (and OPDS) don't know a chapter's page count until it is
-      // opened, so it was queued as 0. Ask for it now, or the loop below
-      // would "finish" instantly having saved nothing.
-      if (latest.totalPages == 0) {
-        final book = await backend.getBook(bookId);
-        if (book.pageCount == 0) throw StateError('This chapter has no pages');
-        latest = latest.copyWith(totalPages: book.pageCount);
-        await store.saveTask(latest);
+      try {
+        await _download(backend, bookId);
+      } catch (_) {
+        // The main source failed: try the same chapter on a backup source
+        // once (the reader does the same, see linked_sources.dart).
+        final task = store.getTask(bookId);
+        if (task == null || task.sourceBookId != null || findFallback == null) rethrow;
+        ({String bookId, int pageCount})? copy;
+        try {
+          copy = await findFallback!(backend, bookId);
+        } catch (_) {}
+        if (copy == null) rethrow;
+        // A different source's pages don't line up, so start this one over.
+        await store.deletePagesForBook(bookId);
+        await store.saveTask(task.copyWith(
+            sourceBookId: copy.bookId, totalPages: copy.pageCount, downloadedPages: 0));
         _notify();
+        await _download(backend, bookId);
       }
-      for (var i = latest.downloadedPages; i < latest.totalPages; i++) {
-        final current = store.getTask(bookId);
-        if (current == null) return;
-        if (current.state == DownloadState.paused) return;
-
-        if (await _wifiOnlyBlocked()) {
-          await store.saveTask(current.copyWith(state: DownloadState.paused));
-          _notify();
-          return;
-        }
-
-        if (!store.hasPage(bookId, i)) {
-          final bytes = await backend.fetchPage(bookId, i);
-          await store.putPage(bookId, i, bytes);
-        }
-        latest = current.copyWith(downloadedPages: i + 1);
-        await store.saveTask(latest);
-        _notify();
-      }
-      await store.saveTask(latest.copyWith(state: DownloadState.done));
     } catch (e) {
       final current = store.getTask(bookId);
       if (current != null) {
@@ -242,6 +239,48 @@ class DownloadManager {
       }
     }
     _notify();
+  }
+
+  /// Saves the task's remaining pages, from its backup copy when it has one
+  /// (stored under that copy's id, so an online read of the main chapter
+  /// never picks up another source's pages), then marks it done.
+  /// Returns early, leaving it unfinished, when it is paused, removed or
+  /// held back by Wi-Fi only.
+  Future<void> _download(ReaderBackend backend, String bookId) async {
+    final saved = store.getTask(bookId);
+    if (saved == null) return;
+    var latest = saved;
+    final fetchId = latest.sourceBookId ?? bookId;
+    // Suwayomi (and OPDS) don't know a chapter's page count until it is
+    // opened, so it was queued as 0. Ask for it now, or the loop below
+    // would "finish" instantly having saved nothing.
+    if (latest.totalPages == 0) {
+      final book = await backend.getBook(fetchId);
+      if (book.pageCount == 0) throw StateError('This chapter has no pages');
+      latest = latest.copyWith(totalPages: book.pageCount);
+      await store.saveTask(latest);
+      _notify();
+    }
+    for (var i = latest.downloadedPages; i < latest.totalPages; i++) {
+      final current = store.getTask(bookId);
+      if (current == null) return;
+      if (current.state == DownloadState.paused) return;
+
+      if (await _wifiOnlyBlocked()) {
+        await store.saveTask(current.copyWith(state: DownloadState.paused));
+        _notify();
+        return;
+      }
+
+      if (!store.hasPage(fetchId, i)) {
+        final bytes = await backend.fetchPage(fetchId, i);
+        await store.putPage(fetchId, i, bytes);
+      }
+      latest = current.copyWith(downloadedPages: i + 1);
+      await store.saveTask(latest);
+      _notify();
+    }
+    await store.saveTask(latest.copyWith(state: DownloadState.done));
   }
 
   /// Completes once no download is running, including the queue check each

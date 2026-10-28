@@ -20,6 +20,7 @@ import 'app/router.dart';
 import 'app/sync_scheduler.dart';
 import 'app/theme.dart';
 import 'backends/local/local_library_store.dart';
+import 'backends/suwayomi/suwayomi_backend.dart';
 import 'core/appearance/appearance_settings.dart';
 import 'core/appearance/appearance_store.dart';
 import 'core/collections/collections_store.dart';
@@ -91,7 +92,15 @@ Future<void> main() async {
 
   final downloadStore = DownloadStore();
   await downloadStore.init();
-  final downloadManager = DownloadManager(store: downloadStore);
+  final downloadManager = DownloadManager(
+    store: downloadStore,
+    // A Suwayomi chapter whose source fails comes from a linked backup.
+    findFallback: (backend, bookId) async {
+      if (backend is! SuwayomiBackend) return null;
+      final copy = await backend.fallbackFor(await backend.getBook(bookId));
+      return copy == null ? null : (bookId: copy.book.id, pageCount: copy.book.pageCount);
+    },
+  );
 
   final pageCache = PageCache(downloadStore: downloadStore);
   await pageCache.init();
