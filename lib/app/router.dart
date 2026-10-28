@@ -10,6 +10,8 @@ import '../features/discovery/recommendations_screen.dart';
 import '../features/home/in_progress_screen.dart';
 import '../features/shared/glass_bottom_nav.dart';
 import '../features/suwayomi/source_browse_screen.dart';
+import '../features/suwayomi/source_details_screen.dart';
+import '../features/suwayomi/sources_screen.dart';
 import '../features/suwayomi/suwayomi_maintenance_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/settings/appearance_screen.dart';
@@ -184,8 +186,18 @@ GoRouter buildRouter({
       builder: (context, state) => const SuwayomiMaintenanceScreen(),
     ),
     GoRoute(
+      path: '/settings/sources',
+      builder: (context, state) => const SourcesScreen(),
+    ),
+    GoRoute(
+      path: '/settings/sources/:id',
+      builder: (context, state) =>
+          SourceDetailsScreen(sourceId: state.pathParameters['id']!),
+    ),
+    GoRoute(
       path: '/settings/suwayomi/browse',
-      builder: (context, state) => const SourceBrowseScreen(),
+      builder: (context, state) => SourceBrowseScreen(
+          initialSourceId: state.uri.queryParameters['source']),
     ),
     GoRoute(
       path: '/settings/kapowarr/edit',

@@ -26,6 +26,7 @@ import '../core/notifications/chapter_watch_store.dart';
 import '../core/reader/page_cache.dart';
 import '../core/reader/progress_sync.dart';
 import '../core/reader/reader_settings_store.dart';
+import '../core/sources/hidden_sources_store.dart';
 import '../core/stats/reading_stats_store.dart';
 import '../core/storage/server_store.dart';
 import '../core/sync/auth_store.dart';
@@ -262,6 +263,15 @@ final stoppedSeriesStoreProvider = Provider<StoppedSeriesStore>((ref) {
       'stoppedSeriesStoreProvider must be overridden in main()');
 });
 
+/// Set once in main() after HiddenSourcesStore.init() completes.
+final hiddenSourcesStoreProvider = Provider<HiddenSourcesStore>((ref) {
+  throw UnimplementedError(
+      'hiddenSourcesStoreProvider must be overridden in main()');
+});
+
+/// Bump after hiding or showing a source so source lists refilter.
+final hiddenSourcesRevisionProvider = StateProvider<int>((ref) => 0);
+
 /// Bump after stopping or resuming a series so Home refilters.
 final stoppedRevisionProvider = StateProvider<int>((ref) => 0);
 
@@ -358,6 +368,8 @@ Future<void> startSync(ProviderContainer c, {bool force = true}) async {
   final appearance = c.read(appearanceStoreProvider)..sync.attach(client, queue);
   final reader = c.read(readerSettingsStoreProvider)..sync.attach(client, queue);
   final stats = c.read(readingStatsStoreProvider)..sync.attach(client, queue);
+  final hiddenSources = c.read(hiddenSourcesStoreProvider)
+    ..sync.attach(client, queue);
   final connections = c.read(connectionsSyncProvider)
     ..sync.attach(client, queue);
 
@@ -391,6 +403,8 @@ Future<void> startSync(ProviderContainer c, {bool force = true}) async {
         () => c.read(appearanceProvider.notifier).state = appearance.get()),
     run(reader.reconcile, () {}),
     run(stats.reconcile, () => c.read(statsRevisionProvider.notifier).state++),
+    run(hiddenSources.reconcile,
+        () => c.read(hiddenSourcesRevisionProvider.notifier).state++),
     run(() async {
       c.read(isOwnerProvider.notifier).state = (await client.me()).isOwner;
       return false;

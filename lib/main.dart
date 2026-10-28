@@ -37,6 +37,7 @@ import 'core/notifications/chapter_watch_store.dart';
 import 'core/reader/page_cache.dart';
 import 'core/reader/progress_sync.dart';
 import 'core/reader/reader_settings_store.dart';
+import 'core/sources/hidden_sources_store.dart';
 import 'core/stats/reading_stats_store.dart';
 import 'core/storage/last_route_store.dart';
 import 'core/storage/server_store.dart';
@@ -128,6 +129,9 @@ Future<void> main() async {
   final stoppedSeriesStore = StoppedSeriesStore();
   await stoppedSeriesStore.init();
 
+  final hiddenSourcesStore = HiddenSourcesStore();
+  await hiddenSourcesStore.init();
+
   final localLibraryStore = LocalLibraryStore(
     pagesDir: supportDir == null
         ? null
@@ -208,6 +212,7 @@ Future<void> main() async {
         historyStoreProvider.overrideWithValue(historyStore),
         collectionsStoreProvider.overrideWithValue(collectionsStore),
         stoppedSeriesStoreProvider.overrideWithValue(stoppedSeriesStore),
+        hiddenSourcesStoreProvider.overrideWithValue(hiddenSourcesStore),
         localLibraryStoreProvider.overrideWithValue(localLibraryStore),
         watchFolderStoreProvider.overrideWithValue(watchFolderStore),
         watchFolderServiceProvider.overrideWithValue(watchFolderService),
