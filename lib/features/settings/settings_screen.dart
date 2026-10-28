@@ -65,6 +65,11 @@ class SettingsScreen extends ConsumerWidget {
                       () => context.push('/settings/servers'),
                     ),
                     _Row(
+                      owner ? 'Sources & extensions' : 'Sources',
+                      'Where Suwayomi finds manga and comics',
+                      () => context.push('/settings/sources'),
+                    ),
+                    _Row(
                       'Downloads',
                       'Queue, pause and resume, Wi-Fi only',
                       () => context.push('/settings/downloads'),

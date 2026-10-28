@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/design_tokens.dart';
+import '../../app/providers.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/backend/models.dart';
 import '../shared/series_cover.dart';
@@ -68,9 +70,12 @@ class _MigrateSheetState extends State<_MigrateSheet> {
       _pending = 0;
     });
     if (q.isEmpty) return;
+    final hidden = ProviderScope.containerOf(context, listen: false)
+        .read(hiddenSourcesStoreProvider);
     final current =
         await widget.backend.sourceIdOf(widget.series.id).catchError((_) => '');
-    final sources = (await widget.backend.listInstalledSources())
+    final sources = hidden
+        .visible(await widget.backend.listInstalledSources())
         .where((s) =>
             s.id != current && s.id != '0' && (s.lang == 'en' || s.lang == 'all'))
         .toList();

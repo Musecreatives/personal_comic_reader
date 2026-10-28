@@ -284,7 +284,9 @@ class _MangaSourceSearchState extends ConsumerState<MangaSourceSearch> {
         setState(() => _error = 'Searching sources needs a Suwayomi server.');
         return;
       }
-      final all = await backend.listInstalledSources();
+      final all = ref
+          .read(hiddenSourcesStoreProvider)
+          .visible(await backend.listInstalledSources());
       final taste = await backend.libraryTaste();
       if (!mounted) return;
       setState(() {
