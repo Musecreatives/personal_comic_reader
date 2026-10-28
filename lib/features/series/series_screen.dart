@@ -21,6 +21,7 @@ import 'comicvine_match_sheet.dart';
 import 'download_sheet.dart';
 import 'edit_details_sheet.dart';
 import 'linked_sources_sheet.dart';
+import '../search/cross_server_search_screen.dart' show searchLocation;
 import 'series_actions_sheet.dart';
 import '../../core/collections/collection.dart';
 import '../collections/collections_screen.dart' show createCollection;
@@ -342,6 +343,9 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
       onManageSources: backend is SuwayomiBackend
           ? () => _manageSources(backend, series)
           : null,
+      // Manga on the Suwayomi sources; comics through Kapowarr.
+      onSearchTitle: () => context.go(searchLocation(series.title,
+          mode: backend is SuwayomiBackend ? 'manga' : 'comics')),
     );
   }
 
