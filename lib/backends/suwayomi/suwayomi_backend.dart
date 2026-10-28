@@ -9,6 +9,10 @@ import '../../core/backend/models.dart';
 import '../../core/discovery/recommender.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/network/retry_interceptor.dart';
+import '../../core/sources/linked_sources.dart';
+
+/// One copy of a title in the Sources sheet: the main series or a backup.
+typedef SourceCopy = ({int id, String title, String source, int chapters, String? newest});
 
 /// Suwayomi's optional basic-auth login as request headers; empty when no
 /// username is set, so an open server keeps working unchanged.
@@ -612,6 +616,128 @@ class SuwayomiBackend implements ReaderBackend {
       byNumber[chapNum] = n['id'] as int;
     }
     return byNumber;
+  }
+
+  // ---------------------------------------------------------------------
+  // Linked backup sources (plan item 1): the same title on other extensions,
+  // kept in the main series' meta and used when the main source can't load
+  // a chapter. Linked titles are fetched but never added to the library, so
+  // nothing shows up twice.
+  // ---------------------------------------------------------------------
+
+  /// The backup sources linked to [seriesId], in fallback order.
+  Future<List<int>> linkedSourceIds(String seriesId) async {
+    final data = await _gql(
+      'query(\$id: Int!) { manga(id: \$id) { meta { key value } } }',
+      {'id': int.parse(seriesId)},
+    );
+    final meta = ((data['manga']['meta'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final entry = meta.where((m) => m['key'] == linkedSourcesMetaKey).firstOrNull;
+    return parseLinkedIds(entry?['value'] as String?);
+  }
+
+  Future<void> setLinkedSourceIds(String seriesId, List<int> ids) async {
+    if (ids.isEmpty) {
+      await _gql(
+        'mutation(\$id: Int!, \$key: String!) { '
+        'deleteMangaMeta(input: {mangaId: \$id, key: \$key}) { clientMutationId } }',
+        {'id': int.parse(seriesId), 'key': linkedSourcesMetaKey},
+      );
+      return;
+    }
+    await _gql(
+      'mutation(\$id: Int!, \$key: String!, \$value: String!) { '
+      'setMangaMeta(input: {meta: {mangaId: \$id, key: \$key, value: \$value}}) { clientMutationId } }',
+      {'id': int.parse(seriesId), 'key': linkedSourcesMetaKey, 'value': jsonEncode(ids)},
+    );
+  }
+
+  /// Adds [linkedId] as the last backup for [seriesId] and fetches its
+  /// chapter list, so a fallback later doesn't start from nothing.
+  Future<void> linkSource(String seriesId, int linkedId) async {
+    final ids = await linkedSourceIds(seriesId);
+    if ('$linkedId' == seriesId || ids.contains(linkedId)) return;
+    await setLinkedSourceIds(seriesId, [...ids, linkedId]);
+    try {
+      await _fetchChaptersFromSource(linkedId);
+    } catch (_) {
+      // Its site is down right now; the fallback fetches again when needed.
+    }
+  }
+
+  Future<void> unlinkSource(String seriesId, int linkedId) async {
+    final ids = await linkedSourceIds(seriesId);
+    await setLinkedSourceIds(seriesId, [...ids.where((i) => i != linkedId)]);
+  }
+
+  /// [seriesId] and its backups as stored on the server: source, chapter
+  /// count and newest chapter. Nothing is fetched from the sites, so this
+  /// is quick; the counts are as of each title's last fetch.
+  Future<List<SourceCopy>> sourceCopies(String seriesId) async {
+    final ids = [int.parse(seriesId), ...await linkedSourceIds(seriesId)];
+    return Future.wait(ids.map((id) async {
+      try {
+        final data = await _gql(
+          'query(\$id: Int!) { manga(id: \$id) { id title source { displayName } '
+          'chapters { totalCount } highestNumberedChapter { name } } }',
+          {'id': id},
+        );
+        final m = data['manga'] as Map<String, dynamic>;
+        return (
+          id: id,
+          title: m['title'] as String? ?? '',
+          source: m['source']?['displayName'] as String? ?? 'Unknown source',
+          chapters: m['chapters']?['totalCount'] as int? ?? 0,
+          newest: m['highestNumberedChapter']?['name'] as String?,
+        );
+      } catch (_) {
+        // A linked title the server no longer knows (its extension was
+        // removed): still listed, so it can be unlinked.
+        return (id: id, title: '', source: 'Unavailable', chapters: 0, newest: null);
+      }
+    }));
+  }
+
+  /// The same chapter as [main] on the first backup source that has it,
+  /// with the names of both sources for the reader's banner. Null when the
+  /// series has no backups or none of them has this chapter number.
+  Future<({Book book, String source, String? mainSource})?> fallbackFor(Book main) async {
+    final ids = await linkedSourceIds(main.seriesId);
+    if (ids.isEmpty) return null;
+    final hit = await findFallbackChapter(ids, main.number, fetchChapterIdsByNumber);
+    if (hit == null) return null;
+    final book = await getBook('${hit.chapterId}');
+    if (book.pageCount == 0) return null;
+    Future<String?> sourceOf(int id) async {
+      try {
+        final data = await _gql(
+          'query(\$id: Int!) { manga(id: \$id) { source { displayName } } }',
+          {'id': id},
+        );
+        return data['manga']['source']?['displayName'] as String?;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return (
+      book: book,
+      source: await sourceOf(hit.mangaId) ?? 'another source',
+      mainSource: await sourceOf(int.parse(main.seriesId)),
+    );
+  }
+
+  /// Swaps the main source: migrates [fromId] to the backup [toId] (read
+  /// chapters and categories come along) and carries the backup list over,
+  /// with the old main as the first backup. Returns the new series id.
+  Future<String> makeMain(String fromId, int toId) async {
+    final links = await linkedSourceIds(fromId);
+    await migrate(fromId, toId);
+    await setLinkedSourceIds(
+        '$toId', [int.parse(fromId), ...links.where((i) => i != toId)]);
+    await setLinkedSourceIds(fromId, const []);
+    return '$toId';
   }
 
   /// Marks a batch of chapters read, chunked to keep individual mutations

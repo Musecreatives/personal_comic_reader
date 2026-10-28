@@ -20,6 +20,7 @@ import 'chapter_actions.dart';
 import 'comicvine_match_sheet.dart';
 import 'download_sheet.dart';
 import 'edit_details_sheet.dart';
+import 'linked_sources_sheet.dart';
 import 'series_actions_sheet.dart';
 import '../../core/collections/collection.dart';
 import '../collections/collections_screen.dart' show createCollection;
@@ -338,7 +339,25 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
       },
       onEditDetails: backend is LocalBackend ? _editDetails : null,
       onFindOnComicVine: backend is LocalBackend ? _findOnComicVine : null,
+      onManageSources: backend is SuwayomiBackend
+          ? () => _manageSources(backend, series)
+          : null,
     );
+  }
+
+  /// Main and backup sources. Promoting a backup moves the series to a new
+  /// id, so the page reopens on it.
+  Future<void> _manageSources(SuwayomiBackend backend, Series series) async {
+    final newId = await showLinkedSourcesSheet(
+      context,
+      backend: backend,
+      series: series,
+      canEdit: ref.read(isOwnerProvider),
+    );
+    if (newId == null || !mounted) return;
+    ref.invalidate(homeFeedProvider);
+    context.pushReplacement('/series/${Uri.encodeComponent(newId)}');
+    _snack('Main source switched');
   }
 
   /// Picks a ComicVine match, then opens Edit details pre-filled with it
