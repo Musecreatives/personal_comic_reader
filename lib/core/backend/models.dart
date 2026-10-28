@@ -81,6 +81,11 @@ class Book {
   final bool completed;
   final String? thumbnailUrl;
 
+  /// When the server got this chapter (Komga: added to the library;
+  /// Suwayomi: released by the source). Null where unknown. Updates
+  /// sorts and groups by it.
+  final DateTime? addedAt;
+
   const Book({
     required this.id,
     required this.seriesId,
@@ -90,6 +95,7 @@ class Book {
     this.readProgressPage,
     required this.completed,
     this.thumbnailUrl,
+    this.addedAt,
   });
 
   double get progressRatio =>
