@@ -135,7 +135,7 @@ void main() {
     expect(queries.any((q) => q.contains('setSettings')), isFalse);
   });
 
-  test('reinstallExtension() succeeds when the server accepts it', () async {
+  test('installExtension() succeeds when the server accepts it', () async {
     adapter.onPost(
       '/api/graphql',
       (server) => server.reply(200, {
@@ -148,10 +148,10 @@ void main() {
       data: Matchers.any,
     );
 
-    await client.reinstallExtension('eu.kanade.tachiyomi.extension.en.mangabat');
+    await client.installExtension('eu.kanade.tachiyomi.extension.en.mangabat');
   });
 
-  test('reinstallExtension() throws StaleExtensionFileException on a stale jar',
+  test('installExtension() throws StaleExtensionFileException on a stale jar',
       () async {
     adapter.onPost(
       '/api/graphql',
@@ -165,7 +165,7 @@ void main() {
     );
 
     expect(
-      () => client.reinstallExtension('eu.kanade.tachiyomi.extension.en.mangabat'),
+      () => client.installExtension('eu.kanade.tachiyomi.extension.en.mangabat'),
       throwsA(isA<StaleExtensionFileException>()),
     );
   });

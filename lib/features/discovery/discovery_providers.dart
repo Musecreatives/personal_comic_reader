@@ -28,13 +28,15 @@ final cachedRecommendationsProvider = FutureProvider<List<Recommendation>>((ref)
   final backend = await ref.watch(suwayomiBackendProvider.future);
   if (backend == null) return cached?.items ?? const [];
   if (cached != null) {
-    unawaited(computeRecommendations(backend)
+    unawaited(computeRecommendations(backend,
+            hidden: ref.read(hiddenSourcesStoreProvider).hiddenIds)
         .then((_) => ref.invalidateSelf())
         .catchError((_) {}));
     return cached.items;
   }
   try {
-    return await computeRecommendations(backend);
+    return await computeRecommendations(backend,
+        hidden: ref.read(hiddenSourcesStoreProvider).hiddenIds);
   } catch (_) {
     return const [];
   }
@@ -43,11 +45,16 @@ final cachedRecommendationsProvider = FutureProvider<List<Recommendation>>((ref)
 /// Builds fresh recommendations: read the library's taste, pull popular
 /// titles from the sources it mostly comes from, rank them, and save the
 /// result for Home.
-Future<List<Recommendation>> computeRecommendations(SuwayomiBackend backend) async {
+Future<List<Recommendation>> computeRecommendations(SuwayomiBackend backend,
+    {Set<String> hidden = const {}}) async {
   final taste = await backend.libraryTaste();
   if (taste.isEmpty) return const [];
-  final candidates =
-      await backend.discoverCandidates(Recommender.topSources(taste, limit: 4));
+  // Hidden sources ([HiddenSourcesStore]) never feed recommendations.
+  final sources = Recommender.topSources(taste, limit: 4 + hidden.length)
+      .where((id) => !hidden.contains(id))
+      .take(4)
+      .toList();
+  final candidates = await backend.discoverCandidates(sources);
   final recs = Recommender.rank(taste, candidates);
   await DiscoveryCache().save(recs);
   return recs;

@@ -109,7 +109,8 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen> {
           return;
         }
       }
-      final recs = await computeRecommendations(backend);
+      final recs = await computeRecommendations(backend,
+          hidden: ref.read(hiddenSourcesStoreProvider).hiddenIds);
       ref.invalidate(cachedRecommendationsProvider);
       if (mounted) setState(() => _recs = recs);
     } catch (e) {

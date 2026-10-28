@@ -9,6 +9,7 @@ import '../../backends/suwayomi/suwayomi_maintenance_client.dart';
 import '../../core/backend/reader_backend.dart';
 import '../shared/back_button.dart';
 import '../shared/error_state.dart';
+import 'sources_screen.dart';
 
 /// Suwayomi health/repair panel (6f) - built after a real incident where
 /// fixing a wedged mergerfs mount required 20+ manual SSH/GraphQL calls to
@@ -50,7 +51,7 @@ class _SuwayomiMaintenanceScreenState extends ConsumerState<SuwayomiMaintenanceS
       _actionMessage = null;
     });
     try {
-      await _client!.reinstallExtension(pkgName);
+      await _client!.installExtension(pkgName);
       setState(() => _future = _load(_client!));
       await _future;
     } catch (e) {
@@ -271,14 +272,7 @@ class _Body extends StatelessWidget {
             ),
             if (actionMessage != null) ...[
               const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.fillSubtle,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(actionMessage!, style: AppText.body(size: 12.5, color: AppColors.text60)),
-              ),
+              NoticeBox(text: actionMessage!),
             ],
             const SizedBox(height: 22),
             Text('DISCOVER', style: AppText.sectionLabel()),
@@ -298,6 +292,13 @@ class _Body extends StatelessWidget {
             ),
             const SizedBox(height: 22),
             Text('EXTENSIONS', style: AppText.sectionLabel()),
+            const SizedBox(height: 10),
+            _ActionRow(
+              icon: Icons.extension_outlined,
+              label: 'Sources & extensions',
+              busy: false,
+              onTap: () => context.push('/settings/sources'),
+            ),
             const SizedBox(height: 10),
             if (extensions.any((e) => !e.isInstalled)) ...[
               _ActionRow(
