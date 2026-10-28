@@ -4,6 +4,7 @@ import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/backend/models.dart';
+import '../../core/sources/linked_sources.dart';
 import '../collections/migrate_sheet.dart';
 import '../shared/app_sheet.dart';
 import '../shared/error_state.dart';
@@ -67,6 +68,17 @@ class _LinkedSourcesSheetState extends State<_LinkedSourcesSheet> {
     if (linked != null && mounted) _reload();
   }
 
+  Future<void> _rank() => _run('Ranking…', () async {
+        await widget.backend.rankBackups(widget.series.id);
+        if (mounted) _reload();
+      });
+
+  Future<void> _toggleGood(SourceCopy copy) => _run('Saving…', () async {
+        await widget.backend
+            .setGoodTranslation(widget.series.id, copy.id, !copy.stats.goodTranslation);
+        if (mounted) _reload();
+      });
+
   Future<void> _remove(SourceCopy copy) =>
       _run('Removing…', () async {
         await widget.backend.unlinkSource(widget.series.id, copy.id);
@@ -110,7 +122,9 @@ class _LinkedSourcesSheetState extends State<_LinkedSourcesSheet> {
               const SizedBox(height: 4),
               Text(
                 "When the main source can't load a chapter, the same chapter is "
-                'read from the first backup that has it.',
+                'read from the first backup that has it. Each copy scores a point for '
+                'being up to date, on time, having the fewest gaps and, your call, a '
+                'good translation.',
                 style: AppText.body(size: 13, color: AppColors.text60),
               ),
               const SizedBox(height: 16),
@@ -129,11 +143,34 @@ class _LinkedSourcesSheetState extends State<_LinkedSourcesSheet> {
                     );
                   }
                   final backups = copies.skip(1).toList();
+                  // A lone copy scores against itself, which says nothing.
+                  final strengths = copies.length < 2
+                      ? null
+                      : sourceStrengths([for (final c in copies) c.stats]);
+                  final mainScore = strengths?.first.length ?? 0;
+                  final beatsMain = strengths?.skip(1).any((s) => s.length > mainScore) ?? false;
+                  VoidCallback? good(SourceCopy c) =>
+                      widget.canEdit && _busy == null ? () => _toggleGood(c) : null;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SectionLabel('MAIN'),
-                      HairlinePanel(children: [_SourceRow(copy: copies.first)]),
+                      HairlinePanel(children: [
+                        _SourceRow(
+                          copy: copies.first,
+                          strengths: strengths?.first,
+                          onToggleGood: good(copies.first),
+                        ),
+                      ]),
+                      if (beatsMain)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'A backup scores higher than the main source.'
+                            '${widget.canEdit ? ' Make it the main source if you read from it.' : ''}',
+                            style: AppText.body(size: 12.5, color: AppColors.text60),
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       SectionLabel('BACKUPS · ${backups.length}'),
                       if (backups.isEmpty)
@@ -152,6 +189,8 @@ class _LinkedSourcesSheetState extends State<_LinkedSourcesSheet> {
                             _SourceRow(
                               copy: b,
                               order: i + 1,
+                              strengths: strengths?[i + 1],
+                              onToggleGood: good(b),
                               onMakeMain: widget.canEdit && b.chapters > 0
                                   ? () => _makeMain(b)
                                   : null,
@@ -160,12 +199,21 @@ class _LinkedSourcesSheetState extends State<_LinkedSourcesSheet> {
                         ]),
                       if (widget.canEdit) ...[
                         const SizedBox(height: 18),
-                        InkButton(
-                          icon: Icons.add_link_rounded,
-                          label: 'Add a backup source',
-                          height: 44,
-                          onTap: _busy == null ? _add : null,
-                        ),
+                        Wrap(spacing: 12, runSpacing: 12, children: [
+                          InkButton(
+                            icon: Icons.add_link_rounded,
+                            label: 'Add a backup source',
+                            height: 44,
+                            onTap: _busy == null ? _add : null,
+                          ),
+                          if (backups.length > 1)
+                            InkButton(
+                              icon: Icons.sort_rounded,
+                              label: 'Rank backups',
+                              height: 44,
+                              onTap: _busy == null ? _rank : null,
+                            ),
+                        ]),
                       ],
                     ],
                   );
@@ -195,9 +243,18 @@ class _LinkedSourcesSheetState extends State<_LinkedSourcesSheet> {
 class _SourceRow extends StatelessWidget {
   final SourceCopy copy;
   final int? order;
+  final Set<SourceStrength>? strengths;
+  final VoidCallback? onToggleGood;
   final VoidCallback? onMakeMain;
   final VoidCallback? onRemove;
-  const _SourceRow({required this.copy, this.order, this.onMakeMain, this.onRemove});
+  const _SourceRow({
+    required this.copy,
+    required this.strengths,
+    this.order,
+    this.onToggleGood,
+    this.onMakeMain,
+    this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -228,8 +285,33 @@ class _SourceRow extends StatelessWidget {
             ],
             const SizedBox(height: 3),
             Text(facts, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.mono(size: 10)),
+            // Null while there's nothing to compare against.
+            if (strengths case final strengths?) ...[
+              const SizedBox(height: 2),
+              Text(
+                [
+                  '${strengths.length} OF 4',
+                  for (final s in SourceStrength.values)
+                    if (strengths.contains(s)) s.label,
+                ].join(' · '),
+                maxLines: 2,
+                style: AppText.mono(
+                    size: 10,
+                    color: strengths.length >= 2 ? AppColors.accentLink : AppColors.text45),
+              ),
+            ],
           ]),
         ),
+        if (onToggleGood != null)
+          IconButton(
+            tooltip: copy.stats.goodTranslation
+                ? 'Marked as a good translation'
+                : 'Mark as a good translation',
+            isSelected: copy.stats.goodTranslation,
+            icon: Icon(Icons.star_border_rounded, color: AppColors.text60),
+            selectedIcon: Icon(Icons.star_rounded, color: AppColors.accentLink),
+            onPressed: onToggleGood,
+          ),
         if (onMakeMain != null)
           IconButton(
             tooltip: 'Make main',

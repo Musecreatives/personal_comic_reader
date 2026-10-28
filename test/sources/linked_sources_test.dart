@@ -35,6 +35,7 @@ class _FlakyBackend implements ReaderBackend {
 }
 
 void main() {
+  rankingTests();
   group('parseLinkedIds', () {
     test('reads a JSON list of ids, tolerating strings and junk', () {
       expect(parseLinkedIds('[12, "34", "x", null]'), [12, 34]);
@@ -152,5 +153,50 @@ void main() {
       data: Matchers.any,
     );
     expect(await backend.linkedSourceIds('5'), [42, 7]);
+  });
+}
+
+void rankingTests() {
+  final day = DateTime(2026, 10, 1).millisecondsSinceEpoch;
+  const dayMs = 86400000;
+
+  group('ranking copies', () {
+    test('stats: newest number, newest upload, gaps (part chapters ignored)', () {
+      final s = CopyStats.fromChapters([(1, day), (2, day), (4, day + dayMs), (4.5, day), (-1, 0)]);
+      expect(s.newestNumber, 4.5);
+      expect(s.newestUpload, DateTime.fromMillisecondsSinceEpoch(day + dayMs));
+      expect(s.gaps, 1); // chapter 3
+    });
+
+    test('each copy gets the strengths it has against the others', () {
+      final fresh = CopyStats.fromChapters([for (var n = 1; n <= 10; n++) (n.toDouble(), day + n * dayMs)]);
+      final behindButComplete =
+          CopyStats.fromChapters([for (var n = 1; n <= 7; n++) (n.toDouble(), day + n * dayMs)]);
+      final gappy = CopyStats.fromChapters(
+          [(1, day), (5, day), (10, day + 10 * dayMs)],
+          goodTranslation: true);
+      final s = sourceStrengths([fresh, behindButComplete, gappy]);
+      expect(s[0], {SourceStrength.upToDate, SourceStrength.onTime, SourceStrength.consistent});
+      // Three days behind is past the two-day allowance.
+      expect(s[1], {SourceStrength.consistent});
+      expect(s[2], {SourceStrength.upToDate, SourceStrength.onTime, SourceStrength.goodTranslation});
+    });
+
+    test('ranking puts more strengths first and keeps the manual order on ties', () {
+      expect(
+        rankByStrength([10, 20, 30, 40], [
+          {SourceStrength.onTime},
+          {SourceStrength.upToDate, SourceStrength.consistent},
+          {SourceStrength.consistent},
+          {SourceStrength.upToDate, SourceStrength.onTime},
+        ]),
+        [20, 40, 10, 30],
+      );
+    });
+
+    test('an empty or unreadable copy has no strengths', () {
+      const empty = CopyStats(newestNumber: 0, newestUpload: null, gaps: 0);
+      expect(sourceStrengths([empty, empty]), [<SourceStrength>{}, <SourceStrength>{}]);
+    });
   });
 }
