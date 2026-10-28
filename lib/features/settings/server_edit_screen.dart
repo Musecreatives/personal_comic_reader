@@ -119,7 +119,7 @@ class _ServerEditScreenState extends ConsumerState<ServerEditScreen> {
     });
 
     final config = _buildConfig('__test__');
-    final backend = switch (_type) {
+    final ReaderBackend backend = switch (_type) {
       ServerType.komga =>
         KomgaBackend(config: config, password: _passwordController.text),
       ServerType.suwayomi =>
