@@ -21,6 +21,11 @@ class DownloadTask {
   /// Hive itself returns tasks in key order, which means nothing here.
   final int order;
 
+  /// Set when the main source couldn't serve this chapter and a backup
+  /// source's copy was downloaded instead: that copy's chapter id. Its pages
+  /// are stored under this id, and [totalPages] is its count.
+  final String? sourceBookId;
+
   const DownloadTask({
     required this.bookId,
     required this.seriesId,
@@ -32,6 +37,7 @@ class DownloadTask {
     this.error,
     this.serverId,
     this.order = 0,
+    this.sourceBookId,
   });
 
   double get progress => totalPages == 0 ? 0 : downloadedPages / totalPages;
@@ -42,6 +48,7 @@ class DownloadTask {
     DownloadState? state,
     String? error,
     int? order,
+    String? sourceBookId,
   }) {
     return DownloadTask(
       bookId: bookId,
@@ -57,6 +64,7 @@ class DownloadTask {
           (state == null || state == DownloadState.failed ? this.error : null),
       serverId: serverId,
       order: order ?? this.order,
+      sourceBookId: sourceBookId ?? this.sourceBookId,
     );
   }
 
@@ -71,6 +79,7 @@ class DownloadTask {
         'error': error,
         'serverId': serverId,
         'order': order,
+        'sourceBookId': ?sourceBookId,
       };
 
   factory DownloadTask.fromJson(Map<String, dynamic> json) => DownloadTask(
@@ -84,5 +93,6 @@ class DownloadTask {
         error: json['error'] as String?,
         serverId: json['serverId'] as String?,
         order: json['order'] as int? ?? 0,
+        sourceBookId: json['sourceBookId'] as String?,
       );
 }

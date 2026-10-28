@@ -130,7 +130,27 @@ class _ReaderLoaderState extends ConsumerState<_ReaderLoader> {
     final book = await widget.backend.getBook(widget.bookId);
     final books = await widget.backend.listBooks(book.seriesId);
     _main = book;
+    await _openDownloadedCopy(book);
     return (book, books);
+  }
+
+  /// A chapter downloaded from a backup source (its own source failed at
+  /// download time) opens on that copy, whose pages are on the device.
+  Future<void> _openDownloadedCopy(Book main) async {
+    final backend = widget.backend;
+    if (backend is! SuwayomiBackend) return;
+    final source = ref.read(downloadStoreProvider).getTask(main.id)?.sourceBookId;
+    if (source == null) return;
+    try {
+      _fallback = (
+        book: await backend.getBook(source),
+        source: 'the downloaded backup copy',
+        mainSource: null,
+      );
+      _triedFallback = true;
+    } catch (_) {
+      // The copy is gone from the server; read the main source as usual.
+    }
   }
 
   Future<void> _onPageFailed(({String bookId, int pageIndex}) failure) async {

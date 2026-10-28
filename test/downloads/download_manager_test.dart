@@ -18,8 +18,14 @@ class _FakeBackend implements ReaderBackend {
   /// chapter's length when it is opened.
   final Map<String, int> bookPages;
 
+  /// Chapters whose pages never load (a source that is down).
+  final Set<String> failing;
+
   _FakeBackend(
-      {this.delay = Duration.zero, this.id = 'srv', this.bookPages = const {}}) {
+      {this.delay = Duration.zero,
+      this.id = 'srv',
+      this.bookPages = const {},
+      this.failing = const {}}) {
     _backends.add(this);
   }
 
@@ -37,6 +43,7 @@ class _FakeBackend implements ReaderBackend {
     }
     fetchCalls['${bookId}_$pageIndex'] =
         (fetchCalls['${bookId}_$pageIndex'] ?? 0) + 1;
+    if (failing.contains(bookId)) throw Exception('503');
     return Uint8List.fromList([pageIndex]);
   }
 
@@ -130,6 +137,64 @@ void main() {
     _backends.clear();
     _managers.clear();
     await tearDownTestHive();
+  });
+
+  group('backup source fallback', () {
+    Future<DownloadStore> openStore() async {
+      final store = DownloadStore();
+      await store.init();
+      return store;
+    }
+
+    Future<void> enqueue(DownloadManager m, _FakeBackend b) => m.enqueueBook(b,
+        bookId: 'main', seriesId: 's', seriesTitle: 'S', title: 'Ch 1', totalPages: 3);
+
+    test('a chapter whose source fails downloads from the backup copy', () async {
+      final store = await openStore();
+      final backend = _FakeBackend(failing: {'main'});
+      final manager = _track(DownloadManager(
+        store: store,
+        findFallback: (_, id) async =>
+            id == 'main' ? (bookId: 'backup', pageCount: 2) : null,
+      ));
+      await enqueue(manager, backend);
+      await _waitUntil(() => store.getTask('main')?.state == DownloadState.done);
+
+      final task = store.getTask('main')!;
+      expect(task.sourceBookId, 'backup');
+      expect(task.totalPages, 2);
+      // Under the copy's own id, so an online read of the main chapter
+      // never mixes in another source's pages.
+      expect(store.hasPage('backup', 0) && store.hasPage('backup', 1), isTrue);
+      expect(store.hasPage('main', 0), isFalse);
+      expect(store.sizeForSeries('s'), greaterThan(0));
+
+      await manager.cancel('main');
+      expect(store.hasPage('backup', 0), isFalse);
+    });
+
+    test('without a backup the download still fails', () async {
+      final store = await openStore();
+      final manager = _track(DownloadManager(store: store, findFallback: (_, _) async => null));
+      await enqueue(manager, _FakeBackend(failing: {'main'}));
+      await _waitUntil(() => store.getTask('main')?.state == DownloadState.failed);
+      expect(store.getTask('main')!.sourceBookId, isNull);
+    });
+
+    test('a backup that fails too fails the download, tried only once', () async {
+      final store = await openStore();
+      var asked = 0;
+      final manager = _track(DownloadManager(
+        store: store,
+        findFallback: (_, _) async {
+          asked++;
+          return (bookId: 'backup', pageCount: 2);
+        },
+      ));
+      await enqueue(manager, _FakeBackend(failing: {'main', 'backup'}));
+      await _waitUntil(() => store.getTask('main')?.state == DownloadState.failed);
+      expect(asked, 1);
+    });
   });
 
   test('enqueueBook downloads every page and ends in state done', () async {
