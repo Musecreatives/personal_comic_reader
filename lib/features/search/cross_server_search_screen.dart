@@ -62,6 +62,7 @@ class _CrossServerSearchScreenState
     final q = widget.initialQuery?.trim();
     if (q == null || q.isEmpty) return;
     _debounce?.cancel();
+    FocusManager.instance.primaryFocus?.unfocus();
     _controller.text = q;
     _query = q;
     _mode = _Mode.values.asNameMap()[widget.initialMode] ?? _mode;
@@ -113,7 +114,9 @@ class _CrossServerSearchScreenState
                       child: TextField(
                         controller: _controller,
                         onChanged: _onChanged,
-                        autofocus: true,
+                        // Arriving with a search already typed, the
+                        // keyboard would only cover the results.
+                        autofocus: widget.initialQuery == null,
                         style: AppText.body(size: 15),
                         decoration: InputDecoration(
                           hintText: switch (_mode) {

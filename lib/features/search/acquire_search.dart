@@ -261,6 +261,8 @@ class _MangaSourceSearchState extends ConsumerState<MangaSourceSearch> {
   List<_Hit> _hits = [];
   bool _loading = false;
   bool _hasNext = false;
+  // Bumped per search so an older one's late answers can't add to a newer.
+  int _searchGen = 0;
   int _page = 1;
   String? _error;
   SourceListingCache? _listings;
@@ -314,33 +316,30 @@ class _MangaSourceSearchState extends ConsumerState<MangaSourceSearch> {
     }
     final ids = _selected != null ? [_selected!] : _yours.toList();
     if (reset) _page = 1;
+    final gen = ++_searchGen;
     setState(() {
       _loading = true;
       _error = null;
       if (reset) _hits = [];
     });
     try {
-      final results = await Future.wait(ids.map((sid) async {
+      // Each source's hits show as soon as it answers: waiting for all of
+      // them left the page spinning on one slow or dead site.
+      await Future.wait(ids.map((sid) async {
         try {
           final r = await backend.browseSource(sid, query: query, page: _page);
-          return (
-            hits: r.mangas
-                .map((m) => _Hit(m.id, m.title, m.thumbnailUrl, sid))
-                .toList(),
-            next: r.hasNext,
-          );
+          if (!mounted || gen != _searchGen) return;
+          setState(() {
+            _hits = [..._hits, for (final m in r.mangas) _Hit(m.id, m.title, m.thumbnailUrl, sid)];
+            // Paging only makes sense against one source at a time.
+            _hasNext = ids.length == 1 && r.hasNext;
+          });
         } catch (_) {
-          return (hits: <_Hit>[], next: false);
+          // That source is down; the others still count.
         }
       }));
-      if (!mounted || query != widget.query.trim()) return;
-      setState(() {
-        _hits = [..._hits, for (final r in results) ...r.hits];
-        // Paging only makes sense against one source at a time.
-        _hasNext = ids.length == 1 && results.first.next;
-      });
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && gen == _searchGen) setState(() => _loading = false);
     }
   }
 
