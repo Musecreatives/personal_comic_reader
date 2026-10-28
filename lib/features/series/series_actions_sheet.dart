@@ -19,6 +19,7 @@ class SeriesActionsSheet {
     required Future<void> Function() onRemoveFromLibrary,
     Future<void> Function()? onEditDetails,
     Future<void> Function()? onFindOnComicVine,
+    Future<void> Function()? onManageSources,
   }) {
     return showAppSheet<void>(
       context: context,
@@ -76,6 +77,16 @@ class SeriesActionsSheet {
                   style: AppText.heading(size: 18),
                 ),
               ),
+              if (onManageSources != null)
+                _Action(
+                  icon: Icons.alt_route_rounded,
+                  title: 'Sources',
+                  hint: "Backups for when this source can't load a chapter",
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    await onManageSources();
+                  },
+                ),
               if (onEditDetails != null)
                 _Action(
                   icon: Icons.edit_outlined,

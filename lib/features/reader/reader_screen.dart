@@ -12,6 +12,7 @@ import '../../app/design_tokens.dart';
 import '../home/home_feed.dart';
 import '../../app/motion.dart';
 import '../../app/providers.dart';
+import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/history/history_entry.dart';
@@ -20,6 +21,7 @@ import '../../core/reader/page_cache.dart';
 import '../../core/reader/progress_sync.dart';
 import '../../core/reader/reader_settings.dart';
 import '../../core/reader/reader_settings_store.dart';
+import '../../core/sources/linked_sources.dart';
 import '../../core/panels/panel_detector.dart';
 import '../../core/stats/reading_stats_store.dart';
 import '../shared/back_button.dart';
@@ -100,16 +102,52 @@ class _ReaderLoader extends ConsumerStatefulWidget {
 class _ReaderLoaderState extends ConsumerState<_ReaderLoader> {
   late Future<(Book, List<Book>)> _future;
 
+  // Backup-source fallback (Suwayomi only): when a page of the main chapter
+  // still fails after the page cache's retry, the same chapter number is
+  // read from the first linked source that has it. Tried once per chapter.
+  Book? _main;
+  ({Book book, String source, String? mainSource})? _fallback;
+  int? _fallbackPage;
+  bool _triedFallback = false;
+  StreamSubscription<({String bookId, int pageIndex})>? _failures;
+
   @override
   void initState() {
     super.initState();
     _future = _load();
+    if (widget.backend is SuwayomiBackend) {
+      _failures = ref.read(pageCacheProvider).failures.listen(_onPageFailed);
+    }
+  }
+
+  @override
+  void dispose() {
+    _failures?.cancel();
+    super.dispose();
   }
 
   Future<(Book, List<Book>)> _load() async {
     final book = await widget.backend.getBook(widget.bookId);
     final books = await widget.backend.listBooks(book.seriesId);
+    _main = book;
     return (book, books);
+  }
+
+  Future<void> _onPageFailed(({String bookId, int pageIndex}) failure) async {
+    final main = _main;
+    if (main == null || failure.bookId != main.id || _triedFallback) return;
+    _triedFallback = true;
+    try {
+      final found = await (widget.backend as SuwayomiBackend).fallbackFor(main);
+      if (found != null && mounted) {
+        setState(() {
+          _fallback = found;
+          _fallbackPage = failure.pageIndex;
+        });
+      }
+    } catch (_) {
+      // No backup answered either; the page keeps its Retry button.
+    }
   }
 
   @override
@@ -133,7 +171,23 @@ class _ReaderLoaderState extends ConsumerState<_ReaderLoader> {
           );
         }
         final (book, seriesBooks) = snapshot.data!;
+        final fallback = _fallback;
+        if (fallback != null) {
+          return _ReaderBody(
+            key: ValueKey(fallback.book.id),
+            backend: widget.backend,
+            book: fallback.book,
+            mainBook: book,
+            fallbackNote: fallback.mainSource == null
+                ? 'Reading from ${fallback.source}'
+                : 'Reading from ${fallback.source}. '
+                    "${fallback.mainSource} couldn't load this chapter.",
+            seriesBooks: seriesBooks,
+            initialPage: _fallbackPage,
+          );
+        }
         return _ReaderBody(
+          key: ValueKey(book.id),
           backend: widget.backend,
           book: book,
           seriesBooks: seriesBooks,
@@ -146,14 +200,24 @@ class _ReaderLoaderState extends ConsumerState<_ReaderLoader> {
 
 class _ReaderBody extends ConsumerStatefulWidget {
   final ReaderBackend backend;
+
+  /// The chapter whose pages are shown.
   final Book book;
+
+  /// Set when [book] is a backup source's copy: the series' own chapter,
+  /// which progress, history, settings and chapter navigation belong to.
+  final Book? mainBook;
+  final String? fallbackNote;
   final List<Book> seriesBooks;
   final int? initialPage;
 
   const _ReaderBody({
+    super.key,
     required this.backend,
     required this.book,
     required this.seriesBooks,
+    this.mainBook,
+    this.fallbackNote,
     this.initialPage,
   });
 
@@ -179,6 +243,11 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   bool _panelOpen = false;
   bool _hoverShown = false;
   Timer? _hideTimer;
+
+  // The "reading from a backup source" banner: shown on arrival, gone after
+  // a few seconds or a tap.
+  late bool _noteVisible = widget.fallbackNote != null;
+  Timer? _noteTimer;
 
   // Experimental smart panel view (single-page mode only).
   bool _panelModeActive = false;
@@ -210,8 +279,8 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     _historyStore;
     _historyRevision;
     WidgetsBinding.instance.addObserver(this);
-    _settings = _settingsStore.effective(widget.book.seriesId);
-    _remember = _settingsStore.hasOverride(widget.book.seriesId);
+    _settings = _settingsStore.effective(_main.seriesId);
+    _remember = _settingsStore.hasOverride(_main.seriesId);
     _currentPage = resumePage(
       widget.initialPage,
       widget.book.readProgressPage,
@@ -220,6 +289,11 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     _sessionStart = DateTime.now();
     _seenPages.add(_currentPage);
     _applyWakelock();
+    if (_noteVisible) {
+      _noteTimer = Timer(const Duration(seconds: 8), () {
+        if (mounted) setState(() => _noteVisible = false);
+      });
+    }
     _pageCache.prefetch(
       widget.backend,
       widget.book.id,
@@ -232,6 +306,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _hideTimer?.cancel();
+    _noteTimer?.cancel();
     _focus.dispose();
     WakelockPlus.disable();
     _checkpointSession();
@@ -261,15 +336,25 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   /// Opening a chapter already marked read (to look back at a page) must not
   /// mark it unread: Suwayomi takes `isRead: false` and Komga an earlier
   /// page as "in progress again". Only finishing it again is sent.
-  bool _wouldUnread(bool completed) => widget.book.completed && !completed;
+  bool _wouldUnread(bool completed) => _main.completed && !completed;
+
+  /// The series' own chapter. Differs from widget.book only while a backup
+  /// source is serving the pages; everything that belongs to the series
+  /// (progress, history, settings, next/previous) uses this one.
+  Book get _main => widget.mainBook ?? widget.book;
+
+  /// [page] of the shown chapter as a page of [_main].
+  int _mainPage(int page) => widget.mainBook == null
+      ? page
+      : mapFallbackPage(page, widget.book.pageCount, _main.pageCount);
 
   void _checkpointSession() {
     final completed = _currentPage >= widget.book.pageCount - 1;
     if (!_wouldUnread(completed)) {
       _progressSync.sendNow(
         widget.backend,
-        widget.book.id,
-        page: _currentPage,
+        _main.id,
+        page: _mainPage(_currentPage),
         completed: completed,
       );
     }
@@ -285,12 +370,12 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
         HistoryEntry(
           serverId: widget.backend.config.id,
           serverKey: widget.backend.config.portableKey,
-          bookId: widget.book.id,
-          seriesId: widget.book.seriesId,
-          bookTitle: widget.book.title,
-          bookNumber: widget.book.number,
-          pageCount: widget.book.pageCount,
-          lastPage: _currentPage,
+          bookId: _main.id,
+          seriesId: _main.seriesId,
+          bookTitle: _main.title,
+          bookNumber: _main.number,
+          pageCount: widget.mainBook == null ? widget.book.pageCount : _main.pageCount,
+          lastPage: _mainPage(_currentPage),
           completed: completed,
           timestamp: DateTime.now(),
         ),
@@ -315,8 +400,8 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     if (!_wouldUnread(completed)) {
       _progressSync.scheduleUpdate(
         widget.backend,
-        widget.book.id,
-        page: page,
+        _main.id,
+        page: _mainPage(page),
         completed: completed,
       );
     }
@@ -374,7 +459,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   // Falls back to this book's series when the reader was the screen the app
   // reopened on, so there's nothing underneath to pop back to.
   void _close() => context.popOrHome(
-      fallback: '/series/${Uri.encodeComponent(widget.book.seriesId)}');
+      fallback: '/series/${Uri.encodeComponent(_main.seriesId)}');
 
   Future<void> _openContextMenu(Offset at) async {
     final size = MediaQuery.sizeOf(context);
@@ -494,7 +579,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
 
   void _persistSettings() {
     if (_remember) {
-      _settingsStore.setForSeries(widget.book.seriesId, _settings);
+      _settingsStore.setForSeries(_main.seriesId, _settings);
     } else {
       _settingsStore.setGlobal(_settings);
     }
@@ -503,9 +588,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   void _onRememberChanged(bool remember) {
     setState(() => _remember = remember);
     if (remember) {
-      _settingsStore.setForSeries(widget.book.seriesId, _settings);
+      _settingsStore.setForSeries(_main.seriesId, _settings);
     } else {
-      _settingsStore.clearForSeries(widget.book.seriesId);
+      _settingsStore.clearForSeries(_main.seriesId);
       _settingsStore.setGlobal(_settings);
     }
   }
@@ -537,13 +622,13 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   }
 
   Book? get _nextBook {
-    final i = widget.seriesBooks.indexWhere((b) => b.id == widget.book.id);
+    final i = widget.seriesBooks.indexWhere((b) => b.id == _main.id);
     if (i < 0 || i + 1 >= widget.seriesBooks.length) return null;
     return widget.seriesBooks[i + 1];
   }
 
   Book? get _previousBook {
-    final i = widget.seriesBooks.indexWhere((b) => b.id == widget.book.id);
+    final i = widget.seriesBooks.indexWhere((b) => b.id == _main.id);
     if (i <= 0) return null;
     return widget.seriesBooks[i - 1];
   }
@@ -569,8 +654,8 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     await manager.enqueueBooks(
       widget.backend,
       books.toList(),
-      widget.book.seriesId,
-      widget.book.title,
+      _main.seriesId,
+      _main.title,
     );
   }
 
@@ -624,7 +709,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                           child: Text(
                             selectMode
                                 ? '${selected.length} selected'
-                                : widget.book.title,
+                                : _main.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -653,7 +738,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                       itemCount: widget.seriesBooks.length,
                       itemBuilder: (context, i) {
                         final b = widget.seriesBooks[i];
-                        final current = b.id == widget.book.id;
+                        final current = b.id == _main.id;
                         final read = b.completed && !current;
                         final isSelected = selected.contains(b.id);
                         return ListTile(
@@ -798,8 +883,8 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     if (_showEndCard) return;
     _progressSync.sendNow(
       widget.backend,
-      widget.book.id,
-      page: widget.book.pageCount - 1,
+      _main.id,
+      page: _mainPage(widget.book.pageCount - 1),
       completed: true,
     );
     final next = _nextBook;
@@ -953,9 +1038,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                 ),
                 ReaderOverlay(
                   visible: _overlayVisible,
-                  title: widget.book.title,
+                  title: _main.title,
                   subtitle:
-                      'Ch. ${formatChapterNumber(widget.book.number)}',
+                      'Ch. ${formatChapterNumber(_main.number)}',
                   currentPage: _currentPage,
                   pageCount: widget.book.pageCount,
                   settings: _settings,
@@ -969,6 +1054,20 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                       ? _togglePanelMode
                       : null,
                 ),
+                if (_noteVisible && widget.fallbackNote != null)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SafeArea(
+                      child: Center(
+                        child: _FallbackBanner(
+                          text: widget.fallbackNote!,
+                          onDismiss: () => setState(() => _noteVisible = false),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (_panelModeActive &&
                     _panelRects != null &&
                     _panelPageBytes != null)
@@ -991,7 +1090,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                       );
                     },
                     onBackToSeries: () => context.go(
-                      '/series/${Uri.encodeComponent(widget.book.seriesId)}',
+                      '/series/${Uri.encodeComponent(_main.seriesId)}',
                     ),
                     onDismiss: () => setState(() => _showEndCard = false),
                   ),
@@ -1010,9 +1109,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                       ),
                       curve: Motion.easeOut,
                       child: ChapterPanel(
-                        title: widget.book.title,
+                        title: _main.title,
                         books: widget.seriesBooks,
-                        currentId: widget.book.id,
+                        currentId: _main.id,
                         onOpen: (b) => _goToBook(b.id),
                         onClose: _togglePanel,
                       ),
@@ -1115,6 +1214,46 @@ class _EndOfBookCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Says the chapter is coming from a backup source because the main one
+/// failed. Amber, as for any "something is down, nothing is wrong with you"
+/// notice (DESIGN.md "Warning"); tap to dismiss.
+class _FallbackBanner extends StatelessWidget {
+  final String text;
+  final VoidCallback onDismiss;
+  const _FallbackBanner({required this.text, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      button: true,
+      label: '$text Tap to dismiss.',
+      child: ExcludeSemantics(
+        child: GestureDetector(
+          onTap: onDismiss,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 560),
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.warningText, width: 2),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.alt_route_rounded, size: 18, color: AppColors.warningText),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(text, style: AppText.body(size: 13, color: AppColors.text)),
+              ),
+            ]),
           ),
         ),
       ),
