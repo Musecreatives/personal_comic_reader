@@ -15,7 +15,10 @@ import '../shared/error_state.dart';
 /// source, a source's full listing when picked, and a search within it.
 /// Tapping a title opens its review sheet, where it can be added.
 class SourceBrowseScreen extends ConsumerStatefulWidget {
-  const SourceBrowseScreen({super.key});
+  /// Opens straight onto this source's listing (from its details page);
+  /// back then returns there rather than to the shelves.
+  final String? initialSourceId;
+  const SourceBrowseScreen({super.key, this.initialSourceId});
 
   @override
   ConsumerState<SourceBrowseScreen> createState() => _SourceBrowseScreenState();
@@ -29,6 +32,8 @@ class _SourceBrowseScreenState extends ConsumerState<SourceBrowseScreen> {
   String _query = '';
   Timer? _debounce;
   Future<SourcePage>? _resultsFuture;
+  late var _openingInitial = widget.initialSourceId != null;
+  Future<void>? _initialLookup;
 
   @override
   void dispose() {
@@ -88,7 +93,7 @@ class _SourceBrowseScreenState extends ConsumerState<SourceBrowseScreen> {
                 children: [
                   // From a source's listing, back goes to the shelves first.
                   AppBackButton(
-                      onTap: _selected == null
+                      onTap: _selected == null || widget.initialSourceId != null
                           ? null
                           : () => _select(null)),
                   const SizedBox(width: 12),
@@ -113,8 +118,27 @@ class _SourceBrowseScreenState extends ConsumerState<SourceBrowseScreen> {
                           style: AppText.body(color: AppColors.text45)),
                     );
                   }
-                  _sourcesFuture ??= backend.listInstalledSources();
+                  final hidden = ref.read(hiddenSourcesStoreProvider);
+                  _sourcesFuture ??= backend
+                      .listInstalledSources()
+                      .then(hidden.visible);
                   final listings = _listings ??= SourceListingCache(backend);
+                  if (_openingInitial) {
+                    // Looked up in the unfiltered list: a source hidden
+                    // from search can still be browsed when picked on purpose.
+                    // Once: build runs again while it loads.
+                    _initialLookup ??= backend.listInstalledSources().then((all) {
+                      if (!mounted) return;
+                      final match = all
+                          .where((s) => s.id == widget.initialSourceId)
+                          .firstOrNull;
+                      setState(() => _openingInitial = false);
+                      if (match != null) _select(match);
+                    }, onError: (_) {
+                      if (mounted) setState(() => _openingInitial = false);
+                    });
+                    return const Center(child: CircularProgressIndicator());
+                  }
                   final source = _selected;
                   if (source == null) {
                     return FutureBuilder<List<SourceInfo>>(

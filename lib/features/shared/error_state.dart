@@ -13,7 +13,11 @@ class AppErrorState extends StatelessWidget {
 
   const AppErrorState({super.key, required this.error, this.onRetry});
 
-  String get _headline {
+  String get _headline => errorHeadline(error);
+
+  /// A short, human cause for [error], for anywhere an error is shown
+  /// (notices, snackbars), with the raw text kept secondary.
+  static String errorHeadline(Object error) {
     final msg = error.toString().toLowerCase();
     if (msg.contains('socketexception') ||
         msg.contains('connection refused') ||
