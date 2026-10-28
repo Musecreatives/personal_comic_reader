@@ -7,6 +7,7 @@ import '../../core/debug/debug_log.dart';
 
 import '../../core/backend/models.dart';
 import '../../core/backend/reader_backend.dart';
+import '../../core/metadata/cover_candidates.dart';
 import '../../core/network/retry_interceptor.dart';
 
 /// Komga REST v1 implementation of [ReaderBackend].
@@ -39,7 +40,7 @@ String friendlySeriesTitle(String title, String? url) {
   return '$parent${number == 1 ? '' : ' Vol. $number'}${year == null ? '' : ' ($year)'}';
 }
 
-class KomgaBackend implements ReaderBackend {
+class KomgaBackend implements ReaderBackend, SeriesMetadataEditor {
   @override
   final ServerConfig config;
   final String _password;
@@ -304,4 +305,39 @@ class KomgaBackend implements ReaderBackend {
         'Authorization':
             'Basic ${base64Encode(utf8.encode('${config.username}:$_password'))}',
       };
+
+  @override
+  bool get supportsBanner => false;
+
+  /// Uploads the cover as the series' selected thumbnail and writes the
+  /// details with their locks on, so a library rescan doesn't revert them.
+  @override
+  Future<void> applyMetadata(String seriesId, MetadataUpdate update) async {
+    final cover = update.coverUrl;
+    if (cover != null) {
+      // A plain client: the cover is on an outside site, which must never
+      // receive this server's login.
+      final bytes = (await Dio().get<List<int>>(cover,
+              options: Options(responseType: ResponseType.bytes)))
+          .data!;
+      await _dio.post(
+        '/api/v1/series/$seriesId/thumbnails',
+        data: FormData.fromMap({
+          'file': MultipartFile.fromBytes(bytes, filename: 'cover.jpg'),
+          'selected': 'true',
+        }),
+      );
+    }
+    final patch = {
+      if (update.summary != null) ...{'summary': update.summary, 'summaryLock': true},
+      if (update.genres != null) ...{'genres': update.genres, 'genresLock': true},
+      if (update.status != null) ...{
+        'status': update.status!.name.toUpperCase(),
+        'statusLock': true,
+      },
+    };
+    if (patch.isNotEmpty) {
+      await _dio.patch('/api/v1/series/$seriesId/metadata', data: patch);
+    }
+  }
 }

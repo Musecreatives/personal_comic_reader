@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../backends/local/local_backend.dart';
+import '../../core/network/image_origins.dart';
 
 /// First page of an imported book, for covers where pages aren't files
 /// (web keeps them in Hive).
@@ -86,7 +87,7 @@ class SeriesCover extends ConsumerWidget {
     }
     return CachedNetworkImage(
       imageUrl: url,
-      httpHeaders: headers,
+      httpHeaders: imageHeadersFor(url, headers),
       fit: fit,
       placeholder: (context, url) => Container(
         color: Theme.of(context).colorScheme.surfaceContainerHigh,
