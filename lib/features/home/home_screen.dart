@@ -18,6 +18,7 @@ import '../shared/ink_chip.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 import 'home_feed.dart';
+import '../updates/updates_screen.dart' show UpdatesStrip, updatesProvider;
 
 /// "Reading Now" - the app's home screen, merged across every server: an
 /// editorial hero for whatever was read last (anywhere), a shelf of series in
@@ -262,6 +263,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
 
   Future<void> _refresh() async {
     ref.invalidate(homeFeedProvider);
+    ref.invalidate(updatesProvider);
     setState(() => _heroFuture = null);
     await ref.read(homeFeedProvider.future);
   }
@@ -402,6 +404,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                                 lastBySeries: last,
                                 onOpen: _openSeries,
                               ),
+                            UpdatesStrip(serverId: _filter),
                             if (recs.length >= 3 && suwayomiVisible)
                               _RecommendedShelf(recs: recs.take(12).toList()),
                             if (recent.length >= 3)

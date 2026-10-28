@@ -12,6 +12,9 @@ class ComicVineVolume {
   final String? startYear;
   final String? publisher;
   final String? thumbUrl;
+
+  /// The full-size cover, for "Refresh cover & details".
+  final String? imageUrl;
   final int issueCount;
   final int? firstIssueId;
 
@@ -26,6 +29,7 @@ class ComicVineVolume {
     this.startYear,
     this.publisher,
     this.thumbUrl,
+    this.imageUrl,
     this.issueCount = 0,
     this.firstIssueId,
     this.summary,
@@ -46,6 +50,8 @@ class ComicVineVolume {
       startYear: text(j['start_year']),
       publisher: text((j['publisher'] as Map?)?['name']),
       thumbUrl: text((j['image'] as Map?)?['thumb_url']),
+      imageUrl: text((j['image'] as Map?)?['original_url']) ??
+          text((j['image'] as Map?)?['super_url']),
       issueCount: j['count_of_issues'] as int? ?? 0,
       firstIssueId: (j['first_issue'] as Map?)?['id'] as int?,
       summary: description == null ? text(j['deck']) : plainText(description),
@@ -59,6 +65,7 @@ class ComicVineVolume {
         startYear: startYear,
         publisher: publisher,
         thumbUrl: thumbUrl,
+        imageUrl: imageUrl,
         issueCount: issueCount,
         firstIssueId: firstIssueId,
         summary: summary,

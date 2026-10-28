@@ -8,6 +8,7 @@ import '../features/debug/diagnostics_screen.dart';
 import '../features/downloads/downloads_screen.dart';
 import '../features/discovery/recommendations_screen.dart';
 import '../features/home/in_progress_screen.dart';
+import '../features/updates/updates_screen.dart';
 import '../features/shared/glass_bottom_nav.dart';
 import '../features/suwayomi/source_browse_screen.dart';
 import '../features/suwayomi/source_details_screen.dart';
@@ -78,7 +79,10 @@ GoRouter buildRouter({
         StatefulShellBranch(routes: [
           GoRoute(
             path: '/search',
-            builder: (context, state) => const CrossServerSearchScreen(),
+            builder: (context, state) => CrossServerSearchScreen(
+              initialQuery: state.uri.queryParameters['q'],
+              initialMode: state.uri.queryParameters['mode'],
+            ),
           ),
         ]),
         StatefulShellBranch(routes: [
@@ -102,6 +106,10 @@ GoRouter buildRouter({
     GoRoute(
       path: '/home/in-progress',
       builder: (context, state) => const InProgressScreen(),
+    ),
+    GoRoute(
+      path: '/updates',
+      builder: (context, state) => const UpdatesScreen(),
     ),
     GoRoute(
       path: '/library/:id',

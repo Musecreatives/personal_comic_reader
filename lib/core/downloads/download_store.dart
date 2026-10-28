@@ -74,10 +74,12 @@ class DownloadStore {
 
   /// Total bytes downloaded for every book belonging to [seriesId].
   int sizeForSeries(String seriesId) {
-    final bookIds = listTasks()
-        .where((t) => t.seriesId == seriesId)
-        .map((t) => t.bookId)
-        .toSet();
+    final bookIds = {
+      for (final t in listTasks().where((t) => t.seriesId == seriesId)) ...[
+        t.bookId,
+        ?t.sourceBookId,
+      ],
+    };
     var total = 0;
     for (final key in _pagesBox.keys) {
       final bookId = (key as String).split('_').first;
@@ -97,11 +99,10 @@ class DownloadStore {
   }
 
   Future<void> clearSeries(String seriesId) async {
-    final bookIds =
-        listTasks().where((t) => t.seriesId == seriesId).map((t) => t.bookId).toList();
-    for (final bookId in bookIds) {
-      await deletePagesForBook(bookId);
-      await deleteTask(bookId);
+    for (final t in listTasks().where((t) => t.seriesId == seriesId)) {
+      await deletePagesForBook(t.bookId);
+      if (t.sourceBookId != null) await deletePagesForBook(t.sourceBookId!);
+      await deleteTask(t.bookId);
     }
   }
 

@@ -28,7 +28,18 @@ class PageCache {
   final Set<String> _inFlight = {};
   final DownloadStore? downloadStore;
 
-  PageCache({this.downloadStore});
+  /// How long one page request may take before it counts as failed. A
+  /// source that stops answering used to leave the reader spinning forever.
+  final Duration pageTimeout;
+
+  final _failures =
+      StreamController<({String bookId, int pageIndex})>.broadcast();
+
+  PageCache({this.downloadStore, this.pageTimeout = const Duration(seconds: 20)});
+
+  /// Pages the reader asked for that still failed after a retry. The reader
+  /// listens to switch a chapter to a backup source.
+  Stream<({String bookId, int pageIndex})> get failures => _failures.stream;
 
   Future<void> init() async {
     _box = await Hive.openBox<Uint8List>(_boxName);
@@ -61,10 +72,27 @@ class PageCache {
       return onDisk;
     }
 
-    final bytes = await backend.fetchPage(bookId, pageIndex);
+    final Uint8List bytes;
+    try {
+      bytes = await _fetchWithRetry(backend, bookId, pageIndex);
+    } catch (_) {
+      _failures.add((bookId: bookId, pageIndex: pageIndex));
+      rethrow;
+    }
     _store(key, bytes);
     if (_persist(backend)) unawaited(_box.put(key, bytes));
     return bytes;
+  }
+
+  /// One request with [pageTimeout], then one more; the second error is
+  /// the one thrown.
+  Future<Uint8List> _fetchWithRetry(
+      ReaderBackend backend, String bookId, int pageIndex) async {
+    try {
+      return await backend.fetchPage(bookId, pageIndex).timeout(pageTimeout);
+    } catch (_) {
+      return backend.fetchPage(bookId, pageIndex).timeout(pageTimeout);
+    }
   }
 
   /// Local books are already on disk - copying their pages into this cache

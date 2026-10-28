@@ -18,12 +18,22 @@ import '../shared/series_cover.dart';
 /// each server's library - it does not reach into Suwayomi's external
 /// source catalog, which is a different, source-scoped kind of search.
 class CrossServerSearchScreen extends ConsumerStatefulWidget {
-  const CrossServerSearchScreen({super.key});
+  /// Prefill from a link such as the series menu's "Search for this title"
+  /// (see [searchLocation]). [initialMode] is `library`, `manga` or `comics`.
+  final String? initialQuery;
+  final String? initialMode;
+
+  const CrossServerSearchScreen({super.key, this.initialQuery, this.initialMode});
 
   @override
   ConsumerState<CrossServerSearchScreen> createState() =>
       _CrossServerSearchScreenState();
 }
+
+/// The Search tab opened on [query], in [mode] (`library`, `manga` or
+/// `comics`).
+String searchLocation(String query, {String mode = 'library'}) =>
+    Uri(path: '/search', queryParameters: {'q': query, 'mode': mode}).toString();
 
 class _CrossServerSearchScreenState
     extends ConsumerState<CrossServerSearchScreen> {
@@ -31,6 +41,31 @@ class _CrossServerSearchScreenState
   String _query = '';
   Timer? _debounce;
   _Mode _mode = _Mode.library;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyLink();
+  }
+
+  // The Search tab keeps its state between visits, so a new link arrives
+  // as a widget update rather than a fresh screen.
+  @override
+  void didUpdateWidget(CrossServerSearchScreen old) {
+    super.didUpdateWidget(old);
+    if (old.initialQuery != widget.initialQuery || old.initialMode != widget.initialMode) {
+      setState(_applyLink);
+    }
+  }
+
+  void _applyLink() {
+    final q = widget.initialQuery?.trim();
+    if (q == null || q.isEmpty) return;
+    _debounce?.cancel();
+    _controller.text = q;
+    _query = q;
+    _mode = _Mode.values.asNameMap()[widget.initialMode] ?? _mode;
+  }
 
   @override
   void dispose() {

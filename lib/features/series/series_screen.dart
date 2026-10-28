@@ -20,6 +20,10 @@ import 'chapter_actions.dart';
 import 'comicvine_match_sheet.dart';
 import 'download_sheet.dart';
 import 'edit_details_sheet.dart';
+import 'linked_sources_sheet.dart';
+import 'refresh_cover_sheet.dart';
+import '../../core/metadata/cover_candidates.dart';
+import '../search/cross_server_search_screen.dart' show searchLocation;
 import 'series_actions_sheet.dart';
 import '../../core/collections/collection.dart';
 import '../collections/collections_screen.dart' show createCollection;
@@ -338,7 +342,55 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
       },
       onEditDetails: backend is LocalBackend ? _editDetails : null,
       onFindOnComicVine: backend is LocalBackend ? _findOnComicVine : null,
+      onManageSources: backend is SuwayomiBackend
+          ? () => _manageSources(backend, series)
+          : null,
+      // Manga on the Suwayomi sources; comics through Kapowarr.
+      onSearchTitle: () => context.go(searchLocation(series.title,
+          mode: backend is SuwayomiBackend ? 'manga' : 'comics')),
+      onRefreshCover: backend is SeriesMetadataEditor && ref.read(isOwnerProvider)
+          ? () => _refreshCover(backend as SeriesMetadataEditor, series)
+          : null,
     );
+  }
+
+  /// Owner only. Suwayomi titles are manga, looked up on AniList and
+  /// MangaDex; Komga holds comics, looked up on ComicVine when a key is set
+  /// (and on the manga catalogues otherwise).
+  Future<void> _refreshCover(SeriesMetadataEditor editor, Series series) async {
+    final backend = widget.backend;
+    final key = backend is SuwayomiBackend
+        ? null
+        : await ref.read(comicVineKeyStoreProvider).get();
+    if (!mounted) return;
+    final saved = await showRefreshCoverSheet(
+      context,
+      editor: editor,
+      series: series,
+      finder: CoverCandidateFinder(
+          comicVine: key == null ? null : ComicVineClient(apiKey: key)),
+      comics: key != null,
+      onReset: backend is SuwayomiBackend ? () => backend.resetCover(series.id) : null,
+    );
+    if (saved != true || !mounted) return;
+    ref.invalidate(homeFeedProvider);
+    _reloadSeries();
+    _snack('Cover and details saved');
+  }
+
+  /// Main and backup sources. Promoting a backup moves the series to a new
+  /// id, so the page reopens on it.
+  Future<void> _manageSources(SuwayomiBackend backend, Series series) async {
+    final newId = await showLinkedSourcesSheet(
+      context,
+      backend: backend,
+      series: series,
+      canEdit: ref.read(isOwnerProvider),
+    );
+    if (newId == null || !mounted) return;
+    ref.invalidate(homeFeedProvider);
+    context.pushReplacement('/series/${Uri.encodeComponent(newId)}');
+    _snack('Main source switched');
   }
 
   /// Picks a ComicVine match, then opens Edit details pre-filled with it
@@ -797,7 +849,7 @@ class _SeriesHeader extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              SeriesCover(imageUrl: series.thumbnailUrl, headers: headers, framed: false),
+              SeriesCover(imageUrl: series.bannerUrl ?? series.thumbnailUrl, headers: headers, framed: false),
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(

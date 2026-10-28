@@ -19,6 +19,9 @@ class SeriesActionsSheet {
     required Future<void> Function() onRemoveFromLibrary,
     Future<void> Function()? onEditDetails,
     Future<void> Function()? onFindOnComicVine,
+    Future<void> Function()? onManageSources,
+    VoidCallback? onSearchTitle,
+    Future<void> Function()? onRefreshCover,
   }) {
     return showAppSheet<void>(
       context: context,
@@ -76,6 +79,36 @@ class SeriesActionsSheet {
                   style: AppText.heading(size: 18),
                 ),
               ),
+              if (onRefreshCover != null)
+                _Action(
+                  icon: Icons.image_search_outlined,
+                  title: 'Refresh cover & details',
+                  hint: 'Pick a better cover and summary for everyone',
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    await onRefreshCover();
+                  },
+                ),
+              if (onSearchTitle != null)
+                _Action(
+                  icon: Icons.travel_explore_rounded,
+                  title: 'Search for this title',
+                  hint: 'Find it elsewhere to add, back up or migrate',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    onSearchTitle();
+                  },
+                ),
+              if (onManageSources != null)
+                _Action(
+                  icon: Icons.alt_route_rounded,
+                  title: 'Sources',
+                  hint: "Backups for when this source can't load a chapter",
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    await onManageSources();
+                  },
+                ),
               if (onEditDetails != null)
                 _Action(
                   icon: Icons.edit_outlined,

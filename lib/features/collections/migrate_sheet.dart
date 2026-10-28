@@ -11,9 +11,11 @@ typedef _Hits = ({String source, List<({int id, String title, String thumbnailUr
 
 /// Finds [series] on the other installed extensions and moves it to the one
 /// picked (read chapters and categories come along). Returns the new id, or
-/// null when nothing was migrated.
+/// null when nothing was migrated. With [link], the pick is added as a
+/// backup source instead (plan item 1) and nothing moves.
 Future<int?> showMigrateSheet(
-    BuildContext context, SuwayomiBackend backend, Series series) {
+    BuildContext context, SuwayomiBackend backend, Series series,
+    {bool link = false}) {
   return showModalBottomSheet<int>(
     context: context,
     isScrollControlled: true,
@@ -27,7 +29,7 @@ Future<int?> showMigrateSheet(
       initialChildSize: 0.85,
       maxChildSize: 0.95,
       builder: (context, scroll) =>
-          _MigrateSheet(backend: backend, series: series, scroll: scroll),
+          _MigrateSheet(backend: backend, series: series, scroll: scroll, link: link),
     ),
   );
 }
@@ -36,8 +38,12 @@ class _MigrateSheet extends StatefulWidget {
   final SuwayomiBackend backend;
   final Series series;
   final ScrollController scroll;
+  final bool link;
   const _MigrateSheet(
-      {required this.backend, required this.series, required this.scroll});
+      {required this.backend,
+      required this.series,
+      required this.scroll,
+      this.link = false});
 
   @override
   State<_MigrateSheet> createState() => _MigrateSheetState();
@@ -105,27 +111,37 @@ class _MigrateSheetState extends State<_MigrateSheet> {
       context: context,
       builder: (d) => AlertDialog(
         backgroundColor: AppColors.card,
-        title: const Text('Migrate?'),
-        content: Text(
-            '"${widget.series.title}" moves to "${m.title}" on $source. Chapters '
-            'you\'ve read stay read and its categories come along; the old copy '
-            'leaves your library.'),
+        title: Text(widget.link ? 'Add as a backup?' : 'Migrate?'),
+        content: Text(widget.link
+            ? '"${m.title}" on $source becomes a backup for "${widget.series.title}". '
+                'When the main source can\'t load a chapter, it\'s read from here. '
+                'It isn\'t added to your library.'
+            : '"${widget.series.title}" moves to "${m.title}" on $source. Chapters '
+                'you\'ve read stay read and its categories come along; the old copy '
+                'leaves your library.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('Migrate')),
+          TextButton(
+              onPressed: () => Navigator.pop(d, true),
+              child: Text(widget.link ? 'Add backup' : 'Migrate')),
         ],
       ),
     );
     if (ok != true || !mounted) return;
     setState(() => _migrating = true);
     try {
-      await widget.backend.migrate(widget.series.id, m.id);
+      if (widget.link) {
+        await widget.backend.linkSource(widget.series.id, m.id);
+      } else {
+        await widget.backend.migrate(widget.series.id, m.id);
+      }
       if (mounted) Navigator.pop(context, m.id);
     } catch (e) {
       if (!mounted) return;
       setState(() => _migrating = false);
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Couldn't migrate: $e")));
+          .showSnackBar(SnackBar(
+              content: Text(widget.link ? "Couldn't add the backup: $e" : "Couldn't migrate: $e")));
     }
   }
 
@@ -137,7 +153,7 @@ class _MigrateSheetState extends State<_MigrateSheet> {
           controller: widget.scroll,
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
           children: [
-            Text('Migrate to another extension',
+            Text(widget.link ? 'Add a backup source' : 'Migrate to another extension',
                 style: AppText.body(size: 17, weight: FontWeight.w600)),
             const SizedBox(height: 4),
             Text(
@@ -231,7 +247,7 @@ class _MigrateSheetState extends State<_MigrateSheet> {
                   children: [
                     const CircularProgressIndicator(),
                     const SizedBox(height: 14),
-                    Text('Migrating…', style: AppText.body(color: AppColors.text60)),
+                    Text(widget.link ? 'Adding…' : 'Migrating…', style: AppText.body(color: AppColors.text60)),
                   ],
                 ),
               ),
