@@ -521,7 +521,7 @@ class _SeriesList extends StatelessWidget {
 }
 
 /// How much of a series has been read: the 4px progress track
-/// (DESIGN.md "progress-track" / "progress-fill").
+/// (the design system "progress-track" / "progress-fill").
 class _ReadProgress extends StatelessWidget {
   final Series series;
   const _ReadProgress({required this.series});
@@ -649,7 +649,7 @@ class _LibraryHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Screentone behind the title (DESIGN.md "Screentone": headers).
+          // Screentone behind the title (the design system "Screentone": headers).
           CustomPaint(
             painter: Screentone(AppColors.text.withValues(alpha: 0.08)),
             child: Padding(

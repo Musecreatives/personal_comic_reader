@@ -183,10 +183,10 @@ void main() {
     adapter.onGet('/auth/me', (server) => server.reply(200, {
           'username': 'tolu',
           'role': 'member',
-          'komga': {'url': 'https://k.example/komga', 'username': 'tolu@friends.shaddai'},
+          'komga': {'url': 'https://k.example/komga', 'username': 'reader@example.com'},
         }));
     final me = await client.me();
-    expect(me.komga?.username, 'tolu@friends.shaddai');
+    expect(me.komga?.username, 'reader@example.com');
     expect(me.komga?.url, 'https://k.example/komga');
   });
 

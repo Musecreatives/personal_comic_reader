@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 /// Which platform's conventions the chrome follows: navigation, bars,
 /// sheets, dialogs, controls, transitions and type. The brand (colours,
 /// covers, the reader itself) stays the same everywhere; only the frame
-/// around it changes. See DESIGN.md "Platforms".
+/// around it changes. See the design system "Platforms".
 enum UiPlatform { ios, android, windows, web }
 
 /// The user's choice in Appearance. [auto] follows the device; the rest
@@ -71,7 +71,7 @@ class PlatformStyle {
 
   /// Text face for everything except metadata (which is always JetBrains
   /// Mono). Each platform gets its system face; web uses Zen Kaku Gothic New
-  /// (DESIGN.md) because a browser guarantees no particular font. Null means
+  /// (the design system) because a browser guarantees no particular font. Null means
   /// that face. A forced style in a web build keeps it too, since the browser has none of
   /// the system faces to hand.
   static String? get fontFamily => kIsWeb ? null : switch (current) {

@@ -873,7 +873,7 @@ class _Notice {
 String langLabel(String lang) => lang == 'all' ? 'MULTI' : lang.toUpperCase();
 
 /// An outcome or warning in a box. Errors get the danger edge, icon and
-/// colour (DESIGN.md "Errors"); warnings amber; a plain notice is quiet.
+/// colour (the design system "Errors"); warnings amber; a plain notice is quiet.
 class NoticeBox extends StatelessWidget {
   final String text;
 
@@ -1184,7 +1184,7 @@ class _PlainRow extends StatelessWidget {
 }
 
 /// A row's inline action. Ink, not violet: the screen keeps violet for its
-/// one primary action (DESIGN.md "The One Violet Rule"). Danger always comes
+/// one primary action (the design system "The One Violet Rule"). Danger always comes
 /// with an icon.
 class _TextAction extends StatelessWidget {
   final String label;

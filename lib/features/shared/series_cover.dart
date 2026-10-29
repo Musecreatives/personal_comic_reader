@@ -27,7 +27,7 @@ class SeriesCover extends ConsumerWidget {
   final Map<String, String> headers;
   final BoxFit fit;
 
-  /// Draws the 2px ink edge every cover carries (DESIGN.md). Off for
+  /// Draws the 2px ink edge every cover carries (the design system). Off for
   /// full-bleed backdrops, which aren't covers on a shelf.
   final bool framed;
 

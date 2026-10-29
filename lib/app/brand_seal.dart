@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'design_tokens.dart';
 import 'motion.dart';
 
-/// The logo mark: a hanko-red square stamped with 読 (DESIGN.md "Seal").
+/// The logo mark: a hanko-red square stamped with 読 (the design system "Seal").
 /// Tilted 4° from 48px up; smaller seals sit straight.
 class BrandSeal extends StatelessWidget {
   const BrandSeal({super.key, this.size = 48});
@@ -34,7 +34,7 @@ class BrandSeal extends StatelessWidget {
   }
 }
 
-/// An empty screen (DESIGN.md "Empty states"): a 2px-framed block on
+/// An empty screen (the design system "Empty states"): a 2px-framed block on
 /// screentone, 空 in hanko red, a heading, one line of help and [action].
 class EmptyState extends StatelessWidget {
   const EmptyState({super.key, required this.title, required this.message, this.action});
@@ -81,7 +81,7 @@ class EmptyState extends StatelessWidget {
   }
 }
 
-/// 1.2px dots on an 8px grid (DESIGN.md "Screentone").
+/// 1.2px dots on an 8px grid (the design system "Screentone").
 class Screentone extends CustomPainter {
   Screentone(this.color);
 
@@ -101,7 +101,7 @@ class Screentone extends CustomPainter {
   bool shouldRepaint(Screentone old) => old.color != color;
 }
 
-/// Plays the logo once per launch over [child] (DESIGN.md "Logo motion"):
+/// Plays the logo once per launch over [child] (the design system "Logo motion"):
 /// three panels ink in, right first, each naming the app in its script, then
 /// close into one seal that presses 読 as "Shaddai Reader" lands. 2.4s, then
 /// fades away. With reduced motion it is skipped.

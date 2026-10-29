@@ -134,7 +134,7 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
       constraints: const BoxConstraints(maxWidth: 640),
     ),
     filledButtonTheme: FilledButtonThemeData(
-      // DESIGN.md primary: ink fill, page-coloured text, an ink edge.
+      // the design system primary: ink fill, page-coloured text, an ink edge.
       // ponytail: the violet offset shadow is left out; ButtonStyle only
       // draws blurred elevation. Add a wrapper widget if it's missed.
       style: FilledButton.styleFrom(
@@ -210,7 +210,7 @@ ThemeData buildAppTheme(AppearanceSettings appearance) {
       backgroundColor: AppColors.canvas,
       surfaceTintColor: Colors.transparent,
       // Prototype "Home": the active tab is full ink with a 3px violet bar
-      // above its icon, inactive tabs ink at 62% (DESIGN.md "Tab bar").
+      // above its icon, inactive tabs ink at 62% (the design system "Tab bar").
       indicatorColor: AppColors.accent,
       indicatorShape: const _TopBarIndicator(),
       height: 72,

@@ -267,7 +267,7 @@ class GlassNavScaffold extends ConsumerWidget {
           child: pill,
         ),
         DecoratedBox(
-          // DESIGN.md: a 2px control line along the tab bar's top edge.
+          // the design system: a 2px control line along the tab bar's top edge.
           decoration: BoxDecoration(
             border: Border(top: BorderSide(color: AppColors.text, width: 2)),
           ),
@@ -472,7 +472,7 @@ class _SidebarItemState extends State<_SidebarItem> {
   Widget build(BuildContext context) {
     final w = widget;
     final radius = BorderRadius.circular(w.fluent ? 4 : 10);
-    // Selected is full ink plus the violet bar (DESIGN.md "Tab bar"), no
+    // Selected is full ink plus the violet bar (the design system "Tab bar"), no
     // tinted pill behind it; fills are only for hover and press.
     final fill = _down
         ? AppColors.fillSubtle
@@ -934,7 +934,7 @@ class _NowReadingBarState extends ConsumerState<_NowReadingBar> {
                     future: _series,
                     builder: (context, snap) => Row(
                       children: [
-                        // The cover, as DESIGN.md's now-reading pill asks for:
+                        // The cover, as the design system's now-reading pill asks for:
                         // the book you are in, recognisable at a glance.
                         SizedBox(
                           width: 30,

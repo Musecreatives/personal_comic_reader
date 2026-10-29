@@ -240,7 +240,7 @@ class _AccountBlockState extends ConsumerState<_AccountBlock>
     return Semantics(
       button: user != null && !syncing,
       label: 'Sync now',
-      // Pressing in, like every tappable surface (DESIGN.md motion).
+      // Pressing in, like every tappable surface (the design system motion).
       child: PressScale(
         child: GestureDetector(
           onTap: user == null || syncing

@@ -50,5 +50,5 @@ app.*.map.json
 /deploy/
 /docs/
 
-
 /PRODUCT.md
+/DESIGN.md

@@ -1243,7 +1243,7 @@ class _EndOfBookCard extends StatelessWidget {
 
 /// Says the chapter is coming from a backup source because the main one
 /// failed. Amber, as for any "something is down, nothing is wrong with you"
-/// notice (DESIGN.md "Warning"); tap to dismiss.
+/// notice (the design system "Warning"); tap to dismiss.
 class _FallbackBanner extends StatelessWidget {
   final String text;
   final VoidCallback onDismiss;

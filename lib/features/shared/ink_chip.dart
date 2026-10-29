@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 
-/// The ink action button (DESIGN.md "Buttons"). [filled] is the primary:
+/// The ink action button (the design system "Buttons"). [filled] is the primary:
 /// ink fill, page-coloured label, 2px ink edge and the violet offset shadow,
 /// which lifts 2px on hover and is pressed into on tap, like a seal. The
 /// outline form is an ink edge with an ink label. Movement is dropped
@@ -98,7 +98,7 @@ class _InkButtonState extends State<InkButton> {
   }
 }
 
-/// The one filter chip (DESIGN.md: a 2px control line, pill corners).
+/// The one filter chip (the design system: a 2px control line, pill corners).
 /// Unselected chips are drawn in ink, not filled; the selected one takes the
 /// accent, because the accent is what you have picked. [secondary] marks a
 /// second kind of choice (a collection beside All / Unread) with an accent

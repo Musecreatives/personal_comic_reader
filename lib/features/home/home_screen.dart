@@ -694,7 +694,7 @@ class _HeroCard extends ConsumerWidget {
     );
 
     if (split) {
-      // Drawn depth (DESIGN.md): a flat card panel closed by a 3px ink frame
+      // Drawn depth (the design system): a flat card panel closed by a 3px ink frame
       // line, no gradients.
       return DecoratedBox(
         decoration: BoxDecoration(

@@ -196,7 +196,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  // Phone, tablet landscape, tablet portrait (DESIGN.md: check both).
+  // Phone, tablet landscape, tablet portrait (the design system: check both).
   for (final size in const [Size(390, 844), Size(1101, 688), Size(688, 1101)]) {
     testWidgets('lays out a full shelf without overflow at $size', (tester) async {
       tester.view.physicalSize = size;

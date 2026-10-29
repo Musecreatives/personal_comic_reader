@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/platform_style.dart';
 
 /// Names are what's saved, so they stay: `paper` is shown as Washi and
-/// `trueBlack` as OLED black (DESIGN.md "Theme modes").
+/// `trueBlack` as OLED black (the design system "Theme modes").
 enum AppThemeMode { midnight, trueBlack, paper, system }
 
 extension AppThemeModeResolve on AppThemeMode {
@@ -14,7 +14,7 @@ extension AppThemeModeResolve on AppThemeMode {
       : (platform == Brightness.light ? AppThemeMode.paper : AppThemeMode.midnight);
 }
 
-/// Accent options offered in the picker (DESIGN.md "Accent options"). The
+/// Accent options offered in the picker (the design system "Accent options"). The
 /// accent is the colour of what you press; seal red is separate and fixed.
 enum AccentOption { purple, aiIndigo, matcha, yamabuki, hanko }
 

@@ -275,7 +275,7 @@ class _NewChaptersRow extends ConsumerWidget {
     final n = info.newChapters.length;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      // A reading-log row: card colour and a hairline (DESIGN.md "app
+      // A reading-log row: card colour and a hairline (the design system "app
       // cards"); the violet lives in the NEW stamp, the one tracked thing.
       child: Material(
         color: AppColors.card,

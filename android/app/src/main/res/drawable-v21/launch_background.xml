@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Midnight navy, so the hand-off into the in-app logo animation is
-     seamless (DESIGN.md midnight-page). -->
+     seamless (the design system midnight-page). -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item><color android:color="#0A1420" /></item>
 </layer-list>

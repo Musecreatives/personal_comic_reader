@@ -106,8 +106,7 @@ and publishes a GitHub Release.
 - `lib/features/`: one folder per screen or feature area.
 - `web/get/`: the static download/landing page.
 
-Design tokens and rules live in [DESIGN.md](DESIGN.md); what shipped in each
-release is in [CHANGELOG.md](CHANGELOG.md).
+What shipped in each release is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Known gaps
 
@@ -127,6 +126,6 @@ and `Switch.adaptive` widgets.
 
 ## License
 
-No license file has been added yet, so all rights are reserved by default.
-Add a `LICENSE` file (MIT or Apache-2.0 are common choices) to open the code
-for reuse.
+Licensed under the [Apache License 2.0](LICENSE). The software is provided
+"as is", without warranty of any kind. The Shaddai name and logo are not
+covered by the license (see [NOTICE](NOTICE)).

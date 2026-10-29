@@ -38,7 +38,7 @@ class AppErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // DESIGN.md "Errors": a 2px danger edge, an alert icon and a bold label
+    // the design system "Errors": a 2px danger edge, an alert icon and a bold label
     // in danger colour, then the plain-language detail in ink.
     return Center(
       child: Container(

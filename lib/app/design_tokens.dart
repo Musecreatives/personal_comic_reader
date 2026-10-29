@@ -52,7 +52,7 @@ class AppColors {
   static Color dangerText = const Color(0xFFFF6F93);
 
   // Hanko seal ink: the logo, stamps, the cover corner mark. Identity only,
-  // never a control, and fixed whatever accent is picked (DESIGN.md).
+  // never a control, and fixed whatever accent is picked (the design system).
   static Color seal = const Color(0xFFD23B3F);
   static Color sealText = const Color(0xFFFF8588);
   static const onSeal = Color(0xFFFFF8F5);
@@ -141,7 +141,7 @@ class AppColors {
         fillSubtle = Colors.white.withValues(alpha: 0.06);
         fillHover = Colors.white.withValues(alpha: 0.04);
         track = Colors.white.withValues(alpha: 0.14);
-      // Washi (DESIGN.md): cool paper, black ink.
+      // Washi (the design system): cool paper, black ink.
       case AppThemeMode.paper:
       case AppThemeMode.system:
         page = const Color(0xFFF3F3F1);
@@ -163,7 +163,7 @@ class AppColors {
 }
 
 /// M PLUS 1 Code is used for every piece of metadata (counts, sizes,
-/// latency, status words, section labels) - see DESIGN.md "Typography".
+/// latency, status words, section labels) - see the design system "Typography".
 /// It also covers kana and kanji, so Japanese series titles in metadata
 /// render in the same face.
 class AppText {
@@ -248,7 +248,7 @@ class AppText {
       );
 }
 
-/// Cover placeholder: a flat tint (no gradients, DESIGN.md), used until a
+/// Cover placeholder: a flat tint (no gradients, the design system), used until a
 /// real thumbnail loads (or as a fallback when a series has none).
 BoxDecoration coverPlaceholderDecoration(int seed) {
   final tint = AppColors.coverTints[seed % AppColors.coverTints.length];

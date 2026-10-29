@@ -198,7 +198,7 @@ class _ModeSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      // An ink-outlined segmented control (DESIGN.md 2px control line); the
+      // An ink-outlined segmented control (the design system 2px control line); the
       // violet block slides to what is picked.
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
