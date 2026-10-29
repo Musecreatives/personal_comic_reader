@@ -44,13 +44,11 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Infra/ops docs and deploy configs - server topology, incident details,
-# and deployment scripts kept out of the repo going forward (untracked
-# 2026-09-01; still on disk locally, still readable locally, just not
-# pushed to GitHub anymore).
+# Private infra/ops docs, deploy configs and internal planning notes.
+# Kept on disk locally, not pushed to GitHub.
 /ROADMAP.md
 /deploy/
+/docs/
 
 
 /PRODUCT.md
-

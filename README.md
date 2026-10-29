@@ -1,56 +1,80 @@
 # Shaddai Reader
 
-A Flutter comic/manga reader modeled on the iOS app Panels, targeting
-Flutter web (PWA) first and iOS later from the same codebase. Talks to
-self-hosted Komga, Suwayomi, and generic OPDS 1.2 servers, plus
-a read-only Kapowarr status view.
+A comic and manga reader for your own self-hosted library. One Flutter
+codebase ships to **iOS, Android, Windows and the web**, with native-feeling
+navigation and chrome on each platform.
 
-## Status
+[![CI](https://github.com/Musecreatives/personal_comic_reader/actions/workflows/ci.yml/badge.svg)](https://github.com/Musecreatives/personal_comic_reader/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Musecreatives/personal_comic_reader)](https://github.com/Musecreatives/personal_comic_reader/releases/latest)
 
-**All 5 phases complete**: full reader (single/double/vertical modes,
-zoom, offline-first downloads, a Wi-Fi-only download queue, an
-experimental smart panel view), working reader backends (Komga,
-Suwayomi, OPDS 1.2+PSE), local reading stats, an iPad/wide
-two-column library layout, Caddy-based same-origin PWA hosting, and iOS
-build configuration (bundle ID, Info.plist, Codemagic). See
-`CHANGELOG.md` for what shipped in each phase, including two real bugs
-found and fixed during manual verification (a swallowed-error infinite
-spinner in Phase 3, a URL-as-path-segment routing crash in Phase 5).
+## Features
 
-## Running
+- **Bring your own server**: Komga, Kavita and Suwayomi, plus any generic
+  OPDS 1.2 (with page streaming) catalog. A read-only Kapowarr status view
+  is included.
+- **A full reader**: single page, double page and vertical scroll modes,
+  zoom, and an experimental smart panel view.
+- **Offline first**: downloads with a Wi-Fi-only queue; downloaded pages are
+  always preferred over the network.
+- **Many sources, one series**: link the same series across servers and fall
+  back to the best backup source (up to date, on time, fewest gaps).
+- **Search across servers**, an updates feed, collections and read lists.
+- **Local reading stats** (pages, time, streak). They stay on your device
+  and are never sent anywhere.
+- **Adaptive UI**: iPhone, iPad, Android phone and tablet, Windows desktop
+  and the web, each following its own platform's conventions. You can force
+  an interface style per device in Settings.
+
+## Download
+
+Grab the latest build for your platform from the
+[Releases page](https://github.com/Musecreatives/personal_comic_reader/releases/latest):
+
+| Platform | File |
+|---|---|
+| Android | `ShaddaiReader.apk` |
+| Windows | `ShaddaiReader-windows.zip` |
+| Web (self-host) | `ShaddaiReader-web.zip` |
+| iOS | `ShaddaiReader-unsigned.ipa` (sideload), or TestFlight |
+
+## Getting started
+
+1. Install or open the app.
+2. On first launch you land on an empty state: tap **Add a server** and
+   enter the address of your Komga, Kavita, Suwayomi or OPDS instance, for
+   example `http://192.168.1.50:25600`, with your login.
+3. Your libraries appear. Pick a series and start reading.
+
+To reach a home server while away, put it behind HTTPS or use a private
+network such as [Tailscale](https://tailscale.com/download).
+
+## Build from source
+
+Requires the [Flutter SDK](https://docs.flutter.dev/get-started/install)
+(stable channel).
 
 ```bash
 flutter pub get
-flutter run -d chrome
+flutter run -d chrome        # or: -d windows, -d <device id>
 ```
 
-On first launch you'll land on an empty state prompting you to add a
-server (Komga, Suwayomi, or OPDS) pointed at your instance, e.g.
-`http://192.0.2.10:8081`.
-
-## Building for web
+Release builds:
 
 ```bash
 flutter build web --release
+flutter build apk --release
+flutter build windows --release
+flutter build ios --release --no-codesign   # needs a Mac with Xcode
 ```
 
-Output lands in `build/web/`. `deploy/build.ps1` builds and deploys this
-in one step - see Deploying below.
+### Self-hosting the web build
 
-## Building for iOS
-
-Requires a Mac with Xcode - not available in this repo's primary dev
-environment (Windows), so this path is configured but not locally
-verified:
-
-```bash
-flutter build ios --release --no-codesign   # unsigned sanity check
-```
-
-`codemagic.yaml` has two workflows: `ios-unsigned-check` (no signing
-needed, just proves the project builds) and `ios-testflight` (needs an
-App Store Connect API key configured in Codemagic's own settings, not
-in this repo). Bundle ID is `home.shaddai.reader`.
+Serving the web app from the same origin as your server (behind a reverse
+proxy such as Caddy or nginx) avoids the CORS block a browser hits when it
+talks to a bare server address, since Komga does not send
+`Access-Control-Allow-Origin`. Build with `--base-href /`, serve
+`build/web/`, and proxy your server under a path such as `/komga` on the
+same host.
 
 ## Testing
 
@@ -59,86 +83,50 @@ flutter analyze
 flutter test
 ```
 
+Every pull request runs both in CI. Pushing a `v*` tag builds every platform
+and publishes a GitHub Release.
+
 ## Architecture
 
-- `lib/core/backend/` — the `ReaderBackend` interface and shared models.
-  UI code only ever depends on this interface, never on a concrete
-  backend or an HTTP client directly.
-- `lib/backends/komga/`, `lib/backends/suwayomi/`,
-  `lib/backends/opds/` — one implementation per server type. Entity IDs
-  are opaque strings as far as the UI is concerned - Komga/Suwayomi use
-  plain IDs, OPDS uses full feed URLs, which is why every
-  navigation call site `Uri.encodeComponent`s the ID before putting it
-  in a route path (see CHANGELOG Phase 5 for the bug this fixed).
-- `lib/core/downloads/` — the download queue (`DownloadManager`,
-  `DownloadStore`) and offline-first page resolution
-  (`PageCache` prefers a downloaded page over the network).
-- `lib/core/panels/` — the experimental smart-panel-view gutter
-  detector, a pure geometry function over an RGBA buffer.
-- `lib/core/stats/` — local-only reading stats (pages/time per day,
-  streak), never sent to any server.
-- `lib/core/kapowarr/` — a separate, read-only client for Kapowarr's
-  status (not a `ReaderBackend` - Kapowarr acquires comics, it doesn't
-  serve readable pages).
-- `lib/core/storage/` — server configs, credentials, and the
-  last-visited-route store (Hive + flutter_secure_storage, both
-  web-safe).
-- `lib/app/` — Riverpod providers, go_router routes/router factory,
-  theme, the offline banner.
-- `lib/features/` — one folder per screen/feature area.
+- `lib/core/backend/`: the `ReaderBackend` interface and shared models. UI
+  code only depends on this interface, never on a concrete backend or an
+  HTTP client.
+- `lib/backends/{komga,kavita,suwayomi,opds}/`: one implementation per
+  server type. Entity IDs are opaque strings to the UI; OPDS uses full feed
+  URLs, so every navigation call site `Uri.encodeComponent`s the ID before
+  putting it in a route path.
+- `lib/core/downloads/`: the download queue and offline-first page
+  resolution.
+- `lib/core/panels/`: the experimental smart panel detector, a pure
+  geometry function over an RGBA buffer.
+- `lib/core/stats/`: local-only reading stats.
+- `lib/core/storage/`: server configs, credentials and the last-visited
+  route (Hive and flutter_secure_storage, both web-safe).
+- `lib/app/`: Riverpod providers, go_router routes, theme, platform style.
+- `lib/features/`: one folder per screen or feature area.
+- `web/get/`: the static download/landing page.
 
-## Deploying (same-origin PWA hosting via Caddy)
-
-Serving the app from its own hostname, same-origin with Komga
-behind a reverse proxy, avoids the CORS block a browser hits when
-talking directly to a bare server IP (Komga doesn't send
-`Access-Control-Allow-Origin`).
-
-1. **Build and copy the release bundle to the server:**
-   ```powershell
-   powershell -File deploy/build.ps1
-   ```
-   This runs `flutter build web --release --base-href /` and `scp`s
-   `build/web/` to `server@192.0.2.10:/home/server/docker/caddy/sites/reader/`
-   over Tailscale. Requires a passwordless SSH key already authorized
-   for that host - the script does not prompt for a password.
-
-2. **One-time server setup**, if not already done:
-   - Bind-mount that sites directory into the Caddy container as
-     `/srv/reader` (see the comment block in `deploy/Caddyfile.snippet`
-     for the compose `volumes:` line).
-   - Append `deploy/Caddyfile.snippet` to
-     `/home/server/docker/caddy/Caddyfile`, then reload Caddy:
-     ```bash
-     docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
-     ```
-   - In AdGuard Home, add a DNS rewrite: `reader.shaddai.home` →
-     `192.0.2.10`.
-
-3. **On iPhone**: open `https://reader.shaddai.home` in Safari, then
-   Share → Add to Home Screen. The app defaults new Komga server
-   URLs to `/komga` (same-origin) automatically when it
-   detects it's being served from that hostname - direct-IP entry still
-   works fine for local dev, both from `flutter run -d chrome` and when
-   opening the deployed site directly by IP.
+Design tokens and rules live in [DESIGN.md](DESIGN.md); what shipped in each
+release is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Known gaps
 
-- The OPDS backend's PSE/CBZ page streaming is verified for
-  routing/auth/parsing against live servers but not against real
-  populated content end-to-end (verified through Komga's real
-  navigation/library feeds, but no populated OPDS-PSE book was
-  available to exercise page streaming against). Worth re-checking once
-  real content exists. See CHANGELOG Phases 3 and 5.
-- No collections/read-lists screens yet (data-layer support exists on
-  every backend that has the concept).
-- Smart panel view is a simple gutter-variance heuristic - it will get
-  non-grid layouts, bleeds, and borderless panels wrong. Opt-in via a
-  button in the reader overlay (single-page mode only), never on by
-  default.
-- App icons are the default Flutter placeholder icons; needs real
-  branding art before shipping.
-- iOS build configuration is unverified beyond static inspection - no
-  Mac/Xcode toolchain in this environment. Needs a real Codemagic run
-  (or a Mac) before trusting it.
-- `flutter analyze` should be run after any change and kept clean.
+- OPDS-PSE page streaming is verified for routing, auth and parsing but not
+  against a large populated library.
+- The smart panel view is a simple gutter-variance heuristic. It gets
+  non-grid layouts, bleeds and borderless panels wrong, so it is opt-in.
+- iOS builds are unsigned unless you provide your own signing setup.
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR, run
+`flutter analyze` and `flutter test`, and check any UI change at phone and
+tablet sizes (for example 1101x688 and 688x1101). Use `PlatformStyle`
+instead of `Platform.isX`, and the shared `AppBackButton`, `showAppSheet`
+and `Switch.adaptive` widgets.
+
+## License
+
+No license file has been added yet, so all rights are reserved by default.
+Add a `LICENSE` file (MIT or Apache-2.0 are common choices) to open the code
+for reuse.
