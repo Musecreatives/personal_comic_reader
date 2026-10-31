@@ -269,6 +269,12 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   late bool _noteVisible = widget.fallbackNote != null;
   Timer? _noteTimer;
 
+  // What a quick toggle just set ("Reading mode: Webtoon"), shown briefly
+  // so a tap on an unlabelled icon says what it did.
+  String _hint = '';
+  bool _hintShown = false;
+  Timer? _hintTimer;
+
   // Experimental smart panel view (single-page mode only).
   bool _panelModeActive = false;
   bool _panelLoading = false;
@@ -327,6 +333,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     WidgetsBinding.instance.removeObserver(this);
     _hideTimer?.cancel();
     _noteTimer?.cancel();
+    _hintTimer?.cancel();
     _focus.dispose();
     WakelockPlus.disable();
     _checkpointSession();
@@ -553,6 +560,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   Future<void> _togglePanelMode() async {
     if (_panelModeActive) {
       setState(() => _panelModeActive = false);
+      _showHint('Panel mode: Off');
       return;
     }
     if (_panelLoading) return;
@@ -577,6 +585,19 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     } catch (_) {
       if (mounted) setState(() => _panelLoading = false);
     }
+    _showHint(_panelModeActive ? 'Panel mode: On' : "Panel mode: couldn't find panels");
+  }
+
+  void _showHint(String text) {
+    if (!mounted) return;
+    _hintTimer?.cancel();
+    setState(() {
+      _hint = text;
+      _hintShown = true;
+    });
+    _hintTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _hintShown = false);
+    });
   }
 
   void _seek(int page) {
@@ -619,6 +640,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     final modes = ReaderMode.values;
     final next = modes[(modes.indexOf(_settings.mode) + 1) % modes.length];
     _updateSettings(_settings.copyWith(mode: next));
+    _showHint('Reading mode: ${next.label}');
   }
 
   void _toggleDirection() {
@@ -629,6 +651,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
             : ReadingDirection.ltr,
       ),
     );
+    _showHint('Direction: ${_settings.direction.label}');
   }
 
   void _openSettingsSheet() {
@@ -1100,6 +1123,16 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                       onExit: () => setState(() => _panelModeActive = false),
                     ),
                   ),
+                Align(
+                  alignment: const Alignment(0, -0.55),
+                  child: IgnorePointer(
+                    child: AnimatedOpacity(
+                      opacity: _hintShown ? 1 : 0,
+                      duration: Motion.scaled(context, Motion.fast),
+                      child: _hint.isEmpty ? null : _ToggleHint(text: _hint),
+                    ),
+                  ),
+                ),
                 if (_showEndCard)
                   _EndOfBookCard(
                     nextBook: _nextBook,
@@ -1276,6 +1309,26 @@ class _FallbackBanner extends StatelessWidget {
             ]),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ToggleHint extends StatelessWidget {
+  final String text;
+  const _ToggleHint({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.75),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Text(text, style: AppText.body(size: 14, color: Colors.white)),
       ),
     );
   }

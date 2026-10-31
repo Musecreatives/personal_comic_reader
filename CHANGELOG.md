@@ -122,20 +122,6 @@ rather than trusting the unit tests' synthetic feeds alone, which is
 exactly the kind of thing synthetic feeds can't catch (they never
 happen to contain a URL as an "id").
 
-### Manual verification
-
-- OPDS: added a real server against `http://192.0.2.10:8081/opds/v1.2/catalog`
-  with real Komga credentials - "Connected successfully", then full
-  navigation from Home through "All libraries" to the Comics/Manga
-  library tiles, all against live server responses (not mocks).
-- Stats and the OPDS server-type option both render correctly in the UI
-  (screenshots via the same headless-Edge/release-build setup used in
-  every prior phase).
-- iOS changes are configuration-only and unverified beyond visual
-  inspection of the modified files - there's no Mac in this environment
-  to actually run `flutter build ios --no-codesign` or exercise
-  Codemagic. Flagged explicitly rather than claimed as tested.
-
 ## Phase 4 — Offline downloads + Caddy hosting
 
 - **Download queue** (`lib/core/downloads/`): `DownloadManager` runs up
@@ -174,16 +160,10 @@ happen to contain a URL as an "id").
     shell precache-first; no custom service worker was needed on top of
     that for this phase.
 - **Same-origin defaults**: when the app detects it's being served from
-  `reader.shaddai.home` (`Uri.base.host`), a new Komga/Kavita server's
+  its own host (`Uri.base.host`), a new Komga/Kavita server's
   URL field defaults to `/komga` or `/kavita` off that same origin -
-  side-stepping the CORS block a bare Tailscale IP always hits from a
+  side-stepping the CORS block a bare server IP always hits from a
   browser (see Phase 2/3). Direct-IP entry still works for local dev.
-- **`deploy/`**: `build.ps1` (builds the release bundle and `scp`s it to
-  the Caddy host), `Caddyfile.snippet` (serves the app at
-  `reader.shaddai.home` and reverse-proxies `/komga` + `/kavita`
-  same-origin), and a full manual-steps writeup in `README.md`
-  (bind-mount, Caddyfile append + reload, AdGuard DNS rewrite, iOS Add
-  to Home Screen).
 - Tests: `DownloadManager` (full download to completion, pause mid-flight
   then resume to completion, cancel clears task + pages, re-enqueueing an
   already-downloaded book doesn't re-fetch) and offline-first page
@@ -192,17 +172,6 @@ happen to contain a URL as an "id").
   network, a downloaded page wins over a *different* page already
   sitting in the opportunistic cache). 45 tests total, all passing;
   `flutter analyze` clean.
-
-### Manual verification
-
-Downloaded a real chapter (21 pages) from the live Suwayomi instance
-through the actual UI: watched the per-book spinner progress, confirmed
-the Downloads screen showed live "N / 21 pages - running" progress,
-paused it mid-download (stopped cleanly at 4/21, no further network
-calls after pause), and confirmed the Storage screen reported the
-correct real size (2.5 MB) and series grouping. All against
-`http://192.0.2.10:4567` via the same headless-Edge / release-build
-setup used in Phases 2-3.
 
 ## Phase 3 — Kavita backend, Suwayomi backend, Kapowarr status view
 
@@ -230,7 +199,7 @@ source of readable content).
   than risk a malformed filter silently returning nothing.
 - **`SuwayomiBackend`** (`lib/backends/suwayomi/suwayomi_backend.dart`):
   GraphQL implementation against `/api/graphql`. No login required (runs
-  open on the Tailscale network). Maps a `Library` to a Suwayomi
+  open on a private network). Maps a `Library` to a Suwayomi
   Category, a `Series` to a Manga, and a `Book` to a Chapter. Page bytes
   require calling the `fetchChapterPages` mutation first (Suwayomi
   fetches a chapter's page list from its source lazily, hence
@@ -278,34 +247,6 @@ mismatch the "verified against a live instance" claims below are meant
 to catch; it shipped once, and the fix for *why* it went unnoticed
 (the swallowed-error FutureBuilder) is arguably more important than the
 one-line GraphQL fix itself.
-
-### Manual verification
-
-Full round trip against real, populated content - not just empty-state
-checks like Phase 1/2:
-- Added Komga, Kavita, and Suwayomi servers through the actual UI
-  against their live Tailscale addresses; all three reported "Connected
-  successfully."
-- Switched active server to Suwayomi, browsed Home → Library (Default
-  category) → "Chronicles of the Demon Faction" (real manga, real
-  cover, real synopsis, "0/184 read") → Chapter 1 → **the actual reader
-  screen**, with real page images loading, a real page count (22, not
-  the placeholder -1), the Panels-style overlay showing "Chapter 1 /
-  Vol/Ch 1", and a working page slider. This is the first time the
-  reader has been verified against real content end-to-end.
-- Kapowarr: connected with the API key, "Connected - 4 volumes
-  tracked." on test, then the status screen rendered real stats (4
-  volumes, 34 issues, 164.9 MB), an empty download queue, and real
-  history entries ("One World Under Doom #6 (2025) • 45m ago").
-- Kavita: connected successfully and reached the empty-library screen
-  without error (still nothing scanned into that instance - see the
-  KavitaBackend note above for what that means for field-mapping
-  confidence).
-- All of the above via a headless Edge (`playwright-core`, no
-  `chromium-cli` in this environment) against a `flutter build web
-  --release` bundle - the debug `flutter run -d web-server` target hung
-  indefinitely in this environment (noted in Phase 2), so release builds
-  are the reliable path for this kind of check here.
 
 ## Phase 2 — Reader core + progress sync
 
@@ -359,25 +300,6 @@ checks like Phase 1/2:
   (including round-trip inverse), and progress-sync debounce/queue/
   flush behavior against a fake backend. 41 tests total, all passing;
   `flutter analyze` clean.
-
-### Manual verification
-
-- `flutter build web --release` served statically and driven with a
-  headless Edge (via `playwright-core`, since `chromium-cli` wasn't
-  available in this environment): empty state, add-server form, and
-  the post-save library list all render correctly against a live
-  Komga server over Tailscale with zero console errors.
-- Talking to the Tailscale IP directly from a browser hits CORS
-  (Komga sends no `Access-Control-Allow-Origin`) - expected per the
-  project's own Phase 4 plan to proxy same-origin in production; the
-  manual check above used `--disable-web-security` in a throwaway
-  profile to see past it for verification only.
-- Could not visually verify the reader screen itself end-to-end: the
-  connected Komga account has 0 series across every library
-  (confirmed directly via `curl` - `totalElements: 0`), so there was
-  no book to open. The series/book list screens correctly render
-  their empty state rather than erroring. Re-verify once the Komga
-  libraries actually have content scanned in.
 
 ### Performance notes
 

@@ -1,8 +1,21 @@
 /// Page layout mode for the reader.
-enum ReaderMode { single, double, verticalContinuous }
+enum ReaderMode {
+  single('Paged'),
+  double('Double page'),
+  verticalContinuous('Webtoon');
+
+  final String label;
+  const ReaderMode(this.label);
+}
 
 /// Reading direction; affects swipe direction, page slider, and spread order.
-enum ReadingDirection { ltr, rtl }
+enum ReadingDirection {
+  ltr('Left to right'),
+  rtl('Right to left');
+
+  final String label;
+  const ReadingDirection(this.label);
+}
 
 /// How a page image is scaled to the viewport.
 enum PageFit { width, height, screen, original }

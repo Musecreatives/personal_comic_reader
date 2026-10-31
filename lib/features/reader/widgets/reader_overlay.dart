@@ -99,12 +99,6 @@ class _ReaderOverlayState extends State<ReaderOverlay>
         ReaderMode.verticalContinuous => Icons.view_agenda_rounded,
       };
 
-  String _modeLabel(ReaderMode mode) => switch (mode) {
-        ReaderMode.single => 'Paged',
-        ReaderMode.double => 'Double page',
-        ReaderMode.verticalContinuous => 'Webtoon',
-      };
-
   @override
   Widget build(BuildContext context) {
     final w = widget;
@@ -207,7 +201,7 @@ class _ReaderOverlayState extends State<ReaderOverlay>
                               const SizedBox(height: 10),
                               _RoundButton(
                                 icon: _modeIcon(w.settings.mode),
-                                label: 'Reading mode: ${_modeLabel(w.settings.mode)}',
+                                label: 'Reading mode: ${w.settings.mode.label}',
                                 onTap: w.onCycleMode,
                               ),
                               const SizedBox(height: 10),
@@ -215,7 +209,7 @@ class _ReaderOverlayState extends State<ReaderOverlay>
                                 icon: ltr
                                     ? Icons.format_textdirection_l_to_r
                                     : Icons.format_textdirection_r_to_l,
-                                label: ltr ? 'Left to right' : 'Right to left',
+                                label: 'Direction: ${w.settings.direction.label}',
                                 onTap: w.onToggleDirection,
                               ),
                               if (w.onTogglePanelMode != null) ...[
