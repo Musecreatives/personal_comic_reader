@@ -7,6 +7,27 @@ navigation and chrome on each platform.
 [![CI](https://github.com/Musecreatives/personal_comic_reader/actions/workflows/ci.yml/badge.svg)](https://github.com/Musecreatives/personal_comic_reader/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/Musecreatives/personal_comic_reader)](https://github.com/Musecreatives/personal_comic_reader/releases/latest)
 
+## Screenshots
+
+**iPhone**: Home, Library, a series, and the webtoon reader.
+
+<p>
+  <img src="screenshots/phone-home.jpg" width="200" alt="Home screen on iPhone">
+  <img src="screenshots/phone-library.jpg" width="200" alt="Library grid on iPhone">
+  <img src="screenshots/phone-series.jpg" width="200" alt="Series page on iPhone">
+  <img src="screenshots/phone-reader.jpg" width="200" alt="Webtoon reader on iPhone">
+</p>
+
+**Tablet**: Home, a series with its chapter list alongside, and the reader.
+
+<p>
+  <img src="screenshots/tablet-home.jpg" width="820" alt="Home screen on a tablet">
+</p>
+<p>
+  <img src="screenshots/tablet-series.jpg" width="405" alt="Series page on a tablet">
+  <img src="screenshots/tablet-reader.jpg" width="405" alt="Reader on a tablet">
+</p>
+
 ## Features
 
 - **Bring your own server**: Komga, Kavita and Suwayomi, plus any generic
