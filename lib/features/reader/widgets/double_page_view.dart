@@ -160,6 +160,7 @@ class DoublePageViewState extends State<DoublePageView> {
                           brightness: widget.settings.brightness / 100,
                           upscale: widget.settings.upscale,
                           onAspectRatio: (r) => _updateAspect(pageIndex, r),
+                          scrollTall: true,
                         ),
                       ))
                   .toList(),

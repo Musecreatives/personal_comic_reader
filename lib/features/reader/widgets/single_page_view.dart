@@ -113,6 +113,7 @@ class SinglePageViewState extends State<SinglePageView> {
                 colorFilter: readerColorFilter(widget.settings.colorFilter),
                 brightness: widget.settings.brightness / 100,
                 upscale: widget.settings.upscale,
+                scrollTall: true,
               ),
             ),
           ),

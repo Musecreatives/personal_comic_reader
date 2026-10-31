@@ -7,8 +7,12 @@ import '../../../core/backend/reader_backend.dart';
 import '../../../core/reader/page_cache.dart';
 
 /// Loads and renders a single page's bytes, with a retry button on failure
-/// and an aspect-ratio callback used by double-page mode to detect
-/// landscape pages.
+/// and an aspect-ratio callback (double-page mode uses it to spot landscape
+/// pages, webtoon mode to size each page).
+///
+/// Some sources (Asura Scans, for one) serve a chapter as a few 800x16000
+/// strips. Fitted to the screen those shrink to a sliver, so with
+/// [scrollTall] a page taller than [tallRatio] fills the width and scrolls.
 class PageImage extends StatefulWidget {
   final ReaderBackend backend;
   final PageCache pageCache;
@@ -19,6 +23,11 @@ class PageImage extends StatefulWidget {
   final double brightness;
   final bool upscale;
   final ValueChanged<double>? onAspectRatio;
+  final bool scrollTall;
+
+  /// Width / height below which a page counts as a strip: 2.5x taller than
+  /// wide, where a normal manga page is about 1.4x.
+  static const tallRatio = 0.4;
 
   const PageImage({
     super.key,
@@ -31,6 +40,7 @@ class PageImage extends StatefulWidget {
     this.brightness = 1,
     this.upscale = false,
     this.onAspectRatio,
+    this.scrollTall = false,
   });
 
   @override
@@ -39,6 +49,7 @@ class PageImage extends StatefulWidget {
 
 class _PageImageState extends State<PageImage> {
   late Future<Uint8List> _future;
+  double? _ratio;
 
   @override
   void initState() {
@@ -55,24 +66,31 @@ class _PageImageState extends State<PageImage> {
   }
 
   void _load() {
+    _ratio = null;
     _future = widget.pageCache
-        .getPage(widget.backend, widget.bookId, widget.pageIndex);
+        .getPage(widget.backend, widget.bookId, widget.pageIndex)
+        .then((bytes) async {
+      await _readAspectRatio(bytes);
+      return bytes;
+    });
   }
 
   void _retry() {
     setState(_load);
   }
 
-  Future<void> _reportAspectRatio(Uint8List bytes) async {
-    if (widget.onAspectRatio == null) return;
+  /// Reads the size from the image header without decoding the pixels: a
+  /// full decode of a 16000px strip is ~50 MB.
+  Future<void> _readAspectRatio(Uint8List bytes) async {
     try {
-      final codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      final ratio = frame.image.width / frame.image.height;
-      frame.image.dispose();
-      widget.onAspectRatio!(ratio);
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      _ratio = descriptor.width / descriptor.height;
+      descriptor.dispose();
+      buffer.dispose();
+      if (mounted) widget.onAspectRatio?.call(_ratio!);
     } catch (_) {
-      // Best-effort only; landscape detection just won't apply.
+      // Best-effort only; the page just keeps the default layout.
     }
   }
 
@@ -100,11 +118,14 @@ class _PageImageState extends State<PageImage> {
         }
 
         final bytes = snapshot.data!;
-        _reportAspectRatio(bytes);
+        final strip = widget.scrollTall &&
+            _ratio != null &&
+            _ratio! < PageImage.tallRatio;
 
         Widget image = Image.memory(
           bytes,
-          fit: widget.fit,
+          fit: strip ? BoxFit.fitWidth : widget.fit,
+          width: strip ? double.infinity : null,
           filterQuality: widget.upscale ? FilterQuality.high : FilterQuality.low,
         );
 
@@ -129,7 +150,7 @@ class _PageImageState extends State<PageImage> {
           );
         }
 
-        return image;
+        return strip ? SingleChildScrollView(child: image) : image;
       },
     );
   }

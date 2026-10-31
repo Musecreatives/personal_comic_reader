@@ -39,8 +39,52 @@ class VerticalPageViewState extends State<VerticalPageView> {
   final TransformationController _transform = TransformationController();
   bool _zoomed = false;
   int _lastReported = -1;
-  double _itemExtent = 600;
   bool _endReported = false;
+  double _width = 400;
+
+  // Each page's width / height once its header is read. Until then a page
+  // is assumed to be a normal manga page; strips (800x16000 on some
+  // sources) get their real height so they read at full width.
+  static const _defaultRatio = 0.7;
+  final Map<int, double> _ratios = {};
+
+  double _extent(int index) =>
+      _width / (_ratios[index] ?? _defaultRatio) + widget.settings.pageGap;
+
+  double _offsetOf(int page) {
+    var offset = 0.0;
+    for (var i = 0; i < page; i++) {
+      offset += _extent(i);
+    }
+    return offset;
+  }
+
+  int _pageAt(double offset) {
+    var top = 0.0;
+    for (var i = 0; i < widget.pageCount; i++) {
+      final extent = _extent(i);
+      // The page at the top of the screen, matching where jumpTo lands.
+      if (top + extent > offset + 1) return i;
+      top += extent;
+    }
+    return widget.pageCount - 1;
+  }
+
+  void _onAspectRatio(int index, double ratio) {
+    if (_ratios[index] == ratio) return;
+    final before = _extent(index);
+    setState(() => _ratios[index] = ratio);
+    // A page above the screen changing height would shove what's being
+    // read; scroll by the same amount so it stays put.
+    if (_scroll.hasClients && _offsetOf(index) < _scroll.offset) {
+      final delta = _extent(index) - before;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scroll.hasClients) {
+          _scroll.jumpTo(_scroll.offset + delta);
+        }
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -48,7 +92,7 @@ class VerticalPageViewState extends State<VerticalPageView> {
     _scroll.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _scroll.jumpTo(widget.initialPage * _itemExtent);
+      _scroll.jumpTo(_offsetOf(widget.initialPage));
     });
   }
 
@@ -60,8 +104,7 @@ class VerticalPageViewState extends State<VerticalPageView> {
   }
 
   void _onScroll() {
-    final index =
-        (_scroll.offset / _itemExtent).round().clamp(0, widget.pageCount - 1);
+    final index = _pageAt(_scroll.offset);
     if (index != _lastReported) {
       _lastReported = index;
       widget.onPageChanged(index);
@@ -75,10 +118,12 @@ class VerticalPageViewState extends State<VerticalPageView> {
   }
 
   void jumpTo(int page) {
-    _scroll.jumpTo((page * _itemExtent)
-        .clamp(0, _scroll.position.maxScrollExtent.isFinite
+    final offset = _offsetOf(page);
+    _scroll.jumpTo(offset.clamp(
+        0,
+        _scroll.position.maxScrollExtent.isFinite
             ? _scroll.position.maxScrollExtent
-            : page * _itemExtent));
+            : offset));
   }
 
   BoxFit get _fit {
@@ -96,8 +141,7 @@ class VerticalPageViewState extends State<VerticalPageView> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    _itemExtent = width / 0.7 + widget.settings.pageGap;
+    _width = MediaQuery.of(context).size.width;
 
     return InteractiveViewer(
       transformationController: _transform,
@@ -112,7 +156,7 @@ class VerticalPageViewState extends State<VerticalPageView> {
         physics: _zoomed
             ? const NeverScrollableScrollPhysics()
             : const ClampingScrollPhysics(),
-        itemExtent: _itemExtent,
+        itemExtentBuilder: (index, _) => _extent(index),
         itemCount: widget.pageCount,
         itemBuilder: (context, index) {
           return GestureDetector(
@@ -131,6 +175,7 @@ class VerticalPageViewState extends State<VerticalPageView> {
                   colorFilter: readerColorFilter(widget.settings.colorFilter),
                   brightness: widget.settings.brightness / 100,
                   upscale: widget.settings.upscale,
+                  onAspectRatio: (r) => _onAspectRatio(index, r),
                 ),
               ),
             ),
