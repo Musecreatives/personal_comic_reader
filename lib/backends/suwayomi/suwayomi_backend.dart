@@ -27,6 +27,35 @@ Map<String, String> metaMap(Object? nodes) => {
           n['key'] as String: n['value'] as String,
     };
 
+/// Where you stand, moved from one source's chapter list onto another's
+/// when a title migrates. Sources disagree on which chapters exist (one
+/// has 12.5, another skips an extra), so it isn't a one-to-one copy:
+/// every chapter up to the furthest one you finished becomes read, and a
+/// chapter you were partway through (past that) keeps its page. Numbers
+/// match to one decimal place.
+({List<int> read, Map<int, int> pages}) carryProgress(
+  List<({double number, bool read, int page})> from,
+  List<({int id, double number})> to,
+) {
+  double key(double n) => (n * 10).roundToDouble() / 10;
+  final finished = from.where((c) => c.read).map((c) => key(c.number));
+  final furthest = finished.isEmpty
+      ? double.negativeInfinity
+      : finished.reduce((a, b) => a > b ? a : b);
+  final partial = {
+    for (final c in from)
+      if (!c.read && c.page > 0 && key(c.number) > furthest)
+        key(c.number): c.page,
+  };
+  return (
+    read: [
+      for (final c in to)
+        if (key(c.number) <= furthest) c.id,
+    ],
+    pages: {for (final c in to) c.id: ?partial[key(c.number)]},
+  );
+}
+
 /// The summary, genres and status saved over the source's own, from the
 /// details meta value. Missing or unreadable means none.
 ({String? summary, List<String>? genres, String? status}) parseDetailsOverride(String? raw) {
@@ -216,13 +245,15 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
       bannerUrl: meta[bannerMetaKey],
       sourceName: e['source']?['displayName'] as String?,
       tags: details.genres ?? const [],
+      // A status picked in "Refresh cover & details" wins over the source's.
+      status: SeriesStatus.parse(details.status ?? e['status']),
     );
   }
 
   @override
   Future<Series> getSeries(String id) async {
     final data = await _gql(
-      'query(\$id: Int!) { manga(id: \$id) { id title description thumbnailUrl unreadCount chapters { totalCount } source { displayName } meta { key value } } }',
+      'query(\$id: Int!) { manga(id: \$id) { id title description status thumbnailUrl unreadCount chapters { totalCount } source { displayName } meta { key value } } }',
       {'id': int.parse(id)},
     );
     return _seriesFromJson(data['manga'] as Map<String, dynamic>);
@@ -691,25 +722,36 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   Future<void> migrate(String fromId, int toId) async {
     final data = await _gql(
       'query(\$id: Int!) { manga(id: \$id) { categories { nodes { id } } '
-      'chapters { nodes { chapterNumber isRead } } } }',
+      'chapters { nodes { chapterNumber isRead lastPageRead } } } }',
       {'id': int.parse(fromId)},
     );
     final manga = data['manga'] as Map<String, dynamic>;
     final categories = [
       for (final c in manga['categories']['nodes'] as List) c['id'] as int,
     ];
-    final read = {
+    final from = [
       for (final c in manga['chapters']['nodes'] as List)
-        if (c['isRead'] == true) (c['chapterNumber'] as num).toDouble(),
-    };
+        (
+          number: (c['chapterNumber'] as num).toDouble(),
+          read: c['isRead'] == true,
+          page: c['lastPageRead'] as int? ?? 0,
+        ),
+    ];
 
     await addToLibraryWithCategories(toId, categories);
-    if (read.isNotEmpty) {
+    if (from.any((c) => c.read || c.page > 0)) {
       final chapters = await _fetchChaptersFromSource(toId);
-      await markChaptersRead([
+      final carried = carryProgress(from, [
         for (final c in chapters)
-          if (read.contains((c['chapterNumber'] as num).toDouble())) c['id'] as int,
+          (id: c['id'] as int, number: (c['chapterNumber'] as num).toDouble()),
       ]);
+      await markChaptersRead(carried.read);
+      for (final MapEntry(key: id, value: page) in carried.pages.entries) {
+        await _gql(
+          'mutation(\$id: Int!, \$page: Int!) { updateChapter(input: {id: \$id, patch: {lastPageRead: \$page}}) { chapter { id } } }',
+          {'id': id, 'page': page},
+        );
+      }
     }
     await removeFromLibrary(fromId);
   }

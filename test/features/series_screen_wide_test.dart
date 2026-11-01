@@ -104,6 +104,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          chaptersNewestFirstProvider.overrideWith((ref) => true),
           activeBackendProvider.overrideWith((ref) async => fakeBackend),
         ],
         child: const MaterialApp(

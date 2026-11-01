@@ -42,6 +42,7 @@ class SettingsScreen extends ConsumerWidget {
         .length;
     final streak = ref.watch(readingStreakProvider);
     final shelves = ref.watch(collectionCountProvider);
+    final newestFirst = ref.watch(chaptersNewestFirstProvider);
     return Scaffold(
       backgroundColor: AppColors.page,
       body: SafeArea(
@@ -106,6 +107,20 @@ class SettingsScreen extends ConsumerWidget {
                       null,
                       () => context.push('/settings/appearance'),
                       meta: _modeName(mode),
+                    ),
+                    _Row(
+                      'Newest chapters first',
+                      'Title pages open on the latest chapter',
+                      () {
+                        final next = !newestFirst;
+                        ref.read(chaptersNewestFirstProvider.notifier).state =
+                            next;
+                        final store = ref.read(readerSettingsStoreProvider);
+                        store.setGlobal(
+                          store.getGlobal().copyWith(chaptersNewestFirst: next),
+                        );
+                      },
+                      value: newestFirst,
                     ),
                     _Row(
                       'Reading stats',
@@ -324,7 +339,11 @@ class _Row {
   final String? subtitle;
   final VoidCallback onTap;
   final String? meta;
-  const _Row(this.title, this.subtitle, this.onTap, {this.meta});
+
+  /// Non-null makes the row a toggle: a switch instead of the chevron, and
+  /// tapping anywhere on the row flips it.
+  final bool? value;
+  const _Row(this.title, this.subtitle, this.onTap, {this.meta, this.value});
 }
 
 /// One hairline panel of rows, separated by hairlines (no card per row).
@@ -395,11 +414,17 @@ class _Group extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                       ],
-                      Icon(
-                        Icons.chevron_right,
-                        size: 18,
-                        color: AppColors.text60,
-                      ),
+                      if (rows[i].value != null)
+                        Switch.adaptive(
+                          value: rows[i].value!,
+                          onChanged: (_) => rows[i].onTap(),
+                        )
+                      else
+                        Icon(
+                          Icons.chevron_right,
+                          size: 18,
+                          color: AppColors.text60,
+                        ),
                     ],
                   ),
                 ),

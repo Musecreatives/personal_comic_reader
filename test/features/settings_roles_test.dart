@@ -14,6 +14,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          chaptersNewestFirstProvider.overrideWith((ref) => true),
           isOwnerProvider.overrideWith((ref) => owner),
           // Settings shows the theme mode beside Appearance.
           appearanceProvider.overrideWith((ref) => const AppearanceSettings()),

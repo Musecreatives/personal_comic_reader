@@ -177,6 +177,7 @@ class KomgaBackend implements ReaderBackend, SeriesMetadataEditor {
       booksReadCount: e['booksReadCount'] as int,
       booksUnreadCount: e['booksUnreadCount'] as int,
       thumbnailUrl: thumbnailUrlForSeries(e['id'] as String),
+      status: SeriesStatus.parse(metadata?['status']),
     );
   }
 

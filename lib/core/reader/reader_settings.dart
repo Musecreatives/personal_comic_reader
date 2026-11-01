@@ -35,6 +35,10 @@ class ReaderSettings {
   final int brightness;
   final String colorFilter;
 
+  /// Chapter lists on a title page start at the latest chapter. Lives
+  /// here so it syncs with the rest; only the global value is read.
+  final bool chaptersNewestFirst;
+
   const ReaderSettings({
     this.mode = ReaderMode.single,
     this.direction = ReadingDirection.ltr,
@@ -48,6 +52,7 @@ class ReaderSettings {
     this.upscale = false,
     this.brightness = 100,
     this.colorFilter = 'none',
+    this.chaptersNewestFirst = true,
   });
 
   ReaderSettings copyWith({
@@ -63,6 +68,7 @@ class ReaderSettings {
     bool? upscale,
     int? brightness,
     String? colorFilter,
+    bool? chaptersNewestFirst,
   }) {
     return ReaderSettings(
       mode: mode ?? this.mode,
@@ -77,36 +83,43 @@ class ReaderSettings {
       upscale: upscale ?? this.upscale,
       brightness: brightness ?? this.brightness,
       colorFilter: colorFilter ?? this.colorFilter,
+      chaptersNewestFirst: chaptersNewestFirst ?? this.chaptersNewestFirst,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'mode': mode.name,
-        'direction': direction.name,
-        'fit': fit.name,
-        'doublePageCoverAlone': doublePageCoverAlone,
-        'doublePageOffset': doublePageOffset,
-        'tapZonesEnabled': tapZonesEnabled,
-        'keepScreenOn': keepScreenOn,
-        'backgroundColor': backgroundColor,
-        'pageGap': pageGap,
-        'upscale': upscale,
-        'brightness': brightness,
-        'colorFilter': colorFilter,
-      };
+    'mode': mode.name,
+    'direction': direction.name,
+    'fit': fit.name,
+    'doublePageCoverAlone': doublePageCoverAlone,
+    'doublePageOffset': doublePageOffset,
+    'tapZonesEnabled': tapZonesEnabled,
+    'keepScreenOn': keepScreenOn,
+    'backgroundColor': backgroundColor,
+    'pageGap': pageGap,
+    'upscale': upscale,
+    'brightness': brightness,
+    'colorFilter': colorFilter,
+    'chaptersNewestFirst': chaptersNewestFirst,
+  };
 
   factory ReaderSettings.fromJson(Map<String, dynamic> json) {
     const defaults = ReaderSettings();
     return ReaderSettings(
-      mode: ReaderMode.values.byName(json['mode'] as String? ?? defaults.mode.name),
-      direction: ReadingDirection.values
-          .byName(json['direction'] as String? ?? defaults.direction.name),
+      mode: ReaderMode.values.byName(
+        json['mode'] as String? ?? defaults.mode.name,
+      ),
+      direction: ReadingDirection.values.byName(
+        json['direction'] as String? ?? defaults.direction.name,
+      ),
       fit: PageFit.values.byName(json['fit'] as String? ?? defaults.fit.name),
       doublePageCoverAlone:
-          json['doublePageCoverAlone'] as bool? ?? defaults.doublePageCoverAlone,
+          json['doublePageCoverAlone'] as bool? ??
+          defaults.doublePageCoverAlone,
       doublePageOffset:
           json['doublePageOffset'] as int? ?? defaults.doublePageOffset,
-      tapZonesEnabled: json['tapZonesEnabled'] as bool? ?? defaults.tapZonesEnabled,
+      tapZonesEnabled:
+          json['tapZonesEnabled'] as bool? ?? defaults.tapZonesEnabled,
       keepScreenOn: json['keepScreenOn'] as bool? ?? defaults.keepScreenOn,
       backgroundColor:
           json['backgroundColor'] as int? ?? defaults.backgroundColor,
@@ -114,6 +127,8 @@ class ReaderSettings {
       upscale: json['upscale'] as bool? ?? defaults.upscale,
       brightness: json['brightness'] as int? ?? defaults.brightness,
       colorFilter: json['colorFilter'] as String? ?? defaults.colorFilter,
+      chaptersNewestFirst:
+          json['chaptersNewestFirst'] as bool? ?? defaults.chaptersNewestFirst,
     );
   }
 }

@@ -42,22 +42,41 @@ class DoublePageViewState extends State<DoublePageView> {
   late List<List<int>> _spreads;
   late int _currentSpreadIndex;
   bool _zoomed = false;
+  bool _portrait = false;
 
-  bool _isLandscape(int pageIndex) => (_aspect[pageIndex] ?? 1) > 1.15;
+  /// Pages that never share the screen: wide spreads, long strips (two
+  /// side by side would each scroll on their own), and every page while
+  /// the screen is portrait, where two would each get half a phone.
+  bool _isSolo(int pageIndex) {
+    final ratio = _aspect[pageIndex] ?? 1;
+    return _portrait || ratio > 1.15 || ratio < PageImage.tallRatio;
+  }
 
   List<List<int>> _computeSpreads() => buildSpreads(
-        pageCount: widget.pageCount,
-        coverAlone: widget.settings.doublePageCoverAlone,
-        offset: widget.settings.doublePageOffset,
-        isLandscape: _isLandscape,
-      );
+    pageCount: widget.pageCount,
+    coverAlone: widget.settings.doublePageCoverAlone,
+    offset: widget.settings.doublePageOffset,
+    isLandscape: _isSolo,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final size = MediaQuery.sizeOf(context);
+    final portrait = size.height > size.width;
+    if (portrait != _portrait) {
+      _portrait = portrait;
+      _rebuildSpreads();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _spreads = _computeSpreads();
-    _currentSpreadIndex =
-        _spreads.indexWhere((s) => s.contains(widget.initialPage));
+    _currentSpreadIndex = _spreads.indexWhere(
+      (s) => s.contains(widget.initialPage),
+    );
     if (_currentSpreadIndex < 0) _currentSpreadIndex = 0;
     _controller = PageController(initialPage: _currentSpreadIndex);
   }
@@ -69,9 +88,9 @@ class DoublePageViewState extends State<DoublePageView> {
   }
 
   void _updateAspect(int pageIndex, double ratio) {
-    final wasLandscape = _isLandscape(pageIndex);
+    final wasSolo = _isSolo(pageIndex);
     _aspect[pageIndex] = ratio;
-    if (wasLandscape != _isLandscape(pageIndex)) {
+    if (wasSolo != _isSolo(pageIndex)) {
       _rebuildSpreads();
     }
   }
@@ -83,7 +102,17 @@ class DoublePageViewState extends State<DoublePageView> {
     setState(() => _spreads = newSpreads);
     if (newIndex >= 0 && newIndex != _currentSpreadIndex) {
       _currentSpreadIndex = newIndex;
-      _controller.jumpToPage(newIndex);
+      // Called from didChangeDependencies too, possibly before the first
+      // layout attached the controller.
+      if (_controller.hasClients) {
+        _controller.jumpToPage(newIndex);
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _controller.hasClients) {
+            _controller.jumpToPage(_currentSpreadIndex);
+          }
+        });
+      }
     }
   }
 
@@ -95,7 +124,9 @@ class DoublePageViewState extends State<DoublePageView> {
   void _goPrevious() {
     if (_currentSpreadIndex > 0) {
       _controller.previousPage(
-          duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -104,7 +135,9 @@ class DoublePageViewState extends State<DoublePageView> {
       widget.onEndOfBook();
     } else {
       _controller.nextPage(
-          duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -148,21 +181,24 @@ class DoublePageViewState extends State<DoublePageView> {
             color: Color(widget.settings.backgroundColor),
             child: Row(
               children: order
-                  .map((pageIndex) => Expanded(
-                        child: PageImage(
-                          backend: widget.backend,
-                          pageCache: widget.pageCache,
-                          bookId: widget.bookId,
-                          pageIndex: pageIndex,
-                          fit: _fit,
-                          colorFilter:
-                              readerColorFilter(widget.settings.colorFilter),
-                          brightness: widget.settings.brightness / 100,
-                          upscale: widget.settings.upscale,
-                          onAspectRatio: (r) => _updateAspect(pageIndex, r),
-                          scrollTall: true,
+                  .map(
+                    (pageIndex) => Expanded(
+                      child: PageImage(
+                        backend: widget.backend,
+                        pageCache: widget.pageCache,
+                        bookId: widget.bookId,
+                        pageIndex: pageIndex,
+                        fit: _fit,
+                        colorFilter: readerColorFilter(
+                          widget.settings.colorFilter,
                         ),
-                      ))
+                        brightness: widget.settings.brightness / 100,
+                        upscale: widget.settings.upscale,
+                        onAspectRatio: (r) => _updateAspect(pageIndex, r),
+                        scrollTall: true,
+                      ),
+                    ),
+                  )
                   .toList(),
             ),
           ),

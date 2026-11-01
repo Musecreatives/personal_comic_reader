@@ -1,10 +1,9 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../../../app/design_tokens.dart';
 import '../../../app/motion.dart';
 import '../../../core/reader/reader_settings.dart';
+import '../../shared/glass_panel.dart';
 
 /// Reader chrome, kept out of the way of the page: a slim glass pill at the
 /// top (chapter + close), a vertical page scrubber down the right edge with
@@ -74,12 +73,17 @@ class _ReaderOverlayState extends State<ReaderOverlay>
   }
 
   Animation<double> _part(double from, double to) => CurvedAnimation(
-        parent: _c,
-        curve: Interval(from, to, curve: Motion.easeOut),
-      );
+    parent: _c,
+    curve: Interval(from, to, curve: Motion.easeOut),
+  );
 
   /// Fades [child] in while it travels in from an offset.
-  Widget _fx(Animation<double> a, Widget child, {double dx = 0, double dy = 0}) {
+  Widget _fx(
+    Animation<double> a,
+    Widget child, {
+    double dx = 0,
+    double dy = 0,
+  }) {
     return AnimatedBuilder(
       animation: a,
       child: child,
@@ -94,10 +98,10 @@ class _ReaderOverlayState extends State<ReaderOverlay>
   }
 
   IconData _modeIcon(ReaderMode mode) => switch (mode) {
-        ReaderMode.single => Icons.crop_portrait_rounded,
-        ReaderMode.double => Icons.auto_stories_rounded,
-        ReaderMode.verticalContinuous => Icons.view_agenda_rounded,
-      };
+    ReaderMode.single => Icons.crop_portrait_rounded,
+    ReaderMode.double => Icons.auto_stories_rounded,
+    ReaderMode.verticalContinuous => Icons.view_agenda_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -123,12 +127,15 @@ class _ReaderOverlayState extends State<ReaderOverlay>
                   child: Center(
                     child: Text(
                       '${w.currentPage + 1} of ${w.pageCount}',
-                      style: AppText.mono(
-                        size: 10.5,
-                        color: Colors.white.withValues(alpha: 0.6),
-                      ).copyWith(shadows: const [
-                        Shadow(blurRadius: 6, color: Colors.black87),
-                      ]),
+                      style:
+                          AppText.mono(
+                            size: 10.5,
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ).copyWith(
+                            shadows: const [
+                              Shadow(blurRadius: 6, color: Colors.black87),
+                            ],
+                          ),
                     ),
                   ),
                 ),
@@ -138,8 +145,10 @@ class _ReaderOverlayState extends State<ReaderOverlay>
         ),
         AnimatedBuilder(
           animation: _c,
-          builder: (context, child) =>
-              IgnorePointer(ignoring: _c.value < 0.05 && !w.visible, child: child),
+          builder: (context, child) => IgnorePointer(
+            ignoring: _c.value < 0.05 && !w.visible,
+            child: child,
+          ),
           child: Stack(
             children: [
               Positioned(
@@ -209,7 +218,8 @@ class _ReaderOverlayState extends State<ReaderOverlay>
                                 icon: ltr
                                     ? Icons.format_textdirection_l_to_r
                                     : Icons.format_textdirection_r_to_l,
-                                label: 'Direction: ${w.settings.direction.label}',
+                                label:
+                                    'Direction: ${w.settings.direction.label}',
                                 onTap: w.onToggleDirection,
                               ),
                               if (w.onTogglePanelMode != null) ...[
@@ -241,11 +251,15 @@ class _TopPill extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onClose;
-  const _TopPill({required this.title, required this.subtitle, required this.onClose});
+  const _TopPill({
+    required this.title,
+    required this.subtitle,
+    required this.onClose,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return _Glass(
+    return GlassPanel(
       radius: 22,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 10, 6, 10),
@@ -256,16 +270,20 @@ class _TopPill extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.body(size: 15, weight: FontWeight.w600)),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body(size: 15, weight: FontWeight.w600),
+                  ),
                   if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.mono(size: 10, color: AppColors.text60)),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.mono(size: 10, color: AppColors.text60),
+                    ),
                   ],
                 ],
               ),
@@ -308,8 +326,9 @@ class _Scrubber extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final frac =
-        pageCount <= 1 ? 0.0 : (currentPage / (pageCount - 1)).clamp(0.0, 1.0);
+    final frac = pageCount <= 1
+        ? 0.0
+        : (currentPage / (pageCount - 1)).clamp(0.0, 1.0);
     return Semantics(
       label: 'Page ${currentPage + 1} of $pageCount',
       slider: true,
@@ -318,7 +337,7 @@ class _Scrubber extends StatelessWidget {
         onTapDown: (d) => _seekTo(d.localPosition.dy),
         onVerticalDragStart: (d) => _seekTo(d.localPosition.dy),
         onVerticalDragUpdate: (d) => _seekTo(d.localPosition.dy),
-        child: _Glass(
+        child: GlassPanel(
           radius: 22,
           child: SizedBox(
             width: 44,
@@ -330,16 +349,23 @@ class _Scrubber extends StatelessWidget {
                   child: FractionallySizedBox(
                     heightFactor: frac,
                     widthFactor: 1,
-                    child: ColoredBox(color: AppColors.accent.withValues(alpha: 0.5)),
+                    child: ColoredBox(
+                      color: AppColors.accent.withValues(alpha: 0.5),
+                    ),
                   ),
                 ),
                 Align(
                   alignment: Alignment.topCenter,
                   child: Padding(
                     padding: const EdgeInsets.only(top: 12),
-                    child: Text('${currentPage + 1}',
-                        style: AppText.mono(
-                            size: 11, weight: FontWeight.w600, color: Colors.white)),
+                    child: Text(
+                      '${currentPage + 1}',
+                      style: AppText.mono(
+                        size: 11,
+                        weight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -355,49 +381,34 @@ class _RoundButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _RoundButton({required this.icon, required this.label, required this.onTap});
+  const _RoundButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: label,
-      child: PressScale(
-        scale: 0.92,
-        child: GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: _Glass(
-            radius: 22,
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: Icon(icon, size: 20, color: Colors.white),
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: label,
+        child: PressScale(
+          scale: 0.92,
+          child: GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.opaque,
+            child: GlassPanel(
+              radius: 22,
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Icon(icon, size: 20, color: AppColors.text),
+              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Glass extends StatelessWidget {
-  final Widget child;
-  final double radius;
-  const _Glass({required this.child, required this.radius});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppColors.canvas.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(color: AppColors.borderStrong.withValues(alpha: 0.8)),
-          ),
-          child: child,
         ),
       ),
     );

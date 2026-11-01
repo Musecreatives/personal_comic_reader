@@ -28,6 +28,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          chaptersNewestFirstProvider.overrideWith((ref) => true),
           activeServerIdProvider.overrideWith((ref) => null),
           appearanceProvider.overrideWith((ref) => ios),
           downloadQueueProvider.overrideWith((ref) => Stream.value(const [])),

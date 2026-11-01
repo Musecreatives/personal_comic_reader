@@ -15,7 +15,8 @@ import '../../backends/local/local_backend.dart';
 import '../../backends/local/local_library_store.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../home/home_feed.dart';
-import '../local_library/local_library_screen.dart' show localLibraryRevisionProvider;
+import '../local_library/local_library_screen.dart'
+    show localLibraryRevisionProvider;
 import 'chapter_actions.dart';
 import 'comicvine_match_sheet.dart';
 import 'download_sheet.dart';
@@ -85,14 +86,19 @@ class _SeriesDetail extends ConsumerStatefulWidget {
 class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
   late Future<Series> _seriesFuture;
   late Future<List<Book>> _booksFuture;
-  bool _newestFirst = false;
+  // Settings > Reading picks the default; the chip flips it for this visit.
+  late bool _newestFirst = ref.read(chaptersNewestFirstProvider);
 
   // Chapter selection: long-press / Ctrl+click toggles, Shift+click selects a
   // range, right-click opens the menu, Ctrl+A selects all, Esc clears.
   final _selected = <String>{};
   final _focus = FocusNode();
   String? _anchor;
+  // As displayed (may be newest first), and in reading order (oldest first,
+  // as every backend returns them) for "Mark all before".
   List<Book> _ordered = const [];
+  List<Book> _readingOrder = const [];
+  bool _menuOpen = false;
 
   bool get _selecting => _selected.isNotEmpty;
   List<Book> get _selectedBooks =>
@@ -138,24 +144,23 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
     context.push('/read/${Uri.encodeComponent(b.id)}');
   }
 
-  void _onLongPressBook(Book b) {
-    HapticFeedback.selectionClick();
-    _select(b);
-  }
-
   bool _anyDownloaded(Iterable<Book> books, List<DownloadTask> tasks) =>
       books.any(
         (b) =>
             tasks.any((t) => t.bookId == b.id && t.state == DownloadState.done),
       );
 
-  Future<void> _onSecondaryTap(
+  /// The chapter menu, from a long-press or a right-click. Opening it
+  /// outside the selection acts on that row alone, like a file manager;
+  /// inside it, on the whole selection.
+  Future<void> _openMenu(
     Book b,
     Offset at,
-    List<DownloadTask> tasks,
-  ) async {
-    // Right-clicking outside the selection acts on that row alone, like a
-    // file manager; right-clicking inside it acts on the whole selection.
+    List<DownloadTask> tasks, {
+    bool haptic = false,
+  }) async {
+    if (haptic) HapticFeedback.mediumImpact();
+    final wasSelecting = _selecting;
     final transient = !_selected.contains(b.id);
     if (transient) {
       setState(() {
@@ -166,38 +171,93 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
       });
     }
     final chosen = _selectedBooks;
+    final single = chosen.length == 1;
+    // Reading order, whatever the list is sorted by.
+    final readingIndex = _readingOrder.indexWhere((x) => x.id == b.id);
+    final actions = [
+      if (!wasSelecting || transient) ChapterAction.select,
+      if (chosen.any((x) => !x.completed)) ChapterAction.markRead,
+      if (single &&
+          readingIndex > 0 &&
+          _readingOrder.take(readingIndex).any((x) => !x.completed))
+        ChapterAction.markReadBefore,
+      if (chosen.any((x) => x.completed || (x.readProgressPage ?? 0) > 0))
+        ChapterAction.markUnread,
+      ChapterAction.download,
+      if (_anyDownloaded(chosen, tasks)) ChapterAction.deleteDownload,
+    ];
+    // The selection bar waits until the menu closes; both at once is noise.
+    setState(() => _menuOpen = true);
     final action = await showChapterMenu(
       context,
       at,
-      count: chosen.length,
-      anyDownloaded: _anyDownloaded(chosen, tasks),
+      actions: actions,
+      heading: single
+          ? 'CH ${formatChapterNumber(b.number)}'
+          : '${chosen.length} CHAPTERS',
     );
     if (!mounted) return;
+    setState(() => _menuOpen = false);
+    if (action == ChapterAction.select) {
+      _focus.requestFocus();
+      return; // The row stays selected; selection mode is on.
+    }
     if (action == null) {
       if (transient) setState(_selected.clear);
       return;
     }
-    await _runAction(action, chosen);
+    await _runAction(
+      action,
+      action == ChapterAction.markReadBefore
+          ? _readingOrder.take(readingIndex + 1).toList()
+          : chosen,
+    );
+  }
+
+  /// Sends progress updates a few at a time: one at a time made marking
+  /// 150 chapters crawl, all at once floods the server.
+  Future<void> _batched(
+    List<Book> books,
+    Future<void> Function(Book) update,
+  ) async {
+    const width = 8;
+    for (var i = 0; i < books.length; i += width) {
+      await Future.wait(books.skip(i).take(width).map(update));
+    }
   }
 
   Future<void> _runAction(ChapterAction action, List<Book> chosen) async {
     final backend = widget.backend;
     final manager = ref.read(downloadManagerProvider);
+    // Only what actually changes, so Undo puts back exactly that.
+    final changed = switch (action) {
+      ChapterAction.markRead || ChapterAction.markReadBefore =>
+        chosen.where((b) => !b.completed).toList(),
+      ChapterAction.markUnread =>
+        chosen
+            .where((b) => b.completed || (b.readProgressPage ?? 0) > 0)
+            .toList(),
+      _ => chosen,
+    };
     try {
       final series = await _seriesFuture;
       switch (action) {
-        case ChapterAction.markRead:
-          for (final b in chosen) {
-            await backend.updateProgress(
+        case ChapterAction.select:
+          return;
+        case ChapterAction.markRead || ChapterAction.markReadBefore:
+          await _batched(
+            changed,
+            (b) => backend.updateProgress(
               b.id,
               page: b.pageCount > 0 ? b.pageCount - 1 : 0,
               completed: true,
-            );
-          }
+            ),
+          );
         case ChapterAction.markUnread:
-          for (final b in chosen) {
-            await backend.updateProgress(b.id, page: 0, completed: false);
-          }
+          await _batched(
+            changed,
+            (b) => backend.updateProgress(b.id, page: 0, completed: false),
+          );
         case ChapterAction.download:
           await manager.enqueueBooks(
             backend,
@@ -211,24 +271,49 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
           }
       }
     } catch (e) {
-      _snack("Couldn't do that: $e");
+      _snack("Couldn't update those chapters. Check the server and try again.");
+      debugPrint('Chapter action $action failed: $e');
       return;
     }
     if (!mounted) return;
     setState(_selected.clear);
-    if (action == ChapterAction.markRead ||
-        action == ChapterAction.markUnread) {
-      _reloadBooks();
-      _reloadSeries();
-      ref.invalidate(homeFeedProvider);
-    }
-    final n = chosen.length;
-    _snack(switch (action) {
-      ChapterAction.markRead => 'Marked $n as read',
-      ChapterAction.markUnread => 'Marked $n as unread',
-      ChapterAction.download => 'Downloading $n chapter${n == 1 ? '' : 's'}',
-      ChapterAction.deleteDownload => 'Removed $n download${n == 1 ? '' : 's'}',
-    });
+    final progress =
+        action == ChapterAction.markRead ||
+        action == ChapterAction.markReadBefore ||
+        action == ChapterAction.markUnread;
+    if (progress) _afterProgressChange();
+    final n = progress ? changed.length : chosen.length;
+    final s = n == 1 ? '' : 's';
+    _snack(
+      switch (action) {
+        ChapterAction.markRead ||
+        ChapterAction.markReadBefore => 'Marked $n chapter$s as read',
+        ChapterAction.markUnread => 'Marked $n chapter$s as unread',
+        ChapterAction.download => 'Downloading $n chapter$s',
+        ChapterAction.deleteDownload => 'Removed $n download$s',
+        ChapterAction.select => '',
+      },
+      // Puts back each chapter's own page and state, not a blanket unread.
+      undo: progress && changed.isNotEmpty
+          ? () async {
+              await _batched(
+                changed,
+                (b) => widget.backend.updateProgress(
+                  b.id,
+                  page: b.readProgressPage ?? 0,
+                  completed: b.completed,
+                ),
+              );
+              if (mounted) _afterProgressChange();
+            }
+          : null,
+    );
+  }
+
+  void _afterProgressChange() {
+    _reloadBooks();
+    _reloadSeries();
+    ref.invalidate(homeFeedProvider);
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -302,10 +387,16 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
     );
   }
 
-  void _snack(String message) {
+  void _snack(String message, {VoidCallback? undo}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: undo == null ? 2 : 5),
+        action: undo == null
+            ? null
+            : SnackBarAction(label: 'Undo', onPressed: undo),
+      ),
     );
   }
 
@@ -346,9 +437,14 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
           ? () => _manageSources(backend, series)
           : null,
       // Manga on the Suwayomi sources; comics through Kapowarr.
-      onSearchTitle: () => context.go(searchLocation(series.title,
-          mode: backend is SuwayomiBackend ? 'manga' : 'comics')),
-      onRefreshCover: backend is SeriesMetadataEditor && ref.read(isOwnerProvider)
+      onSearchTitle: () => context.go(
+        searchLocation(
+          series.title,
+          mode: backend is SuwayomiBackend ? 'manga' : 'comics',
+        ),
+      ),
+      onRefreshCover:
+          backend is SeriesMetadataEditor && ref.read(isOwnerProvider)
           ? () => _refreshCover(backend as SeriesMetadataEditor, series)
           : null,
     );
@@ -368,9 +464,12 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
       editor: editor,
       series: series,
       finder: CoverCandidateFinder(
-          comicVine: key == null ? null : ComicVineClient(apiKey: key)),
+        comicVine: key == null ? null : ComicVineClient(apiKey: key),
+      ),
       comics: key != null,
-      onReset: backend is SuwayomiBackend ? () => backend.resetCover(series.id) : null,
+      onReset: backend is SuwayomiBackend
+          ? () => backend.resetCover(series.id)
+          : null,
     );
     if (saved != true || !mounted) return;
     ref.invalidate(homeFeedProvider);
@@ -399,17 +498,20 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
     final apiKey = await ref.read(comicVineKeyStoreProvider).get();
     if (!mounted) return;
     if (apiKey == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Add a ComicVine API key in Settings first'),
-        action: SnackBarAction(
-          label: 'Settings',
-          onPressed: () => context.push('/settings/comicvine'),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Add a ComicVine API key in Settings first'),
+          action: SnackBarAction(
+            label: 'Settings',
+            onPressed: () => context.push('/settings/comicvine'),
+          ),
         ),
-      ));
+      );
       return;
     }
-    final existing =
-        ref.read(localLibraryStoreProvider).getSeries(widget.seriesId);
+    final existing = ref
+        .read(localLibraryStoreProvider)
+        .getSeries(widget.seriesId);
     if (existing == null) return;
     final match = await showComicVineMatchSheet(
       context,
@@ -440,8 +542,11 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
     final store = ref.read(localLibraryStoreProvider);
     final existing = store.getSeries(widget.seriesId);
     if (existing == null) return;
-    final edited = await showEditDetailsSheet(context, prefill ?? existing,
-        heading: heading);
+    final edited = await showEditDetailsSheet(
+      context,
+      prefill ?? existing,
+      heading: heading,
+    );
     if (edited == null) return;
     await store.putSeries(edited);
     ref.read(localLibraryRevisionProvider.notifier).state++;
@@ -476,11 +581,13 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -488,10 +595,12 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
     final store = ref.read(localLibraryStoreProvider);
     final existing = store.getBook(book.id);
     if (existing == null) return;
-    await store.putBook(existing.copyWith(
-      title: titleController.text.trim(),
-      number: numberController.text.trim(),
-    ));
+    await store.putBook(
+      existing.copyWith(
+        title: titleController.text.trim(),
+        number: numberController.text.trim(),
+      ),
+    );
     _reloadBooks();
   }
 
@@ -510,8 +619,10 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
             final collections = store.list();
             // Recorded with its server, so a collection can mix servers and
             // still open the right series on every synced device.
-            final entry =
-                collectionEntry(widget.backend.config.portableKey, seriesId);
+            final entry = collectionEntry(
+              widget.backend.config.portableKey,
+              seriesId,
+            );
             return SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -524,7 +635,10 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                         Expanded(
                           child: Text(
                             'Add to collection',
-                            style: AppText.body(size: 16, weight: FontWeight.w600),
+                            style: AppText.body(
+                              size: 16,
+                              weight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         TextButton.icon(
@@ -532,7 +646,9 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                             final id = await createCollection(context, ref);
                             if (id == null) return;
                             await store.addSeries(id, entry);
-                            ref.read(collectionsRevisionProvider.notifier).state++;
+                            ref
+                                .read(collectionsRevisionProvider.notifier)
+                                .state++;
                             setSheetState(() {});
                           },
                           icon: const Icon(Icons.add, size: 16),
@@ -558,7 +674,8 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                         title: Text(c.name, style: AppText.body(size: 14)),
                         // Entries saved before servers were recorded are a
                         // bare series id - count those too.
-                        value: c.seriesIds.contains(entry) ||
+                        value:
+                            c.seriesIds.contains(entry) ||
                             c.seriesIds.contains(seriesId),
                         onChanged: (checked) async {
                           if (checked == true) {
@@ -605,7 +722,7 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
               bottom: 0,
               child: Center(
                 child: ChapterSelectionBar(
-                  count: _selected.length,
+                  count: _menuOpen ? 0 : _selected.length,
                   total: _ordered.length,
                   anyDownloaded: _anyDownloaded(_selectedBooks, tasks),
                   onAction: (a) => _runAction(a, _selectedBooks),
@@ -663,6 +780,9 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
             context.push('/read/${Uri.encodeComponent(next.id)}');
           },
           onSaveToCollection: () => _showCollectionPicker(context, series.id),
+          onSource: widget.backend is SuwayomiBackend
+              ? () => _manageSources(widget.backend as SuwayomiBackend, series)
+              : null,
           onMore: () => _showActions(
             series,
             seriesTasks.where((t) => t.state == DownloadState.done).length,
@@ -673,38 +793,48 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
           future: _booksFuture,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return CustomScrollView(slivers: [
-                if (!wide) SliverToBoxAdapter(child: header()),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: AppErrorState(
-                      error: snapshot.error!,
-                      onRetry: _reloadBooks,
+              return CustomScrollView(
+                slivers: [
+                  if (!wide) SliverToBoxAdapter(child: header()),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: AppErrorState(
+                        error: snapshot.error!,
+                        onRetry: _reloadBooks,
+                      ),
                     ),
                   ),
-                ),
-              ]);
+                ],
+              );
             }
             if (!snapshot.hasData) {
-              return CustomScrollView(slivers: [
-                if (!wide) SliverToBoxAdapter(child: header()),
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
+              return CustomScrollView(
+                slivers: [
+                  if (!wide) SliverToBoxAdapter(child: header()),
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
                   ),
-                ),
-              ]);
+                ],
+              );
             }
             final books = List<Book>.from(snapshot.data!);
             final upNext = books.isEmpty
                 ? null
-                : formatChapterNumber(books
-                    .firstWhere((b) => !b.completed, orElse: () => books.first)
-                    .number);
+                : formatChapterNumber(
+                    books
+                        .firstWhere(
+                          (b) => !b.completed,
+                          orElse: () => books.first,
+                        )
+                        .number,
+                  );
             final ordered = _newestFirst ? books.reversed.toList() : books;
             _ordered = ordered;
+            _readingOrder = books;
 
             void onDownloadBook(Book book) => ref
                 .read(downloadManagerProvider)
@@ -794,8 +924,8 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
               selecting: _selected.isNotEmpty,
               selected: _selected.contains(book.id),
               onTap: () => _onTapBook(book),
-              onLongPress: () => _onLongPressBook(book),
-              onSecondaryTap: (at) => _onSecondaryTap(book, at, tasks),
+              onLongPress: (at) => _openMenu(book, at, tasks, haptic: true),
+              onSecondaryTap: (at) => _openMenu(book, at, tasks),
               onDownload: () => onDownloadBook(book),
               onRename: widget.backend is LocalBackend
                   ? () => _renameBook(book)
@@ -819,9 +949,11 @@ class _SeriesHeader extends StatelessWidget {
   final VoidCallback onSaveToCollection;
   final String readLabel;
   final VoidCallback onMore;
+  final VoidCallback? onSource;
 
   const _SeriesHeader({
     required this.series,
+    this.onSource,
     this.readLabel = 'Read',
     required this.headers,
     required this.downloadedCount,
@@ -849,7 +981,11 @@ class _SeriesHeader extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              SeriesCover(imageUrl: series.bannerUrl ?? series.thumbnailUrl, headers: headers, framed: false),
+              SeriesCover(
+                imageUrl: series.bannerUrl ?? series.thumbnailUrl,
+                headers: headers,
+                framed: false,
+              ),
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -879,7 +1015,10 @@ class _SeriesHeader extends StatelessWidget {
                     SizedBox(
                       width: 104,
                       height: 152,
-                      child: SeriesCover(imageUrl: series.thumbnailUrl, headers: headers),
+                      child: SeriesCover(
+                        imageUrl: series.thumbnailUrl,
+                        headers: headers,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -905,18 +1044,39 @@ class _SeriesHeader extends StatelessWidget {
                               ),
                             ),
                           ],
-                          const SizedBox(height: 8),
-                          // One mono line instead of badges: source, tags,
-                          // and where you stand.
+                          const SizedBox(height: 10),
+                          // Where it comes from and whether it is still
+                          // coming out, then tags and where you stand.
+                          if (series.sourceName != null ||
+                              series.status != null) ...[
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                if (series.sourceName != null)
+                                  _MetaPill(
+                                    label: series.sourceName!,
+                                    dot: AppColors.suwayomi,
+                                    onTap: onSource,
+                                    semanticsHint: 'Manage sources',
+                                  ),
+                                if (series.status != null)
+                                  _MetaPill(label: series.status!.label),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                           Text(
                             [
-                              if (series.sourceName != null) series.sourceName!,
                               ...series.tags.take(2),
-                              series.isFullyRead ? 'Complete' : 'Reading',
+                              series.isFullyRead ? 'All read' : 'Reading',
                             ].map((s) => s.toUpperCase()).join(' · '),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: AppText.mono(size: 11, color: AppColors.text60),
+                            style: AppText.mono(
+                              size: 11,
+                              color: AppColors.text60,
+                            ),
                           ),
                         ],
                       ),
@@ -998,6 +1158,84 @@ class _SeriesHeader extends StatelessWidget {
   }
 }
 
+/// A small fact on the cover backdrop: the source a title reads from, or its
+/// publication status. An ink outline, not a fill: it states, it doesn't
+/// ask to be pressed, except the source pill where [onTap] manages sources.
+class _MetaPill extends StatelessWidget {
+  final String label;
+  final Color? dot;
+  final VoidCallback? onTap;
+  final String? semanticsHint;
+
+  const _MetaPill({
+    required this.label,
+    this.dot,
+    this.onTap,
+    this.semanticsHint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pill = Container(
+      constraints: const BoxConstraints(minHeight: 28),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: AppColors.page.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.text.withValues(alpha: 0.62),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot != null) ...[
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.body(size: 12, weight: FontWeight.w600),
+            ),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 2),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 16,
+              color: AppColors.text60,
+            ),
+          ],
+        ],
+      ),
+    );
+    if (onTap == null) return pill;
+    return Semantics(
+      button: true,
+      hint: semanticsHint,
+      child: PressScale(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          // A 44pt touch target around a 28pt pill.
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: pill,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BackButton extends StatelessWidget {
   final VoidCallback onTap;
   const _BackButton({required this.onTap});
@@ -1051,8 +1289,7 @@ class _ActionIconButton extends StatelessWidget {
   const _ActionIconButton({required this.icon, this.onTap});
 
   @override
-  Widget build(BuildContext context) =>
-      InkButton(icon: icon, onTap: onTap);
+  Widget build(BuildContext context) => InkButton(icon: icon, onTap: onTap);
 }
 
 class _ChaptersHeaderRow extends StatelessWidget {
@@ -1098,7 +1335,7 @@ class _ChapterRow extends StatelessWidget {
   final bool selecting;
   final bool selected;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final ValueChanged<Offset> onLongPress;
   final ValueChanged<Offset> onSecondaryTap;
   final VoidCallback onDownload;
   final VoidCallback? onRename;
@@ -1134,110 +1371,133 @@ class _ChapterRow extends StatelessWidget {
         ? withPages('DOWNLOADED')
         : withPages('ON SERVER');
 
-    return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      onSecondaryTapDown: (d) => onSecondaryTap(d.globalPosition),
-      hoverColor: AppColors.fillHover,
-      child: AnimatedContainer(
-        duration: Motion.scaled(context, Motion.fast),
-        curve: Motion.easeOut,
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.accent.withValues(alpha: 0.12)
-              : Colors.transparent,
-          border: Border(top: BorderSide(color: AppColors.border)),
-        ),
-        child: Row(
-          children: [
-            // The tick slides the row's label over rather than popping in.
-            AnimatedContainer(
-              duration: Motion.scaled(context, Motion.fast),
-              curve: Motion.easeOut,
-              width: selecting ? 32 : 0,
-              height: 24,
-              child: ClipRect(
-                child: OverflowBox(
-                  alignment: Alignment.centerLeft,
-                  maxWidth: 32,
-                  maxHeight: 24,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 2),
-                    child: Icon(
-                      selected
-                          ? Icons.check_circle_rounded
-                          : Icons.circle_outlined,
-                      size: 20,
-                      color: selected ? AppColors.accent : AppColors.text30,
+    // The long-press is caught outside the InkWell so the menu opens where
+    // the finger is; a quick tap still reaches the InkWell.
+    return GestureDetector(
+      onLongPressStart: (d) => onLongPress(d.globalPosition),
+      child: InkWell(
+        onTap: onTap,
+        onSecondaryTapDown: (d) => onSecondaryTap(d.globalPosition),
+        hoverColor: AppColors.fillHover,
+        child: AnimatedContainer(
+          duration: Motion.scaled(context, Motion.fast),
+          curve: Motion.easeOut,
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.accent.withValues(alpha: 0.12)
+                : Colors.transparent,
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          child: Row(
+            children: [
+              // The tick slides the row's label over rather than popping in.
+              AnimatedContainer(
+                duration: Motion.scaled(context, Motion.fast),
+                curve: Motion.easeOut,
+                width: selecting ? 32 : 0,
+                height: 24,
+                child: ClipRect(
+                  child: OverflowBox(
+                    alignment: Alignment.centerLeft,
+                    maxWidth: 32,
+                    maxHeight: 24,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 2),
+                      child: Icon(
+                        selected
+                            ? Icons.check_circle_rounded
+                            : Icons.circle_outlined,
+                        size: 20,
+                        color: selected ? AppColors.accent : AppColors.text30,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            // A reading log: the chapter you are in is violet, read ones
-            // step back.
-            SizedBox(
-              width: 64,
-              child: Text(
-                'CH ${formatChapterNumber(book.number)}',
-                style: AppText.mono(
-                    size: 12,
-                    color: isInProgress ? AppColors.accentLink : AppColors.text60),
-              ),
-            ),
-            Expanded(
-              child: Opacity(
-                opacity: book.completed ? 0.62 : 1,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      book.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.body(size: 15, weight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(isInProgress ? 'READING · $meta' : meta,
-                        style: AppText.mono(
-                            size: 10.5,
-                            color: isInProgress ? AppColors.accentLink : AppColors.text60)),
-                  ],
-                ),
-              ),
-            ),
-            if (onRename != null)
-              InkWell(
-                onTap: onRename,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Icon(Icons.edit_outlined, size: 16, color: AppColors.text30),
-                ),
-              ),
-            if (book.completed)
-              Icon(Icons.check, size: 16, color: AppColors.suwayomiText)
-            else if (task != null && task!.state != DownloadState.done)
+              // A reading log: the chapter you are in is violet, read ones
+              // step back.
               SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  value: task!.progress == 0 ? null : task!.progress,
-                ),
-              )
-            else if (task?.state == DownloadState.done)
-              Icon(Icons.download_done, size: 16, color: AppColors.text45)
-            else
-              InkWell(
-                onTap: onDownload,
-                child: Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: AppColors.text30,
+                width: 64,
+                child: Text(
+                  'CH ${formatChapterNumber(book.number)}',
+                  style: AppText.mono(
+                    size: 12,
+                    color: isInProgress
+                        ? AppColors.accentLink
+                        : AppColors.text60,
+                  ),
                 ),
               ),
-          ],
+              Expanded(
+                child: Opacity(
+                  opacity: book.completed ? 0.62 : 1,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        book.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.body(size: 15, weight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isInProgress ? 'READING · $meta' : meta,
+                        style: AppText.mono(
+                          size: 10.5,
+                          color: isInProgress
+                              ? AppColors.accentLink
+                              : AppColors.text60,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (onRename != null)
+                InkWell(
+                  onTap: onRename,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(
+                      Icons.edit_outlined,
+                      size: 16,
+                      color: AppColors.text30,
+                    ),
+                  ),
+                ),
+              if (book.completed)
+                Icon(Icons.check, size: 16, color: AppColors.suwayomiText)
+              else if (task != null && task!.state != DownloadState.done)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    value: task!.progress == 0 ? null : task!.progress,
+                  ),
+                )
+              else if (task?.state == DownloadState.done)
+                Icon(Icons.download_done, size: 16, color: AppColors.text45)
+              else
+                // A real download button with a 44pt target; the row tap
+                // opens the chapter.
+                SizedBox.square(
+                  dimension: 44,
+                  child: IconButton(
+                    tooltip: 'Download',
+                    padding: EdgeInsets.zero,
+                    onPressed: onDownload,
+                    icon: Icon(
+                      Icons.download_outlined,
+                      size: 19,
+                      color: AppColors.text60,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

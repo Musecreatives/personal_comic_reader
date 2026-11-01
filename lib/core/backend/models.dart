@@ -29,6 +29,28 @@ class Library {
   const Library({required this.id, required this.name});
 }
 
+/// Publication status in the shape both Komga and the app understand.
+enum SeriesStatus {
+  ongoing('Ongoing'),
+  ended('Ended'),
+  hiatus('On hiatus'),
+  abandoned('Cancelled');
+
+  final String label;
+  const SeriesStatus(this.label);
+
+  /// Reads Komga's ONGOING/ENDED/HIATUS/ABANDONED and Suwayomi's
+  /// ONGOING/COMPLETED/PUBLISHING_FINISHED/ON_HIATUS/CANCELLED. Unknown
+  /// and missing values are null: no status shown beats a wrong one.
+  static SeriesStatus? parse(Object? raw) => switch ('$raw'.toUpperCase()) {
+    'ONGOING' => ongoing,
+    'ENDED' || 'COMPLETED' || 'PUBLISHING_FINISHED' => ended,
+    'HIATUS' || 'ON_HIATUS' => hiatus,
+    'ABANDONED' || 'CANCELLED' => abandoned,
+    _ => null,
+  };
+}
+
 class Series {
   final String id;
   final String libraryId;
@@ -53,6 +75,10 @@ class Series {
   /// Short facts shown as pills (year, publisher, genres).
   final List<String> tags;
 
+  /// Whether the series is still coming out. Null when the server doesn't
+  /// say.
+  final SeriesStatus? status;
+
   const Series({
     required this.id,
     required this.libraryId,
@@ -66,6 +92,7 @@ class Series {
     this.bannerUrl,
     this.credits,
     this.tags = const [],
+    this.status,
   });
 
   bool get isFullyRead => booksCount > 0 && booksUnreadCount == 0;

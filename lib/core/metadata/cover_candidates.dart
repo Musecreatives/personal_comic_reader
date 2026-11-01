@@ -1,12 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../backend/models.dart' show SeriesStatus;
 import '../comicvine/comicvine_client.dart';
 import '../debug/debug_log.dart';
 import '../kapowarr/kapowarr_client.dart' show plainText;
 
-/// Publication status in the shape both Komga and the app understand.
-enum SeriesStatus { ongoing, ended, hiatus, abandoned }
+export '../backend/models.dart' show SeriesStatus;
 
 /// A cover and details for a series, found on an outside catalogue. The
 /// owner picks one in "Refresh cover & details"; nothing is applied

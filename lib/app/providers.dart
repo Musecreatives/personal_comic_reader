@@ -148,6 +148,11 @@ final readerSettingsStoreProvider = Provider<ReaderSettingsStore>((ref) {
       'readerSettingsStoreProvider must be overridden in main()');
 });
 
+/// Settings > Newest chapters first. Saved in the synced global reader
+/// settings; title pages read it when they open.
+final chaptersNewestFirstProvider = StateProvider<bool>((ref) =>
+    ref.read(readerSettingsStoreProvider).getGlobal().chaptersNewestFirst);
+
 /// Set once in main() after ProgressSync.init() completes. Lives for the
 /// whole app so its debounce timer and offline queue survive navigating
 /// away from and back into the reader.
