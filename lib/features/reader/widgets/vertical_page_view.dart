@@ -40,6 +40,7 @@ class VerticalPageViewState extends State<VerticalPageView> {
   bool _zoomed = false;
   int _lastReported = -1;
   bool _endReported = false;
+  bool _endArmed = false;
   double _width = 400;
 
   // Each page's width / height once its header is read. Until then a page
@@ -109,9 +110,13 @@ class VerticalPageViewState extends State<VerticalPageView> {
       _lastReported = index;
       widget.onPageChanged(index);
     }
-    if (!_endReported &&
-        _scroll.position.maxScrollExtent > 0 &&
-        _scroll.offset >= _scroll.position.maxScrollExtent - 20) {
+    final atEnd = _scroll.position.maxScrollExtent > 0 &&
+        _scroll.offset >= _scroll.position.maxScrollExtent - 20;
+    // Opening on the last page (going back a chapter) isn't reading past
+    // it: only reaching the end from above counts.
+    if (!atEnd) {
+      _endArmed = true;
+    } else if (_endArmed && !_endReported) {
       _endReported = true;
       widget.onEndOfBook();
     }

@@ -18,6 +18,7 @@ import '../shared/ink_chip.dart';
 import '../shared/error_state.dart';
 import '../shared/series_cover.dart';
 import 'home_feed.dart';
+import '../onboarding/guide_screen.dart' show showGuideOnce;
 import '../updates/updates_screen.dart' show UpdatesStrip, updatesProvider;
 
 /// "Reading Now" - the app's home screen, merged across every server: an
@@ -162,6 +163,14 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
   List<_HeroData>? _lastHeroes;
 
   static const _maxHeroes = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showGuideOnce(context);
+    });
+  }
 
   /// Up to five different series for the hero carousel: what was read most
   /// recently (distinct series, newest first), then in-progress titles from

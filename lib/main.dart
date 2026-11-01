@@ -48,6 +48,7 @@ import 'core/sync/connections_sync.dart';
 import 'core/sync/sync_client.dart';
 import 'core/sync/sync_queue.dart';
 import 'features/local_library/local_library_screen.dart' show localLibraryRevisionProvider;
+import 'features/debug/report_sheet.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -331,7 +332,10 @@ class _ShaddaiReaderAppState extends ConsumerState<ShaddaiReaderApp>
             child: ConnectivityBanner(
               child: _DebugButton(
                 router: router,
-                child: child ?? const SizedBox.shrink(),
+                child: RepaintBoundary(
+                  key: screenBoundaryKey,
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),
@@ -366,13 +370,21 @@ class _DebugButton extends StatelessWidget {
                     builder: (context, _) => Badge(
                       isLabelVisible: log.errorCount > 0,
                       label: Text('${log.errorCount}'),
-                      child: FloatingActionButton.small(
-                        heroTag: 'debug',
-                        tooltip: 'Diagnostics',
-                        backgroundColor: AppColors.card,
-                        foregroundColor: AppColors.text,
-                        onPressed: () => router.push('/debug'),
-                        child: const Icon(Icons.bug_report_outlined),
+                      // Tap: report what's on screen. Hold: Diagnostics.
+                      child: GestureDetector(
+                        onLongPress: () => router.push('/debug'),
+                        child: FloatingActionButton.small(
+                          heroTag: 'debug',
+                          tooltip: 'Report a problem (hold for Diagnostics)',
+                          backgroundColor: AppColors.card,
+                          foregroundColor: AppColors.text,
+                          onPressed: () {
+                            final nav = router
+                                .routerDelegate.navigatorKey.currentContext;
+                            if (nav != null) showReportSheet(nav);
+                          },
+                          child: const Icon(Icons.bug_report_outlined),
+                        ),
                       ),
                     ),
                   ),

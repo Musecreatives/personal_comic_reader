@@ -197,7 +197,10 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
         'query(\$id: Int!) { category(id: \$id) { mangas { nodes { $_mangaFields } } } }',
         {'id': int.parse(libraryId)},
       );
-      nodes = data['category']['mangas']['nodes'] as List;
+      // A title taken out of the library can keep its category link.
+      nodes = (data['category']['mangas']['nodes'] as List)
+          .where((e) => e['inLibrary'] != false)
+          .toList();
     } else {
       final data = await _gql(
         '{ mangas(condition: {inLibrary: true}) { nodes { $_mangaFields } } }',

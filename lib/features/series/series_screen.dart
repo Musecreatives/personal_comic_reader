@@ -428,6 +428,7 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
           return;
         }
         ref.invalidate(homeFeedProvider);
+        ref.read(libraryRevisionProvider.notifier).state++;
         if (!mounted) return;
         context.popOrHome();
         _snack('Removed from library');

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
@@ -70,6 +72,7 @@ Map<String, dynamic> buildReport({
   String? error,
   bool includeDiagnostics = true,
   DebugLog? log,
+  Uint8List? screenshot,
 }) {
   final l = log ?? DebugLog.instance;
   List<T> last<T>(Iterable<T> all, int n) {
@@ -87,6 +90,8 @@ Map<String, dynamic> buildReport({
     'route': ?route,
     'error': ?error,
     'replies': const [],
+    // The screen the report came from, as a base64 PNG.
+    if (screenshot != null) 'screenshot': base64Encode(screenshot),
     if (includeDiagnostics) ...{
       'logs': [for (final e in last(l.logs, 150)) e.toJson()],
       'network': [for (final e in last(l.network, 80)) e.toJson()],

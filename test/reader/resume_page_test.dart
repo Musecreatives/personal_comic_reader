@@ -15,4 +15,10 @@ void main() {
     expect(resumePage(null, 600, 600), 599);
     expect(resumePage(5, null, 0), 0);
   });
+
+  test('a finished chapter reopens at the start unless a page is asked for',
+      () {
+    expect(resumePage(null, 599, 600, completed: true), 0);
+    expect(resumePage(599, 599, 600, completed: true), 599);
+  });
 }

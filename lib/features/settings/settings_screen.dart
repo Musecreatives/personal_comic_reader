@@ -7,12 +7,23 @@ import '../../app/design_tokens.dart';
 import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../core/appearance/appearance_settings.dart';
+import '../../core/debug/debug_log.dart';
 import '../../core/downloads/download_models.dart';
+import '../debug/report_sheet.dart';
 
 /// Current reading streak in days, for the Reading stats row.
 final readingStreakProvider = Provider<int>((ref) {
   ref.watch(statsRevisionProvider);
   return ref.watch(readingStatsStoreProvider).currentStreak;
+});
+
+/// Whether the floating report button is on (Diagnostics' debug mode).
+final _reportButtonProvider = Provider.autoDispose<bool>((ref) {
+  final mode = DebugLog.instance.debugMode;
+  void changed() => ref.invalidateSelf();
+  mode.addListener(changed);
+  ref.onDispose(() => mode.removeListener(changed));
+  return mode.value;
 });
 
 /// How many collections exist, for the Collections row.
@@ -43,6 +54,7 @@ class SettingsScreen extends ConsumerWidget {
     final streak = ref.watch(readingStreakProvider);
     final shelves = ref.watch(collectionCountProvider);
     final newestFirst = ref.watch(chaptersNewestFirstProvider);
+    final reportButton = ref.watch(_reportButtonProvider);
     return Scaffold(
       backgroundColor: AppColors.page,
       body: SafeArea(
@@ -177,8 +189,24 @@ class SettingsScreen extends ConsumerWidget {
                 _Group(
                   rows: [
                     _Row(
+                      'Report a problem',
+                      'Send what happened, a screenshot and logs to the developer',
+                      () => showReportSheet(context),
+                    ),
+                    _Row(
+                      'Report button on every screen',
+                      'Report from exactly where something breaks',
+                      () => DebugLog.instance.setDebugMode(!reportButton),
+                      value: reportButton,
+                    ),
+                    _Row(
+                      'How to use Shaddai Reader',
+                      'The quick tour from your first visit',
+                      () => context.push('/guide'),
+                    ),
+                    _Row(
                       'Diagnostics & reports',
-                      'Network and logs, report a problem',
+                      'Network and logs, replies to your reports',
                       () => context.push('/debug'),
                     ),
                   ],

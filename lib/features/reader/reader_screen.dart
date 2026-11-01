@@ -41,9 +41,18 @@ import 'widgets/vertical_page_view.dart';
 /// closes, so it can be behind the server (app killed mid-read) and the
 /// server behind history (update still queued offline): the further of the
 /// two wins. Going back a chapter requests its last page, which still wins.
-int resumePage(int? requested, int? saved, int pageCount) {
+int resumePage(
+  int? requested,
+  int? saved,
+  int pageCount, {
+  bool completed = false,
+}) {
   if (pageCount <= 0) return 0;
-  final page = math.max(requested ?? 0, saved ?? 0);
+  // A finished chapter's saved page is its last one; reopening it means
+  // reading it again, unless a page was asked for (going back a chapter).
+  final page = completed
+      ? requested ?? 0
+      : math.max(requested ?? 0, saved ?? 0);
   return page.clamp(0, pageCount - 1);
 }
 
@@ -284,6 +293,14 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   int _panelIndex = 0;
 
   final Set<int> _seenPages = {};
+
+  /// Set once the reader ran off the end. In Webtoon the page at the top of
+  /// the screen may never be the last one, so without this, leaving for the
+  /// next chapter sent "not finished" right after "finished" and whichever
+  /// reached the server last won.
+  bool _finished = false;
+  bool _completedAt(int page) =>
+      _finished || page >= widget.book.pageCount - 1;
   late DateTime _sessionStart;
 
   // Read once up front: dispose() checkpoints the session, and Riverpod
@@ -313,10 +330,15 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
       widget.initialPage,
       widget.book.readProgressPage,
       widget.book.pageCount,
+      completed: _main.completed,
     );
     _sessionStart = DateTime.now();
     _seenPages.add(_currentPage);
     _applyWakelock();
+    _openReaders++;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _applyOrientation();
+    });
     if (_noteVisible) {
       _noteTimer = Timer(const Duration(seconds: 8), () {
         if (mounted) setState(() => _noteVisible = false);
@@ -338,6 +360,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     _hintTimer?.cancel();
     _focus.dispose();
     WakelockPlus.disable();
+    // The next chapter's reader is built before this one goes; leave its
+    // landscape lock alone.
+    if (--_openReaders == 0) SystemChrome.setPreferredOrientations(const []);
     _checkpointSession();
     super.dispose();
   }
@@ -378,7 +403,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
       : mapFallbackPage(page, widget.book.pageCount, _main.pageCount);
 
   void _checkpointSession() {
-    final completed = _currentPage >= widget.book.pageCount - 1;
+    final completed = _completedAt(_currentPage);
     if (!_wouldUnread(completed)) {
       _progressSync.sendNow(
         widget.backend,
@@ -425,7 +450,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
 
   void _onPageChanged(int page) {
     setState(() => _currentPage = page);
-    final completed = page >= widget.book.pageCount - 1;
+    final completed = _completedAt(page);
     if (!_wouldUnread(completed)) {
       _progressSync.scheduleUpdate(
         widget.backend,
@@ -637,8 +662,26 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   void _updateSettings(ReaderSettings settings) {
     setState(() => _settings = settings);
     _applyWakelock();
+    _applyOrientation();
     _persistSettings();
   }
+
+  /// Double page wants landscape. Tablets are turned for the reader; phones,
+  /// and iPads in split-screen (where iOS ignores the lock), get asked.
+  void _applyOrientation() {
+    final tablet = MediaQuery.sizeOf(context).shortestSide >= 600;
+    SystemChrome.setPreferredOrientations(
+      _settings.mode == ReaderMode.double && tablet
+          ? const [
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ]
+          : const [],
+    );
+  }
+
+  bool _rotateDismissed = false;
+  static int _openReaders = 0;
 
   void _persistSettings() {
     if (_remember) {
@@ -685,6 +728,12 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
       onRememberChanged: _onRememberChanged,
     );
   }
+
+  /// The chapter lists follow the "Newest chapters first" setting; next and
+  /// previous keep reading order.
+  List<Book> get _listedBooks => ref.read(chaptersNewestFirstProvider)
+      ? widget.seriesBooks.reversed.toList()
+      : widget.seriesBooks;
 
   Book? get _nextBook {
     final i = widget.seriesBooks.indexWhere((b) => b.id == _main.id);
@@ -800,9 +849,9 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                   Flexible(
                     child: ListView.builder(
                       shrinkWrap: true,
-                      itemCount: widget.seriesBooks.length,
+                      itemCount: _listedBooks.length,
                       itemBuilder: (context, i) {
-                        final b = widget.seriesBooks[i];
+                        final b = _listedBooks[i];
                         final current = b.id == _main.id;
                         final read = b.completed && !current;
                         final isSelected = selected.contains(b.id);
@@ -946,6 +995,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
 
   void _onEndOfBook() {
     if (_showEndCard) return;
+    _finished = true;
     _progressSync.sendNow(
       widget.backend,
       _main.id,
@@ -1134,6 +1184,25 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                       ),
                     ),
                   ),
+                if (_settings.mode == ReaderMode.double &&
+                    !_rotateDismissed &&
+                    MediaQuery.orientationOf(context) == Orientation.portrait)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 24,
+                    child: SafeArea(
+                      child: Center(
+                        child: _FallbackBanner(
+                          icon: Icons.screen_rotation_rounded,
+                          text:
+                              'Turn your device sideways to see two pages at once.',
+                          onDismiss: () =>
+                              setState(() => _rotateDismissed = true),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (_panelModeActive &&
                     _panelRects != null &&
                     _panelPageBytes != null)
@@ -1187,7 +1256,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                       curve: Motion.easeOut,
                       child: ChapterPanel(
                         title: _main.title,
-                        books: widget.seriesBooks,
+                        books: _listedBooks,
                         currentId: _main.id,
                         onOpen: (b) => _goToBook(b.id),
                         onClose: _togglePanel,
@@ -1304,7 +1373,12 @@ class _EndOfBookCard extends StatelessWidget {
 class _FallbackBanner extends StatelessWidget {
   final String text;
   final VoidCallback onDismiss;
-  const _FallbackBanner({required this.text, required this.onDismiss});
+  final IconData icon;
+  const _FallbackBanner({
+    required this.text,
+    required this.onDismiss,
+    this.icon = Icons.alt_route_rounded,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1325,7 +1399,7 @@ class _FallbackBanner extends StatelessWidget {
               border: Border.all(color: AppColors.warningText, width: 2),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.alt_route_rounded, size: 18, color: AppColors.warningText),
+              Icon(icon, size: 18, color: AppColors.warningText),
               const SizedBox(width: 10),
               Flexible(
                 child: Text(text, style: AppText.body(size: 13, color: AppColors.text)),
