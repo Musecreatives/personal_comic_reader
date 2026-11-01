@@ -53,6 +53,17 @@ void main() {
     });
   });
 
+  test('sameTitleKey matches one title across sources', () {
+    expect(
+      sameTitleKey('Chronicles Of The Demon Faction'),
+      sameTitleKey('chronicles of the demon faction!'),
+    );
+    expect(sameTitleKey('Solo Leveling: Ragnarok'),
+        sameTitleKey('Solo Leveling - Ragnarok'));
+    expect(sameTitleKey('Solo Leveling'),
+        isNot(sameTitleKey('Solo Leveling: Ragnarok')));
+  });
+
   test('SeriesStatus.parse reads Komga and Suwayomi values', () {
     expect(SeriesStatus.parse('ONGOING'), SeriesStatus.ongoing);
     expect(SeriesStatus.parse('ENDED'), SeriesStatus.ended);

@@ -27,6 +27,12 @@ Map<String, String> metaMap(Object? nodes) => {
           n['key'] as String: n['value'] as String,
     };
 
+/// Two sources' names for one title compare equal under this: case,
+/// punctuation and spacing differ between extensions ("Chronicles Of The
+/// Demon Faction" vs "Chronicles of the Demon Faction!").
+String sameTitleKey(String title) =>
+    title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9À-￿]+'), '');
+
 /// Where you stand, moved from one source's chapter list onto another's
 /// when a title migrates. Sources disagree on which chapters exist (one
 /// has 12.5, another skips an extra), so it isn't a one-to-one copy:
@@ -721,39 +727,70 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// can be added back from its source.
   Future<void> migrate(String fromId, int toId) async {
     final data = await _gql(
-      'query(\$id: Int!) { manga(id: \$id) { categories { nodes { id } } '
-      'chapters { nodes { chapterNumber isRead lastPageRead } } } }',
+      'query(\$id: Int!) { manga(id: \$id) { categories { nodes { id } } } }',
       {'id': int.parse(fromId)},
     );
-    final manga = data['manga'] as Map<String, dynamic>;
     final categories = [
-      for (final c in manga['categories']['nodes'] as List) c['id'] as int,
+      for (final c in data['manga']['categories']['nodes'] as List)
+        c['id'] as int,
     ];
+    await addToLibraryWithCategories(toId, categories);
+    await _copyProgress(int.parse(fromId), toId);
+    await removeFromLibrary(fromId);
+  }
+
+  /// Adds [id] (found in search) to the library. If the same title is
+  /// already there from another source, where you stand comes along, as in
+  /// [migrate], instead of starting over. The other copy stays as it is.
+  Future<void> addToLibraryKeepingProgress(int id, String title) async {
+    await addToLibraryWithCategories(id, const []);
+    final key = sameTitleKey(title);
+    final data = await _gql(
+      '{ mangas(condition: {inLibrary: true}) { nodes { id title '
+      'unreadCount chapters { totalCount } } } }',
+    );
+    // The copy you have read most of, if there is more than one.
+    final copies = [
+      for (final m in data['mangas']['nodes'] as List)
+        if (m['id'] != id && sameTitleKey(m['title'] as String? ?? '') == key)
+          (
+            id: m['id'] as int,
+            read: (m['chapters']['totalCount'] as int? ?? 0) -
+                (m['unreadCount'] as int? ?? 0),
+          ),
+    ]..sort((a, b) => b.read.compareTo(a.read));
+    if (copies.isNotEmpty) await _copyProgress(copies.first.id, id);
+  }
+
+  /// Puts [fromId]'s read chapters and half-read page onto [toId]'s
+  /// chapters (see [carryProgress]).
+  Future<void> _copyProgress(int fromId, int toId) async {
+    final data = await _gql(
+      'query(\$id: Int!) { manga(id: \$id) { '
+      'chapters { nodes { chapterNumber isRead lastPageRead } } } }',
+      {'id': fromId},
+    );
     final from = [
-      for (final c in manga['chapters']['nodes'] as List)
+      for (final c in data['manga']['chapters']['nodes'] as List)
         (
           number: (c['chapterNumber'] as num).toDouble(),
           read: c['isRead'] == true,
           page: c['lastPageRead'] as int? ?? 0,
         ),
     ];
-
-    await addToLibraryWithCategories(toId, categories);
-    if (from.any((c) => c.read || c.page > 0)) {
-      final chapters = await _fetchChaptersFromSource(toId);
-      final carried = carryProgress(from, [
-        for (final c in chapters)
-          (id: c['id'] as int, number: (c['chapterNumber'] as num).toDouble()),
-      ]);
-      await markChaptersRead(carried.read);
-      for (final MapEntry(key: id, value: page) in carried.pages.entries) {
-        await _gql(
-          'mutation(\$id: Int!, \$page: Int!) { updateChapter(input: {id: \$id, patch: {lastPageRead: \$page}}) { chapter { id } } }',
-          {'id': id, 'page': page},
-        );
-      }
+    if (!from.any((c) => c.read || c.page > 0)) return;
+    final chapters = await _fetchChaptersFromSource(toId);
+    final carried = carryProgress(from, [
+      for (final c in chapters)
+        (id: c['id'] as int, number: (c['chapterNumber'] as num).toDouble()),
+    ]);
+    await markChaptersRead(carried.read);
+    for (final MapEntry(key: id, value: page) in carried.pages.entries) {
+      await _gql(
+        'mutation(\$id: Int!, \$page: Int!) { updateChapter(input: {id: \$id, patch: {lastPageRead: \$page}}) { chapter { id } } }',
+        {'id': id, 'page': page},
+      );
     }
-    await removeFromLibrary(fromId);
   }
 
   /// Fetches the real chapter list for [mangaId] from its source (not the

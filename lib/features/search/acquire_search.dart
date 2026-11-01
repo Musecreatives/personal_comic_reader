@@ -495,7 +495,8 @@ void showMangaPreview(
     subtitle: sourceName.toUpperCase(),
     details: _MangaDetails(backend: backend, id: id),
     actionLabel: 'Add to library',
-    onAction: () => backend.addToLibraryWithCategories(id, const []),
+    // Already reading it elsewhere? Your place comes along.
+    onAction: () => backend.addToLibraryKeepingProgress(id, title),
     doneLabel: 'Open',
     onDone: () async {
       await activateServer(ref, backend.config.id);
