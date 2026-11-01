@@ -157,6 +157,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final backendAsync = ref.watch(activeBackendProvider);
+    // A cover or details changed on a title page: load the grid again.
+    ref.listen(libraryRevisionProvider, (_, _) {
+      if (_backend != null) _loadPage(_backend!, reset: true);
+    });
 
     return backendAsync.when(
       loading: () => Scaffold(

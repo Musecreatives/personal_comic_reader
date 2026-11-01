@@ -148,6 +148,10 @@ final readerSettingsStoreProvider = Provider<ReaderSettingsStore>((ref) {
       'readerSettingsStoreProvider must be overridden in main()');
 });
 
+/// Bumped when a title's cover or details change, so the Library grid,
+/// which keeps the titles it loaded, fetches them again.
+final libraryRevisionProvider = StateProvider<int>((ref) => 0);
+
 /// Settings > Newest chapters first. Saved in the synced global reader
 /// settings; title pages read it when they open.
 final chaptersNewestFirstProvider = StateProvider<bool>((ref) =>

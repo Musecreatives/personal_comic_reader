@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -472,7 +473,18 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
           : null,
     );
     if (saved != true || !mounted) return;
+    // Komga keeps one cover address per title, so the old image would be
+    // served from the image cache; Suwayomi's override is a new address.
+    // Drop both, then have Home and Library load the title again.
+    for (final url in {
+      ?series.thumbnailUrl,
+      widget.backend.thumbnailUrlForSeries(series.id),
+    }) {
+      await CachedNetworkImage.evictFromCache(url);
+    }
+    if (!mounted) return;
     ref.invalidate(homeFeedProvider);
+    ref.read(libraryRevisionProvider.notifier).state++;
     _reloadSeries();
     _snack('Cover and details saved');
   }
