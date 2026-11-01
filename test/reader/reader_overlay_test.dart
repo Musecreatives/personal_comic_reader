@@ -26,6 +26,7 @@ void main() {
               onToggleDirection: () {},
               onCycleMode: () {},
               onOpenChapters: () {},
+              onShare: () {},
             ),
           ]),
         ),

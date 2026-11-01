@@ -17,12 +17,16 @@ class PanelZoomView extends StatefulWidget {
   final VoidCallback onExhausted;
   final VoidCallback onExit;
 
+  /// Which panel is on screen, so the reader can save just that one.
+  final ValueChanged<int>? onPanelChanged;
+
   const PanelZoomView({
     super.key,
     required this.imageBytes,
     required this.panels,
     required this.onExhausted,
     required this.onExit,
+    this.onPanelChanged,
   });
 
   @override
@@ -56,11 +60,15 @@ class _PanelZoomViewState extends State<PanelZoomView> {
       widget.onExhausted();
     } else {
       setState(() => _index++);
+      widget.onPanelChanged?.call(_index);
     }
   }
 
   void _previous() {
-    if (_index > 0) setState(() => _index--);
+    if (_index > 0) {
+      setState(() => _index--);
+      widget.onPanelChanged?.call(_index);
+    }
   }
 
   @override

@@ -32,6 +32,7 @@ import 'widgets/edge_swipe.dart';
 import 'widgets/panel_zoom_view.dart';
 import 'widgets/reader_overlay.dart';
 import 'widgets/reader_settings_sheet.dart';
+import 'widgets/share_pages_sheet.dart';
 import 'widgets/single_page_view.dart';
 import 'widgets/vertical_page_view.dart';
 
@@ -280,6 +281,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   bool _panelLoading = false;
   Uint8List? _panelPageBytes;
   List<PanelRect>? _panelRects;
+  int _panelIndex = 0;
 
   final Set<int> _seenPages = {};
   late DateTime _sessionStart;
@@ -557,6 +559,25 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
     if (mounted) run?.call();
   }
 
+  /// Share pages with their title, chapter and source, or save them (or,
+  /// in panel mode, the panel on screen) to Photos.
+  void _openShareSheet() {
+    final rects = _panelRects;
+    final bytes = _panelPageBytes;
+    showSharePagesSheet(
+      context,
+      backend: widget.backend,
+      pageCache: _pageCache,
+      book: widget.book,
+      main: _main,
+      currentPage: _currentPage,
+      panel: _panelModeActive && rects != null && bytes != null &&
+              _panelIndex < rects.length
+          ? (page: bytes, rect: rects[_panelIndex])
+          : null,
+    );
+  }
+
   Future<void> _togglePanelMode() async {
     if (_panelModeActive) {
       setState(() => _panelModeActive = false);
@@ -579,6 +600,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
       setState(() {
         _panelPageBytes = bytes;
         _panelRects = panels;
+        _panelIndex = 0;
         _panelModeActive = true;
         _panelLoading = false;
       });
@@ -1093,6 +1115,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                   onToggleDirection: _toggleDirection,
                   onCycleMode: _cycleMode,
                   onOpenChapters: wide ? _togglePanel : _openChapterPicker,
+                  onShare: _openShareSheet,
                   onTogglePanelMode: _settings.mode == ReaderMode.single
                       ? _togglePanelMode
                       : null,
@@ -1121,6 +1144,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                       onExhausted: () =>
                           setState(() => _panelModeActive = false),
                       onExit: () => setState(() => _panelModeActive = false),
+                      onPanelChanged: (i) => _panelIndex = i,
                     ),
                   ),
                 Align(

@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import '../../core/debug/debug_log.dart';
 
 import '../../core/backend/models.dart';
+import '../../core/share/page_share.dart' show sourceUrl;
 import '../../core/discovery/recommender.dart';
 import '../../core/backend/reader_backend.dart';
 import '../../core/network/retry_interceptor.dart';
@@ -760,6 +761,22 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
           ),
     ]..sort((a, b) => b.read.compareTo(a.read));
     if (copies.isNotEmpty) await _copyProgress(copies.first.id, id);
+  }
+
+  /// The source's own web pages for a chapter and its title, for sharing:
+  /// anyone can open these, account or not. Null where the source doesn't
+  /// give an address.
+  Future<({String? chapter, String? series})> sourceLinks(String bookId) async {
+    final data = await _gql(
+      'query(\$id: Int!) { chapter(id: \$id) { url manga { url source { baseUrl } } } }',
+      {'id': int.parse(bookId)},
+    );
+    final c = data['chapter'] as Map<String, dynamic>;
+    final base = c['manga']['source']?['baseUrl'] as String?;
+    return (
+      chapter: sourceUrl(base, c['url'] as String?),
+      series: sourceUrl(base, c['manga']['url'] as String?),
+    );
   }
 
   /// Puts [fromId]'s read chapters and half-read page onto [toId]'s

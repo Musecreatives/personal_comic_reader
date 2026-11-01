@@ -23,6 +23,7 @@ class ReaderOverlay extends StatefulWidget {
   final VoidCallback onToggleDirection;
   final VoidCallback onCycleMode;
   final VoidCallback onOpenChapters;
+  final VoidCallback onShare;
   final VoidCallback? onTogglePanelMode;
 
   const ReaderOverlay({
@@ -39,6 +40,7 @@ class ReaderOverlay extends StatefulWidget {
     required this.onToggleDirection,
     required this.onCycleMode,
     required this.onOpenChapters,
+    required this.onShare,
     this.onTogglePanelMode,
   });
 
@@ -206,6 +208,12 @@ class _ReaderOverlayState extends State<ReaderOverlay>
                                 icon: Icons.format_list_bulleted_rounded,
                                 label: 'Chapters',
                                 onTap: w.onOpenChapters,
+                              ),
+                              const SizedBox(height: 10),
+                              _RoundButton(
+                                icon: Icons.ios_share_rounded,
+                                label: 'Share or save pages',
+                                onTap: w.onShare,
                               ),
                               const SizedBox(height: 10),
                               _RoundButton(
