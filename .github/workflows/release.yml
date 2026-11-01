@@ -77,11 +77,13 @@ jobs:
             "$STORE_PW" "$ALIAS" "$KEY_PW" > android/key.properties
       - run: flutter pub get
       # The run number keeps versionCode rising, so every APK installs
-      # over the last one.
+      # over the last one. The 100 head start keeps release builds above
+      # ones built on the owner's PC (which reached 13), or Android refuses
+      # the update as a downgrade.
       - name: Build APK
         run: |
           NAME_ARG=""; [ "$IS_TAG" = true ] && NAME_ARG="--build-name=${TAG#v}"
-          flutter build apk --release --build-number=${{ github.run_number }} $NAME_ARG
+          flutter build apk --release --build-number=$((100 + ${{ github.run_number }})) $NAME_ARG
           cp build/app/outputs/flutter-apk/app-release.apk ShaddaiReader.apk
       - if: env.IS_TAG == 'true'
         run: gh release upload "$TAG" ShaddaiReader.apk --repo "$GITHUB_REPOSITORY" --clobber
