@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.1.7: WhatsApp sharing on iOS (2026-11-04)
+
+- **Share to WhatsApp on iPhone/iPad**: WhatsApp's iOS share screen closed
+  straight away when pages came with the caption text. On iOS the pages now
+  go alone and the caption (title, chapter, source, links) stays on the
+  clipboard, with a "paste them in the chat" message. Android is unchanged.
+
+## v1.1.6: reader fixes, guide, screenshot reports (2026-11-01)
+
+- **Finished chapters open again**: a finished chapter's saved spot is its
+  last page, so Webtoon opened at the bottom, looked like an overscroll and
+  jumped to the next chapter. Finished chapters now open at page 1, and
+  Webtoon only moves on after the reader scrolls to the end themselves (this
+  also stops going back a chapter from bouncing forward).
+- A chapter read to the end stays marked read; Remove from library refreshes
+  the Library; the reader's chapter list is newest first.
+- **Double page**: Android tablets turn to landscape while in Double and go back to normal when you leave it;
+  phones and iPads show a dismissible "turn sideways" banner (iOS can't lock
+  orientation for apps that support split-screen).
+- **Guide**: six short pages shown the first time someone reaches Home, also
+  under Settings > Help > How to use Shaddai Reader.
+- **Bug reports**: "Report a problem" row in Settings > Help; reports attach
+  a screenshot (can be unticked) as a base64 `screenshot` field, resent
+  without it if the sync server rejects the size; optional floating report
+  button on every screen (tap = report, hold = Diagnostics). The server's
+  `tickets.py` may need a change to save the screenshot as a file.
+- Shipped by tag `v1.1.6` (Release workflow: APK, Windows, web, unsigned IPA,
+  TestFlight). The release APK is installed on the tablet (versionCode 110).
+
 ## Redesign Phase 0: baseline fixes
 
 - **Web start-up crash**: `ReadingStatsStore` made its device id with

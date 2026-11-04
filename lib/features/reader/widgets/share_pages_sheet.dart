@@ -1,6 +1,6 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
@@ -138,11 +138,16 @@ class _SharePagesSheetState extends State<_SharePagesSheet> {
     // the clipboard to paste.
     await Clipboard.setData(ClipboardData(text: caption));
     if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    // WhatsApp's iOS share extension closes at once when pictures come with
+    // text, so on iOS the caption goes by clipboard only. The device's OS,
+    // not PlatformStyle: a forced Android look on an iPhone still has this.
+    final pasteCaption = defaultTargetPlatform == TargetPlatform.iOS;
     final box = _shareButton.currentContext?.findRenderObject() as RenderBox?;
     final result = await SharePlus.instance.share(
       ShareParams(
         files: files,
-        text: caption,
+        text: pasteCaption ? null : caption,
         subject: caption.split('\n').first,
         // iPad anchors the share popover to the button.
         sharePositionOrigin: box == null
@@ -152,6 +157,11 @@ class _SharePagesSheetState extends State<_SharePagesSheet> {
     );
     if (result.status == ShareResultStatus.success && mounted) {
       Navigator.of(context).pop();
+      if (pasteCaption) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Caption and links copied. Paste them in the chat.'),
+        ));
+      }
     }
   });
 
