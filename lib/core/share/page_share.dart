@@ -50,6 +50,19 @@ String shareCaption({
   ].join('\n');
 }
 
+/// Where to cut a page [width] × [height] px for a chat: one piece for a
+/// normal page, and for a webtoon strip (over three widths tall) even pieces
+/// about two widths tall, the shape of a phone screen. A chat squashes one
+/// huge strip into a sliver, and WhatsApp's iOS share screen runs out of
+/// memory on it and closes without sending. Each is (top, bottom) in px.
+List<(int, int)> stripCuts(int width, int height) {
+  if (width <= 0 || height <= width * 3) return [(0, height)];
+  final n = (height / (width * 2)).ceil();
+  return [
+    for (var k = 0; k < n; k++) (height * k ~/ n, height * (k + 1) ~/ n),
+  ];
+}
+
 /// The Shaddai web reader's page for a title.
 String appLinkForSeries(String seriesId) =>
     '$shaddaiWebUrl/#/series/${Uri.encodeComponent(seriesId)}';

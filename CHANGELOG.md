@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.8: share what's on screen (2026-11-04)
+
+- **Share sends what you see**: opening Share captures the reader as drawn
+  (no menus), screenshot-sharp but at most 2560 px on its long side, and
+  ticks it by default as "On screen". Before, Share sent the page's source
+  file, which for webtoon sources is often a strip of most of the chapter;
+  WhatsApp's iOS share screen ran out of memory on it and closed on Send.
+- Ticked pages taller than three widths go as even phone-shaped pieces
+  (`stripCuts`); Save to Photos saves the same images as Share.
+
 ## v1.1.7: WhatsApp sharing on iOS (2026-11-04)
 
 - **Share to WhatsApp on iPhone/iPad**: WhatsApp's iOS share screen closed

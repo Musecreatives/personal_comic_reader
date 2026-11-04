@@ -260,6 +260,7 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
   final _singleKey = GlobalKey<SinglePageViewState>();
   final _doubleKey = GlobalKey<DoublePageViewState>();
   final _verticalKey = GlobalKey<VerticalPageViewState>();
+  final _pagerBoundary = GlobalKey();
 
   late ReaderSettings _settings;
   late bool _remember;
@@ -586,16 +587,19 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
 
   /// Share pages with their title, chapter and source, or save them (or,
   /// in panel mode, the panel on screen) to Photos.
-  void _openShareSheet() {
+  Future<void> _openShareSheet() async {
     final rects = _panelRects;
     final bytes = _panelPageBytes;
-    showSharePagesSheet(
+    final screen = await captureView(_pagerBoundary);
+    if (!mounted) return;
+    await showSharePagesSheet(
       context,
       backend: widget.backend,
       pageCache: _pageCache,
       book: widget.book,
       main: _main,
       currentPage: _currentPage,
+      screen: screen,
       panel: _panelModeActive && rects != null && bytes != null &&
               _panelIndex < rects.length
           ? (page: bytes, rect: rects[_panelIndex])
@@ -1148,7 +1152,14 @@ class _ReaderBodyState extends ConsumerState<_ReaderBody>
                 Positioned.fill(
                   child: EdgeSwipe(
                     onPastStart: _stepBackward,
-                    child: _buildPager(),
+                    // Share captures this: the page as it's drawn, no menus.
+                    child: RepaintBoundary(
+                      key: _pagerBoundary,
+                      child: ColoredBox(
+                        color: Color(_settings.backgroundColor),
+                        child: _buildPager(),
+                      ),
+                    ),
                   ),
                 ),
                 ReaderOverlay(

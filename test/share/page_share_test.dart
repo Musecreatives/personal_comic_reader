@@ -40,6 +40,26 @@ void main() {
     );
   });
 
+  group('stripCuts', () {
+    test('a normal page goes whole', () {
+      expect(stripCuts(1000, 1500), [(0, 1500)]);
+      expect(stripCuts(800, 2400), [(0, 2400)]);
+    });
+
+    test('a webtoon strip is cut into even phone-shaped pieces', () {
+      final cuts = stripCuts(720, 20000);
+      expect(cuts.length, 14); // 20000 / 1440, rounded up
+      expect(cuts.first.$1, 0);
+      expect(cuts.last.$2, 20000);
+      for (var k = 1; k < cuts.length; k++) {
+        expect(cuts[k].$1, cuts[k - 1].$2); // no gaps, no overlap
+      }
+      for (final (top, bottom) in cuts) {
+        expect(bottom - top, lessThanOrEqualTo(1440));
+      }
+    });
+  });
+
   test('caption leaves out what it does not know', () {
     expect(
       shareCaption(title: 'Saga', chapter: 'Ch. 3', pages: [0]),
