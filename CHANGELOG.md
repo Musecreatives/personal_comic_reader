@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.9: WhatsApp sharing on iOS, take 3 (2026-11-06)
+
+- **Share to WhatsApp on iPhone/iPad**: v1.1.8 still didn't send. On iOS
+  the pages now go with no subject either, just the image files, as when
+  sharing from Photos; the caption stays on the clipboard. Android is
+  unchanged: checked on the tablet, v1.1.8 sends the page with its caption
+  and links in one WhatsApp message.
+
 ## v1.1.8: share what's on screen (2026-11-04)
 
 - **Share sends what you see**: opening Share captures the reader as drawn

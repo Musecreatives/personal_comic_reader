@@ -197,16 +197,17 @@ class _SharePagesSheetState extends State<_SharePagesSheet> {
     await Clipboard.setData(ClipboardData(text: caption));
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    // WhatsApp's iOS share extension closes at once when pictures come with
-    // text, so on iOS the caption goes by clipboard only. The device's OS,
-    // not PlatformStyle: a forced Android look on an iPhone still has this.
+    // WhatsApp's iOS share extension won't send pictures that come with any
+    // text, a subject included, so on iOS the pictures go alone, as from
+    // Photos, and the caption goes by clipboard. The device's OS, not
+    // PlatformStyle: a forced Android look on an iPhone still has this.
     final pasteCaption = defaultTargetPlatform == TargetPlatform.iOS;
     final box = _shareButton.currentContext?.findRenderObject() as RenderBox?;
     final result = await SharePlus.instance.share(
       ShareParams(
         files: files,
         text: pasteCaption ? null : caption,
-        subject: caption.split('\n').first,
+        subject: pasteCaption ? null : caption.split('\n').first,
         // iPad anchors the share popover to the button.
         sharePositionOrigin: box == null
             ? null
