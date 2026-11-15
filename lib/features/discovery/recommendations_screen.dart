@@ -11,6 +11,7 @@ import '../../core/discovery/comic_recommender.dart';
 import '../../core/discovery/discovery_cache.dart';
 import '../../core/kapowarr/kapowarr_client.dart';
 import '../../core/discovery/recommender.dart';
+import '../search/category_picker.dart';
 import '../shared/back_button.dart';
 import '../shared/series_cover.dart';
 import 'discovery_providers.dart';
@@ -123,8 +124,14 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen> {
   Future<void> _add(SuwayomiBackend backend, Candidate c) async {
     setState(() => _adding.add(c.id));
     try {
-      await backend.addToLibraryWithCategories(c.id, const []);
+      final names = [for (final l in await backend.listLibraries()) l.name];
+      if (!mounted) return;
+      final categories = await pickCategories(context, names);
+      await backend.addToLibraryKeepingProgress(c.id, c.title,
+          categories: categories);
       if (mounted) setState(() => _added.add(c.id));
+    } on AddCancelled {
+      // Picker dismissed: nothing added.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)

@@ -948,7 +948,11 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// Adds [id] (found in search) to the library. If the same title is
   /// already there from another source, where you stand comes along, as in
   /// [migrate], instead of starting over. The other copy stays as it is.
-  Future<void> addToLibraryKeepingProgress(int id, String title) async {
+  ///
+  /// [categories] are names (none means Default); missing ones are created.
+  /// Left null, a friend's copy keeps the other copy's categories.
+  Future<void> addToLibraryKeepingProgress(int id, String title,
+      {List<String>? categories}) async {
     final key = sameTitleKey(title);
     if (await isMember) {
       // Where they stand on another copy of the same title comes along.
@@ -957,11 +961,13 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
           .where((t) => t.mangaId != id && sameTitleKey(t.title) == key)
           .fold<MemberTitle?>(null, (best, t) => best == null || t.readCount > best.readCount ? t : best);
       return addToMemberLibrary(id,
-          categories: copy?.categories ?? const [],
+          categories: categories ?? copy?.categories ?? const [],
           readThrough: copy?.readThrough,
           readCount: copy?.readCount ?? 0);
     }
-    await addToLibraryWithCategories(id, const []);
+    await addToLibraryWithCategories(id, [
+      for (final n in categories ?? const <String>[]) await ensureCategory(n),
+    ]);
     final data = await _gql(
       '{ mangas(condition: {inLibrary: true}) { nodes { id title '
       'unreadCount chapters { totalCount } } } }',
@@ -1221,8 +1227,13 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// The same chapter as [main] on the first backup source that has it,
   /// with the names of both sources for the reader's banner. Null when the
   /// series has no backups or none of them has this chapter number.
-  Future<({Book book, String source, String? mainSource})?> fallbackFor(Book main) async {
-    final ids = await linkedSourceIds(main.seriesId);
+  /// Backups [skip] says no to (switched off by this account) are passed over.
+  Future<({Book book, String source, String? mainSource})?> fallbackFor(Book main,
+      {bool Function(String seriesId, int backupId)? skip}) async {
+    final ids = [
+      for (final id in await linkedSourceIds(main.seriesId))
+        if (skip == null || !skip(main.seriesId, id)) id,
+    ];
     if (ids.isEmpty) return null;
     final hit = await findFallbackChapter(ids, main.number, fetchChapterIdsByNumber);
     if (hit == null) return null;

@@ -104,6 +104,23 @@ void main() {
       expect(asked.last, {'ids': [8]});
     });
 
+    test('a friend adding a title puts it in the category they picked', () async {
+      Map<String, dynamic>? saved;
+      adapter.onPost('/api/graphql', (s) => s.reply(200, {
+            'data': {'manga': {'title': 'Solo', 'sourceId': '1'}},
+          }), data: Matchers.any);
+      adapter.onPut('/shaddai/library/9', (s) => s.reply(200, {}), data: Matchers.any);
+      final dio = Dio(BaseOptions(baseUrl: 'https://gw.test'))
+        ..httpClientAdapter = adapter
+        ..interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
+          if (o.method == 'PUT') saved = (o.data as Map).cast<String, dynamic>();
+          h.next(o);
+        }));
+      backend = SuwayomiBackend(config: backend.config, password: 'pw', dio: dio);
+      await backend.addToLibraryKeepingProgress(9, 'Solo', categories: ['Murim']);
+      expect(saved?['categories'], ['Murim']);
+    });
+
     test('chapters are read by the friend\'s read-through and records', () async {
       adapter.onPost('/api/graphql', (s) => s.reply(200, {
             'data': {

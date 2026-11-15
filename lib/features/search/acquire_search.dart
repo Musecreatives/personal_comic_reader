@@ -11,6 +11,7 @@ import '../../core/kapowarr/kapowarr_client.dart';
 import '../discovery/discovery_providers.dart';
 import '../shared/ink_chip.dart';
 import '../shared/series_cover.dart';
+import 'category_picker.dart';
 import 'source_showcase.dart';
 import '../shared/app_sheet.dart';
 
@@ -101,6 +102,8 @@ class _AcquireSheetState extends State<_AcquireSheet> {
     try {
       await widget.onAction();
       if (mounted) setState(() => _done = true);
+    } on AddCancelled {
+      // Picker dismissed: nothing was added, nothing went wrong.
     } catch (e) {
       if (mounted) setState(() => _error = "Couldn't add it: $e");
     } finally {
@@ -496,7 +499,13 @@ void showMangaPreview(
     details: _MangaDetails(backend: backend, id: id),
     actionLabel: 'Add to library',
     // Already reading it elsewhere? Your place comes along.
-    onAction: () => backend.addToLibraryKeepingProgress(id, title),
+    onAction: () async {
+      final names = [for (final l in await backend.listLibraries()) l.name];
+      if (!context.mounted) throw AddCancelled();
+      final categories = await pickCategories(context, names);
+      await backend.addToLibraryKeepingProgress(id, title,
+          categories: categories);
+    },
     doneLabel: 'Open',
     onDone: () async {
       await activateServer(ref, backend.config.id);
