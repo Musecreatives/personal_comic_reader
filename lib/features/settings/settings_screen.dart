@@ -10,6 +10,7 @@ import '../../core/appearance/appearance_settings.dart';
 import '../../core/debug/debug_log.dart';
 import '../../core/downloads/download_models.dart';
 import '../debug/report_sheet.dart';
+import '../suwayomi/sources_screen.dart' show confirmDanger;
 
 /// Current reading streak in days, for the Reading stats row.
 final readingStreakProvider = Provider<int>((ref) {
@@ -98,6 +99,12 @@ class SettingsScreen extends ConsumerWidget {
                       'Import and read CBZ and ZIP files',
                       () => context.push('/local-library'),
                     ),
+                    if (owner)
+                      _Row(
+                        'Import a backup',
+                        'From Paperback, Tachiyomi or Mihon',
+                        () => context.push('/settings/import-backup'),
+                      ),
                     _Row(
                       'ComicVine',
                       'API key for looking up imported comics',
@@ -216,6 +223,30 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+                if (ref.watch(currentUsernameProvider) != null) ...[
+                  const _GroupLabel('ACCOUNT'),
+                  _Group(
+                    rows: [
+                      _Row(
+                        'Sign out',
+                        'Downloads and imported comics stay on this device',
+                        () async {
+                          final ok = await confirmDanger(
+                            context,
+                            title: 'Sign out?',
+                            body: 'Your servers, history and settings leave '
+                                'this device. They come back when you sign '
+                                'in again.',
+                            action: 'Sign out',
+                          );
+                          if (!ok || !context.mounted) return;
+                          await signOut(ProviderScope.containerOf(context));
+                          if (context.mounted) context.go('/login');
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

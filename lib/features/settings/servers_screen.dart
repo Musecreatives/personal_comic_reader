@@ -76,11 +76,11 @@ class ServersScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Import from Paperback',
+                                Text('Import a backup',
                                     style: AppText.body(size: 13.5, weight: FontWeight.w600)),
                                 const SizedBox(height: 6),
                                 Text(
-                                  "Drop a .pas5 backup to map its library and read history onto Suwayomi.",
+                                  "A Paperback (.pas5), Tachiyomi or Mihon (.tachibk) backup: its library and read history move onto Suwayomi.",
                                   style: AppText.body(size: 11.5, color: AppColors.text.withValues(alpha: 0.5)),
                                 ),
                               ],

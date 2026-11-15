@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../backends/komga/komga_backend.dart';
 import '../core/network/image_origins.dart';
@@ -430,6 +431,76 @@ Future<void> startSync(ProviderContainer c, {bool force = true}) async {
   status.state = failed
       ? SyncStatus(phase: SyncPhase.offline, lastOk: last)
       : SyncStatus(phase: SyncPhase.idle, lastOk: DateTime.now());
+}
+
+/// Signs out of the sync account and wipes what belongs to it on this
+/// device: servers and their passwords, the other connections, history,
+/// collections, stats and synced settings. Left behind, the next account's
+/// first sync would upload them as its own. Downloads, imported comics and
+/// the page cache stay: they're files on this device, not account data.
+Future<void> signOut(ProviderContainer c) async {
+  final client = c.read(syncClientProvider);
+  final queue = c.read(syncQueueProvider);
+  // Changes made offline still go to the account they were made in.
+  for (final r in const [
+    'history', 'collections', 'appearance', 'reader_settings',
+    'hidden_sources', 'stats', 'connections',
+  ]) {
+    await queue.flush(client, r);
+  }
+  try {
+    await client.logout();
+  } catch (_) {
+    // Offline: the session expires on the server; the token goes below.
+  }
+
+  final connections = c.read(connectionsSyncProvider);
+  c.read(historyStoreProvider).detachSync();
+  for (final s in [
+    c.read(collectionsStoreProvider).sync,
+    c.read(appearanceStoreProvider).sync,
+    c.read(readerSettingsStoreProvider).sync,
+    c.read(readingStatsStoreProvider).sync,
+    c.read(hiddenSourcesStoreProvider).sync,
+    connections.sync,
+  ]) {
+    s.detach();
+  }
+
+  final servers = c.read(serverStoreProvider);
+  for (final s in servers.listServers()) {
+    await servers.deleteServer(s.id);
+  }
+  await c.read(kapowarrConfigStoreProvider).clear();
+  await c.read(mediaPoolConfigStoreProvider).clear();
+  await c.read(comicVineKeyStoreProvider).clear();
+  // Deleting servers set off connection pushes; let them land before the
+  // box they write to is emptied.
+  await connections.pushLocal();
+  for (final box in const [
+    'reading_history', 'collections', 'appearance_settings',
+    'reader_settings', 'reading_stats', 'hidden_sources', 'connections',
+    'sync_queue', 'progress_queue',
+  ]) {
+    if (Hive.isBoxOpen(box)) await Hive.box<String>(box).clear();
+  }
+
+  await c.read(authStoreProvider).clear();
+  client.updateToken(null);
+  c.read(currentUsernameProvider.notifier).state = null;
+  c.read(isOwnerProvider.notifier).state = true;
+  c.read(syncStatusProvider.notifier).state = const SyncStatus();
+  c.read(appearanceProvider.notifier).state =
+      c.read(appearanceStoreProvider).get();
+  c.invalidate(activeServerIdProvider);
+  c.invalidate(chaptersNewestFirstProvider);
+  for (final p in [
+    serverListRevisionProvider, kapowarrConfigRevisionProvider,
+    historyRevisionProvider, collectionsRevisionProvider,
+    statsRevisionProvider, hiddenSourcesRevisionProvider,
+  ]) {
+    c.read(p.notifier).state++;
+  }
 }
 
 /// Restarts downloads that were queued or in flight when the app last closed.
