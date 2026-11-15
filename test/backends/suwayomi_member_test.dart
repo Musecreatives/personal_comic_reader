@@ -77,6 +77,33 @@ void main() {
       expect(series.booksUnreadCount, 3);
     });
 
+    test('titles without a category are in Default, like the owner\'s', () async {
+      adapter.onGet('/shaddai/library', (s) => s.reply(200, {
+            'titles': [
+              {'mangaId': 7, 'title': 'Mount Hua', 'categories': ['Murim']},
+              {'mangaId': 8, 'title': 'Solo', 'categories': []},
+            ],
+          }));
+      final asked = <Object?>[];
+      adapter.onPost('/api/graphql', (s) => s.reply(200, {
+            'data': {'mangas': {'nodes': []}},
+          }), data: Matchers.any);
+      backend = SuwayomiBackend(
+        config: backend.config,
+        password: 'pw',
+        dio: Dio(BaseOptions(baseUrl: 'https://gw.test'))
+          ..httpClientAdapter = adapter
+          ..interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
+            if (o.path == '/api/graphql') asked.add((o.data as Map)['variables']);
+            h.next(o);
+          })),
+      );
+      final libs = await backend.listLibraries();
+      expect(libs.map((l) => l.name), ['Default', 'Murim']);
+      await backend.listSeries(libraryId: libs.first.id);
+      expect(asked.last, {'ids': [8]});
+    });
+
     test('chapters are read by the friend\'s read-through and records', () async {
       adapter.onPost('/api/graphql', (s) => s.reply(200, {
             'data': {

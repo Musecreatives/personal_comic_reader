@@ -176,7 +176,11 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     final lib = await _memberLibrary(fresh: true);
     final ids = [
       for (final t in lib.values)
-        if (category == null || t.categories.contains(category)) t.mangaId,
+        if (category == null ||
+            (category.isEmpty
+                ? t.categories.isEmpty
+                : t.categories.contains(category)))
+          t.mangaId,
     ];
     if (ids.isEmpty) return const [];
     final data = await _gql(
@@ -278,9 +282,15 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   Future<List<Library>> listLibraries() async {
     if (await isMember) {
       // A friend's categories are names on their titles, not Suwayomi's.
-      final names = {for (final t in (await _memberLibrary(fresh: true)).values) ...t.categories}.toList()
-        ..sort();
-      return [for (final n in names) Library(id: 'member:$n', name: n)];
+      final lib = (await _memberLibrary(fresh: true)).values;
+      final names = {for (final t in lib) ...t.categories}.toList()..sort();
+      return [
+        // Titles with no category, as Suwayomi's own Default holds the
+        // owner's. Without it they're in no library at all.
+        if (lib.any((t) => t.categories.isEmpty))
+          const Library(id: 'member:', name: 'Default'),
+        for (final n in names) Library(id: 'member:$n', name: n),
+      ];
     }
     final data = await _gql('{ categories { nodes { id name } } }');
     final nodes = data['categories']['nodes'] as List;
