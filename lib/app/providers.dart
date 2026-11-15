@@ -29,6 +29,7 @@ import '../core/reader/page_cache.dart';
 import '../core/reader/progress_sync.dart';
 import '../core/reader/reader_settings_store.dart';
 import '../core/sources/hidden_sources_store.dart';
+import '../core/sources/skipped_backups_store.dart';
 import '../core/stats/reading_stats_store.dart';
 import '../core/storage/server_store.dart';
 import '../core/sync/auth_store.dart';
@@ -282,6 +283,12 @@ final hiddenSourcesStoreProvider = Provider<HiddenSourcesStore>((ref) {
       'hiddenSourcesStoreProvider must be overridden in main()');
 });
 
+/// Set once in main() after SkippedBackupsStore.init() completes.
+final skippedBackupsStoreProvider = Provider<SkippedBackupsStore>((ref) {
+  throw UnimplementedError(
+      'skippedBackupsStoreProvider must be overridden in main()');
+});
+
 /// Bump after hiding or showing a source so source lists refilter.
 final hiddenSourcesRevisionProvider = StateProvider<int>((ref) => 0);
 
@@ -383,6 +390,8 @@ Future<void> startSync(ProviderContainer c, {bool force = true}) async {
   final stats = c.read(readingStatsStoreProvider)..sync.attach(client, queue);
   final hiddenSources = c.read(hiddenSourcesStoreProvider)
     ..sync.attach(client, queue);
+  final skippedBackups = c.read(skippedBackupsStoreProvider)
+    ..sync.attach(client, queue);
   final connections = c.read(connectionsSyncProvider)
     ..sync.attach(client, queue);
 
@@ -418,6 +427,7 @@ Future<void> startSync(ProviderContainer c, {bool force = true}) async {
     run(stats.reconcile, () => c.read(statsRevisionProvider.notifier).state++),
     run(hiddenSources.reconcile,
         () => c.read(hiddenSourcesRevisionProvider.notifier).state++),
+    run(skippedBackups.reconcile, () {}),
     run(() async {
       c.read(isOwnerProvider.notifier).state = (await client.me()).isOwner;
       return false;
@@ -444,7 +454,7 @@ Future<void> signOut(ProviderContainer c) async {
   // Changes made offline still go to the account they were made in.
   for (final r in const [
     'history', 'collections', 'appearance', 'reader_settings',
-    'hidden_sources', 'stats', 'connections',
+    'hidden_sources', 'stats', 'connections', 'skipped_backups',
   ]) {
     await queue.flush(client, r);
   }
@@ -462,6 +472,7 @@ Future<void> signOut(ProviderContainer c) async {
     c.read(readerSettingsStoreProvider).sync,
     c.read(readingStatsStoreProvider).sync,
     c.read(hiddenSourcesStoreProvider).sync,
+    c.read(skippedBackupsStoreProvider).sync,
     connections.sync,
   ]) {
     s.detach();
@@ -480,7 +491,7 @@ Future<void> signOut(ProviderContainer c) async {
   for (final box in const [
     'reading_history', 'collections', 'appearance_settings',
     'reader_settings', 'reading_stats', 'hidden_sources', 'connections',
-    'sync_queue', 'progress_queue',
+    'sync_queue', 'progress_queue', SkippedBackupsStore.boxName,
   ]) {
     if (Hive.isBoxOpen(box)) await Hive.box<String>(box).clear();
   }

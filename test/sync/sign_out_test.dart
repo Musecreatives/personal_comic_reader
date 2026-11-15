@@ -16,6 +16,7 @@ import 'package:shaddai_reader/core/kapowarr/kapowarr_config_store.dart';
 import 'package:shaddai_reader/core/media_pool/media_pool_config_store.dart';
 import 'package:shaddai_reader/core/reader/reader_settings_store.dart';
 import 'package:shaddai_reader/core/sources/hidden_sources_store.dart';
+import 'package:shaddai_reader/core/sources/skipped_backups_store.dart';
 import 'package:shaddai_reader/core/stats/reading_stats_store.dart';
 import 'package:shaddai_reader/core/storage/server_store.dart';
 import 'package:shaddai_reader/core/sync/auth_store.dart';
@@ -71,6 +72,8 @@ void main() {
     await stats.init();
     final hidden = HiddenSourcesStore();
     await hidden.init();
+    final skipped = SkippedBackupsStore();
+    await skipped.init();
     final auth = AuthStore();
     await auth.saveSession(token: 't', username: 'owner');
 
@@ -112,6 +115,7 @@ void main() {
       readerSettingsStoreProvider.overrideWithValue(reader),
       readingStatsStoreProvider.overrideWithValue(stats),
       hiddenSourcesStoreProvider.overrideWithValue(hidden),
+      skippedBackupsStoreProvider.overrideWithValue(skipped),
       authStoreProvider.overrideWithValue(auth),
       currentUsernameProvider.overrideWith((ref) => 'owner'),
     ]);

@@ -168,7 +168,8 @@ class _ReaderLoaderState extends ConsumerState<_ReaderLoader> {
     if (main == null || failure.bookId != main.id || _triedFallback) return;
     _triedFallback = true;
     try {
-      final found = await (widget.backend as SuwayomiBackend).fallbackFor(main);
+      final found = await (widget.backend as SuwayomiBackend).fallbackFor(main,
+          skip: ref.read(skippedBackupsStoreProvider).isSkipped);
       if (found != null && mounted) {
         setState(() {
           _fallback = found;

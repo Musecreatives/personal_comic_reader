@@ -498,6 +498,10 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
       backend: backend,
       series: series,
       canEdit: ref.read(isOwnerProvider),
+      // Friends can't change the list, but choose which backups they use.
+      skipped: ref.read(isOwnerProvider)
+          ? null
+          : ref.read(skippedBackupsStoreProvider),
     );
     if (newId == null || !mounted) return;
     ref.invalidate(homeFeedProvider);

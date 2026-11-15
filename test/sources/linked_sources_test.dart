@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_test/hive_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 import 'package:shaddai_reader/backends/suwayomi/suwayomi_backend.dart';
+import 'package:shaddai_reader/core/backend/models.dart';
 import 'package:shaddai_reader/core/backend/reader_backend.dart';
 import 'package:shaddai_reader/core/reader/page_cache.dart';
 import 'package:shaddai_reader/core/sources/linked_sources.dart';
@@ -153,6 +154,41 @@ void main() {
       data: Matchers.any,
     );
     expect(await backend.linkedSourceIds('5'), [42, 7]);
+  });
+
+  test('a backup this account switched off is never fallen back to', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'http://test.local'));
+    final adapter = DioAdapter(dio: dio);
+    dio.httpClientAdapter = adapter;
+    final asked = <Object?>[];
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
+      asked.add((o.data as Map)['variables']);
+      h.next(o);
+    }));
+    final backend = SuwayomiBackend(
+      config: const ServerConfig(
+          id: 's1', name: 'S', type: ServerType.suwayomi, baseUrl: 'http://test.local', username: ''),
+      password: '',
+      dio: dio,
+    );
+    adapter.onPost(
+      '/api/graphql',
+      (server) => server.reply(200, {
+        'data': {
+          'manga': {
+            'meta': [
+              {'key': linkedSourcesMetaKey, 'value': '[42]'},
+            ],
+          },
+        },
+      }),
+      data: Matchers.any,
+    );
+    const main = Book(
+        id: '900', seriesId: '5', title: 'Ch 3', number: '3', pageCount: 0, completed: false);
+    expect(await backend.fallbackFor(main, skip: (s, id) => s == '5' && id == 42), isNull);
+    // Only the backup list was read; 42's chapters were never asked for.
+    expect(asked.where((v) => v is Map && v['id'] == 42), isEmpty);
   });
 }
 

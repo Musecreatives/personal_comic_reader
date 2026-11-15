@@ -39,6 +39,7 @@ import 'core/reader/page_cache.dart';
 import 'core/reader/progress_sync.dart';
 import 'core/reader/reader_settings_store.dart';
 import 'core/sources/hidden_sources_store.dart';
+import 'core/sources/skipped_backups_store.dart';
 import 'core/stats/reading_stats_store.dart';
 import 'core/storage/last_route_store.dart';
 import 'core/storage/server_store.dart';
@@ -91,6 +92,9 @@ Future<void> main() async {
   final progressSync = ProgressSync();
   await progressSync.init();
 
+  final skippedBackupsStore = SkippedBackupsStore();
+  await skippedBackupsStore.init();
+
   final downloadStore = DownloadStore();
   await downloadStore.init();
   final downloadManager = DownloadManager(
@@ -98,7 +102,8 @@ Future<void> main() async {
     // A Suwayomi chapter whose source fails comes from a linked backup.
     findFallback: (backend, bookId) async {
       if (backend is! SuwayomiBackend) return null;
-      final copy = await backend.fallbackFor(await backend.getBook(bookId));
+      final copy = await backend.fallbackFor(await backend.getBook(bookId),
+          skip: skippedBackupsStore.isSkipped);
       return copy == null ? null : (bookId: copy.book.id, pageCount: copy.book.pageCount);
     },
   );
@@ -223,6 +228,7 @@ Future<void> main() async {
         collectionsStoreProvider.overrideWithValue(collectionsStore),
         stoppedSeriesStoreProvider.overrideWithValue(stoppedSeriesStore),
         hiddenSourcesStoreProvider.overrideWithValue(hiddenSourcesStore),
+        skippedBackupsStoreProvider.overrideWithValue(skippedBackupsStore),
         localLibraryStoreProvider.overrideWithValue(localLibraryStore),
         watchFolderStoreProvider.overrideWithValue(watchFolderStore),
         watchFolderServiceProvider.overrideWithValue(watchFolderService),

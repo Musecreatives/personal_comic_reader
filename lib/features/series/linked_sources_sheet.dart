@@ -5,6 +5,7 @@ import '../../app/motion.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/backend/models.dart';
 import '../../core/sources/linked_sources.dart';
+import '../../core/sources/skipped_backups_store.dart';
 import '../collections/migrate_sheet.dart';
 import '../shared/app_sheet.dart';
 import '../shared/error_state.dart';
@@ -13,13 +14,15 @@ import '../suwayomi/sources_screen.dart' show HairlinePanel, SectionLabel;
 
 /// A Suwayomi series' sources: the main one and its backups, which the
 /// reader falls back to when the main source can't load a chapter. The
-/// owner adds, removes and promotes backups; friends see the list. Returns
-/// the new series id when a backup was made the main source.
+/// owner adds, removes and promotes backups; friends see the list and, with
+/// [skipped], switch each backup off for themselves. Returns the new series
+/// id when a backup was made the main source.
 Future<String?> showLinkedSourcesSheet(
   BuildContext context, {
   required SuwayomiBackend backend,
   required Series series,
   required bool canEdit,
+  SkippedBackupsStore? skipped,
 }) {
   return showAppSheet<String>(
     context: context,
@@ -27,7 +30,8 @@ Future<String?> showLinkedSourcesSheet(
     useSafeArea: true,
     sheetAnimationStyle: Motion.sheetStyle,
     constraints: const BoxConstraints(maxWidth: 640),
-    builder: (_) => _LinkedSourcesSheet(backend: backend, series: series, canEdit: canEdit),
+    builder: (_) => _LinkedSourcesSheet(
+        backend: backend, series: series, canEdit: canEdit, skipped: skipped),
   );
 }
 
@@ -35,8 +39,12 @@ class _LinkedSourcesSheet extends StatefulWidget {
   final SuwayomiBackend backend;
   final Series series;
   final bool canEdit;
+  final SkippedBackupsStore? skipped;
   const _LinkedSourcesSheet(
-      {required this.backend, required this.series, required this.canEdit});
+      {required this.backend,
+      required this.series,
+      required this.canEdit,
+      this.skipped});
 
   @override
   State<_LinkedSourcesSheet> createState() => _LinkedSourcesSheetState();
@@ -195,6 +203,16 @@ class _LinkedSourcesSheetState extends State<_LinkedSourcesSheet> {
                                   ? () => _makeMain(b)
                                   : null,
                               onRemove: widget.canEdit ? () => _remove(b) : null,
+                              use: switch (widget.skipped) {
+                                null => null,
+                                final s => (
+                                    on: !s.isSkipped(widget.series.id, b.id),
+                                    set: (bool on) async {
+                                      await s.setSkipped(widget.series.id, b.id, !on);
+                                      if (mounted) setState(() {});
+                                    },
+                                  ),
+                              },
                             ),
                         ]),
                       if (widget.canEdit) ...[
@@ -247,6 +265,8 @@ class _SourceRow extends StatelessWidget {
   final VoidCallback? onToggleGood;
   final VoidCallback? onMakeMain;
   final VoidCallback? onRemove;
+  /// A friend's own on/off for this backup; null where it doesn't apply.
+  final ({bool on, ValueChanged<bool> set})? use;
   const _SourceRow({
     required this.copy,
     required this.strengths,
@@ -254,6 +274,7 @@ class _SourceRow extends StatelessWidget {
     this.onToggleGood,
     this.onMakeMain,
     this.onRemove,
+    this.use,
   });
 
   @override
@@ -323,6 +344,11 @@ class _SourceRow extends StatelessWidget {
             tooltip: 'Remove backup',
             icon: Icon(Icons.link_off_rounded, color: AppColors.text60),
             onPressed: onRemove,
+          ),
+        if (use case final use?)
+          Semantics(
+            label: 'Use ${copy.source} as a backup for me',
+            child: Switch.adaptive(value: use.on, onChanged: use.set),
           ),
       ]),
     );
