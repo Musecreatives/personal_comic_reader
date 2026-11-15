@@ -12,6 +12,7 @@ import '../../core/backend/reader_backend.dart';
 import '../../core/network/retry_interceptor.dart';
 import '../../core/metadata/cover_candidates.dart';
 import '../../core/sources/linked_sources.dart';
+import 'member_library.dart';
 
 /// Manga meta keys for a cover and details picked in "Refresh cover &
 /// details". Suwayomi can't take an uploaded cover, so the picked image's
@@ -126,6 +127,110 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   // .../chapter/23/... where 23 is its sourceOrder, and 404s at any other
   // path segment.
   final Map<String, int> _chapterSourceOrder = {};
+  final Map<String, double> _chapterNumber = {};
+
+  // A friend on the shared server keeps their own library and progress in
+  // the sync service (member_library.dart); everything else - sources,
+  // chapters, pages - is Suwayomi's, through the gateway.
+  late final MemberLibraryApi _members = MemberLibraryApi(_dio);
+  bool? _member;
+  Map<int, MemberTitle>? _memberLib;
+
+  /// Whether this is a friend's connection through the gateway. Asked once
+  /// the server answers; while offline it counts as the owner's.
+  Future<bool> get isMember async {
+    final known = _member;
+    if (known != null) return known;
+    final answer = await _members.isMember();
+    if (answer != null) _member = answer;
+    return answer ?? false;
+  }
+
+  Future<Map<int, MemberTitle>> _memberLibrary({bool fresh = false}) async {
+    if (fresh || _memberLib == null) {
+      _memberLib = {for (final t in await _members.library()) t.mangaId: t};
+    }
+    return _memberLib!;
+  }
+
+  /// A Suwayomi manga node with the friend's own read count in place of
+  /// the owner's.
+  Map<String, dynamic> _asMember(Map<String, dynamic> e, MemberTitle? t) {
+    final total = e['chapters']?['totalCount'] as int? ?? 0;
+    final read = (t?.readCount ?? 0).clamp(0, total);
+    return {...e, 'unreadCount': total - read, 'inLibrary': t != null};
+  }
+
+  /// A Suwayomi chapter node with the friend's own read state and page.
+  Map<String, dynamic> _memberChapter(
+      Map<String, dynamic> n, MemberTitle? t, Map<int, Map<String, dynamic>> progress) {
+    final s = memberChapterState(
+      number: (n['chapterNumber'] as num?)?.toDouble(),
+      readThrough: t?.readThrough,
+      record: progress[n['id']],
+    );
+    return {...n, 'isRead': s.read, 'lastPageRead': s.page};
+  }
+
+  Future<List<Series>> _memberSeries({String? category}) async {
+    final lib = await _memberLibrary(fresh: true);
+    final ids = [
+      for (final t in lib.values)
+        if (category == null || t.categories.contains(category)) t.mangaId,
+    ];
+    if (ids.isEmpty) return const [];
+    final data = await _gql(
+      'query(\$ids: [Int!]) { mangas(filter: {id: {in: \$ids}}) { nodes { $_mangaFields } } }',
+      {'ids': ids},
+    );
+    return [
+      for (final e in (data['mangas']['nodes'] as List).cast<Map<String, dynamic>>())
+        _seriesFromJson(_asMember(e, lib[e['id']])),
+    ];
+  }
+
+  /// The friend's library chapters, newest released first, with their state.
+  Future<List<Map<String, dynamic>>> _memberChapters({bool startedOnly = false, int first = 200}) async {
+    final lib = await _memberLibrary(fresh: true);
+    final ids = [
+      for (final t in lib.values)
+        if (!startedOnly || t.readCount > 0) t.mangaId,
+    ];
+    if (ids.isEmpty) return const [];
+    final data = await _gql(
+      'query(\$ids: [Int!]) { chapters(filter: {mangaId: {in: \$ids}}, '
+      'order: [{by: UPLOAD_DATE, byType: DESC}], first: $first) { nodes { '
+      'id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder uploadDate } } }',
+      {'ids': ids},
+    );
+    final progress = await _members.progress(ids);
+    return [
+      for (final n in (data['chapters']['nodes'] as List).cast<Map<String, dynamic>>())
+        _memberChapter(n, lib[n['mangaId']], progress),
+    ];
+  }
+
+  /// Adds [mangaId] to a friend's library, as an import or "Add" does.
+  Future<void> addToMemberLibrary(int mangaId,
+      {List<String> categories = const [], double? readThrough, int readCount = 0}) async {
+    final data = await _gql(
+      'query(\$id: Int!) { manga(id: \$id) { title sourceId } }',
+      {'id': mangaId},
+    );
+    final t = MemberTitle(
+      mangaId: mangaId,
+      title: data['manga']['title'] as String? ?? 'Untitled',
+      sourceId: '${data['manga']['sourceId']}',
+      categories: categories,
+      readThrough: readThrough,
+      readCount: readCount,
+    );
+    await _members.put(t);
+    _memberLib?[mangaId] = t;
+    try {
+      await _fetchChaptersFromSource(mangaId);
+    } catch (_) {}
+  }
 
   /// Picked covers by series id, learned whenever a series is read with its
   /// meta, so [thumbnailUrlForSeries] (which can't wait on the server)
@@ -171,6 +276,12 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
 
   @override
   Future<List<Library>> listLibraries() async {
+    if (await isMember) {
+      // A friend's categories are names on their titles, not Suwayomi's.
+      final names = {for (final t in (await _memberLibrary(fresh: true)).values) ...t.categories}.toList()
+        ..sort();
+      return [for (final n in names) Library(id: 'member:$n', name: n)];
+    }
     final data = await _gql('{ categories { nodes { id name } } }');
     final nodes = data['categories']['nodes'] as List;
     return nodes
@@ -192,7 +303,11 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     String? search,
   }) async {
     List<dynamic> nodes;
-    if (libraryId != null) {
+    List<Series>? memberItems;
+    if (await isMember) {
+      memberItems = await _memberSeries(category: libraryId?.replaceFirst('member:', ''));
+      nodes = const [];
+    } else if (libraryId != null) {
       final data = await _gql(
         'query(\$id: Int!) { category(id: \$id) { mangas { nodes { $_mangaFields } } } }',
         {'id': int.parse(libraryId)},
@@ -208,7 +323,7 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
       nodes = data['mangas']['nodes'] as List;
     }
 
-    var items = nodes.map((e) => _seriesFromJson(e)).toList();
+    var items = memberItems ?? nodes.map((e) => _seriesFromJson(e)).toList();
     if (unreadOnly) {
       items = items.where((s) => !s.isFullyRead).toList();
     }
@@ -266,7 +381,11 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
       'query(\$id: Int!) { manga(id: \$id) { id title description status thumbnailUrl unreadCount chapters { totalCount } source { displayName } meta { key value } } }',
       {'id': int.parse(id)},
     );
-    return _seriesFromJson(data['manga'] as Map<String, dynamic>);
+    final manga = data['manga'] as Map<String, dynamic>;
+    if (await isMember) {
+      return _seriesFromJson(_asMember(manga, (await _memberLibrary())[int.parse(id)]));
+    }
+    return _seriesFromJson(manga);
   }
 
   @override
@@ -290,6 +409,11 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
       }
       nodes = (await _gql(query, {'id': id}))['manga']['chapters']['nodes'] as List;
     }
+    if (await isMember) {
+      final t = (await _memberLibrary())[id];
+      final progress = await _members.progress([id]);
+      nodes = [for (final n in nodes.cast<Map<String, dynamic>>()) _memberChapter(n, t, progress)];
+    }
     final books = nodes.map((e) => _bookFromJson(e)).toList();
     books.sort((a, b) =>
         (double.tryParse(a.number) ?? 0).compareTo(double.tryParse(b.number) ?? 0));
@@ -302,6 +426,8 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     _chapterMangaId[id] = mangaId;
     final sourceOrder = e['sourceOrder'] as int?;
     if (sourceOrder != null) _chapterSourceOrder[id] = sourceOrder;
+    final number = (e['chapterNumber'] as num?)?.toDouble();
+    if (number != null) _chapterNumber[id] = number;
     final pages = e['pageCount'] as int? ?? -1;
     final lastPageRead = e['lastPageRead'] as int? ?? 0;
     final uploaded = int.tryParse('${e['uploadDate'] ?? ''}');
@@ -324,6 +450,29 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
 
   @override
   Future<Book> getBook(String id) async {
+    final book = await _ownerBook(id);
+    if (!await isMember) return book;
+    final mangaId = int.parse(book.seriesId);
+    final progress = await _members.progress([mangaId]);
+    final s = memberChapterState(
+      number: _chapterNumber[id],
+      readThrough: (await _memberLibrary())[mangaId]?.readThrough,
+      record: progress[int.parse(id)],
+    );
+    return Book(
+      id: book.id,
+      seriesId: book.seriesId,
+      title: book.title,
+      number: book.number,
+      pageCount: book.pageCount,
+      readProgressPage: s.page == 0 ? null : s.page,
+      completed: s.read,
+      thumbnailUrl: book.thumbnailUrl,
+      addedAt: book.addedAt,
+    );
+  }
+
+  Future<Book> _ownerBook(String id) async {
     final data = await _gql(
       'query(\$id: Int!) { chapter(id: \$id) { id name chapterNumber pageCount lastPageRead isRead mangaId sourceOrder } }',
       {'id': int.parse(id)},
@@ -396,6 +545,20 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     required int page,
     bool completed = false,
   }) async {
+    if (await isMember) {
+      final mangaId = int.parse(await _mangaIdFor(bookId));
+      await _members.saveProgress(
+          [(chapterId: int.parse(bookId), mangaId: mangaId, page: page, read: completed)]);
+      final number = _chapterNumber[bookId];
+      final t = (await _memberLibrary())[mangaId];
+      if (completed && t != null && number != null && number >= 0 &&
+          (t.readThrough == null || number > t.readThrough!)) {
+        final updated = t.finished(number);
+        _memberLib?[mangaId] = updated;
+        await _members.put(updated);
+      }
+      return;
+    }
     await _gql(
       'mutation(\$id: Int!, \$page: Int!, \$read: Boolean!) { '
       'updateChapter(input: {id: \$id, patch: {lastPageRead: \$page, isRead: \$read}}) { chapter { id } } }',
@@ -405,6 +568,12 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
 
   @override
   Future<List<Series>> continueReading() async {
+    if (await isMember) {
+      return (await _memberSeries())
+          .where((s) => s.booksReadCount > 0 && !s.isFullyRead)
+          .take(20)
+          .toList();
+    }
     final data = await _gql(
       '{ mangas(condition: {inLibrary: true}) { nodes { $_mangaFields } } }',
     );
@@ -421,6 +590,12 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     // Newest *released* unread chapters across the library. Ordering by when
     // Suwayomi fetched them (FETCHED_AT) put a whole back-catalogue at the top
     // the moment a series was added, so one series filled the list.
+    if (await isMember) {
+      return [
+        for (final n in (await _memberChapters()).where((n) => n['isRead'] != true).take(40))
+          _bookFromJson(n),
+      ];
+    }
     final data = await _gql(
       '{ chapters(filter: {inLibrary: {equalTo: true}, isRead: {equalTo: false}}, '
       'order: [{by: UPLOAD_DATE, byType: DESC}], first: 40) { '
@@ -440,6 +615,13 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// filtering the newest chapters afterwards found nothing on a real
   /// library, where a freshly added back catalogue took every slot.
   Future<List<({Book book, String seriesTitle})>> recentUpdates({int first = 200}) async {
+    if (await isMember) {
+      final lib = await _memberLibrary();
+      return [
+        for (final n in await _memberChapters(startedOnly: true, first: first))
+          (book: _bookFromJson(n), seriesTitle: lib[n['mangaId']]?.title ?? 'Untitled'),
+      ];
+    }
     final mangas = await _gql(
       '{ mangas(condition: {inLibrary: true}) { nodes { id title unreadCount chapters { totalCount } } } }',
     );
@@ -490,6 +672,11 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// Suwayomi-specific - Komga and Kavita have no equivalent short of
   /// deleting files, which the app deliberately does not offer.
   Future<void> removeFromLibrary(String seriesId) async {
+    if (await isMember) {
+      await _members.remove(int.parse(seriesId));
+      _memberLib?.remove(int.parse(seriesId));
+      return;
+    }
     await _gql(
       'mutation(\$id: Int!) { updateManga(input: {id: \$id, patch: {inLibrary: false}}) '
       '{ manga { id inLibrary } } }',
@@ -536,17 +723,21 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// Searches one source's catalog directly (not the local library) - this
   /// is what lets backup import find a title's Suwayomi equivalent before
   /// it's ever been added.
-  Future<List<({int id, String title})>> searchSourceCatalog(
+  Future<List<({int id, String title, String url})>> searchSourceCatalog(
       String sourceId, String query) async {
     final data = await _gql(
       'mutation(\$source: LongString!, \$query: String!) { '
       'fetchSourceManga(input: {source: \$source, type: SEARCH, query: \$query, page: 1, filters: []}) { '
-      'mangas { id title } } }',
+      'mangas { id title url } } }',
       {'source': sourceId, 'query': query},
     );
     final mangas = data['fetchSourceManga']['mangas'] as List;
     return mangas
-        .map((e) => (id: e['id'] as int, title: e['title'] as String? ?? ''))
+        .map((e) => (
+              id: e['id'] as int,
+              title: e['title'] as String? ?? '',
+              url: e['url'] as String? ?? '',
+            ))
         .toList();
   }
 
@@ -684,6 +875,7 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// Adds a manga (by its Suwayomi id, from [searchSourceCatalog]) to the
   /// library and assigns it to [categoryIds].
   Future<void> addToLibraryWithCategories(int mangaId, List<int> categoryIds) async {
+    if (await isMember) return addToMemberLibrary(mangaId);
     await _gql(
       'mutation(\$id: Int!) { updateManga(input: {id: \$id, patch: {inLibrary: true}}) { manga { id } } }',
       {'id': mangaId},
@@ -747,8 +939,19 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// already there from another source, where you stand comes along, as in
   /// [migrate], instead of starting over. The other copy stays as it is.
   Future<void> addToLibraryKeepingProgress(int id, String title) async {
-    await addToLibraryWithCategories(id, const []);
     final key = sameTitleKey(title);
+    if (await isMember) {
+      // Where they stand on another copy of the same title comes along.
+      final copy = (await _memberLibrary(fresh: true))
+          .values
+          .where((t) => t.mangaId != id && sameTitleKey(t.title) == key)
+          .fold<MemberTitle?>(null, (best, t) => best == null || t.readCount > best.readCount ? t : best);
+      return addToMemberLibrary(id,
+          categories: copy?.categories ?? const [],
+          readThrough: copy?.readThrough,
+          readCount: copy?.readCount ?? 0);
+    }
+    await addToLibraryWithCategories(id, const []);
     final data = await _gql(
       '{ mangas(condition: {inLibrary: true}) { nodes { id title '
       'unreadCount chapters { totalCount } } } }',
@@ -1054,6 +1257,14 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   /// Marks a batch of chapters read, chunked to keep individual mutations
   /// small.
   Future<void> markChaptersRead(List<int> chapterIds) async {
+    if (await isMember) {
+      await _members.saveProgress([
+        for (final id in chapterIds)
+          if (_chapterMangaId['$id'] case final manga?)
+            (chapterId: id, mangaId: int.parse(manga), page: 0, read: true),
+      ]);
+      return;
+    }
     for (var i = 0; i < chapterIds.length; i += 200) {
       final batch = chapterIds.skip(i).take(200).toList();
       await _gql(

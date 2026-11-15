@@ -82,6 +82,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (_creatingAccount || ref.read(serverStoreProvider).listServers().isEmpty) {
         await _addPresetKomga(client, password);
       }
+      await _addSharedManga(client, result.username, password);
 
       unawaited(startSync(container));
 
@@ -91,6 +92,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  /// A friend reaches the owner's Suwayomi through the gateway with their
+  /// own sign-in, and keeps their own manga library there. Added on every
+  /// sign-in it's missing from, so friends who joined before it existed get
+  /// it too. Best effort, like [_addPresetKomga]; Komga stays the active one.
+  Future<void> _addSharedManga(SyncClient client, String username, String password) async {
+    try {
+      final me = await client.me();
+      final url = me.suwayomiUrl;
+      if (me.isOwner || url == null) return;
+      final store = ref.read(serverStoreProvider);
+      final key = url.toLowerCase();
+      if (store.listServers().any((s) =>
+          s.type == ServerType.suwayomi && s.baseUrl.toLowerCase() == key)) {
+        return;
+      }
+      await store.saveServer(
+        ServerConfig(
+          id: const Uuid().v4(),
+          name: 'Shaddai Manga',
+          type: ServerType.suwayomi,
+          baseUrl: url,
+          username: username,
+        ),
+        password: password,
+      );
+      ref.read(serverListRevisionProvider.notifier).state++;
+    } catch (_) {}
   }
 
   /// The service makes a friend's Komga login with their account; add it

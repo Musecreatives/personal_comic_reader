@@ -193,9 +193,15 @@ class SyncClient {
 
   /// The signed-in account. A sync service from before roles sends no
   /// `role`; that account is the owner, so nothing hides on an old server.
-  /// [komga] is the Komga login the service made for a friend at sign-up.
-  Future<({String username, bool isOwner, ({String url, String username})? komga})>
-      me() async {
+  /// [komga] is the Komga login the service made for a friend at sign-up;
+  /// [suwayomiUrl] the shared Suwayomi's gateway, which takes the sync login.
+  Future<
+      ({
+        String username,
+        bool isOwner,
+        ({String url, String username})? komga,
+        String? suwayomiUrl,
+      })> me() async {
     final data = (await _dio.get('/auth/me')).data as Map<String, dynamic>;
     final k = data['komga'] as Map<String, dynamic>?;
     return (
@@ -204,8 +210,31 @@ class SyncClient {
       komga: k == null
           ? null
           : (url: k['url'] as String, username: k['username'] as String),
+      suwayomiUrl: (data['suwayomi'] as Map<String, dynamic>?)?['url'] as String?,
     );
   }
+
+  /// Owner: the server at a glance - people, waiting requests, source
+  /// health counts and the alternates queue (`/admin/stats`).
+  Future<Map<String, dynamic>> adminStats() async =>
+      (await _dio.get('/admin/stats')).data as Map<String, dynamic>;
+
+  /// Owner: each source's last nightly check, and the preferred order the
+  /// server finds alternates in.
+  Future<Map<String, dynamic>> sourceHealth() async =>
+      (await _dio.get('/admin/source-health')).data as Map<String, dynamic>;
+
+  /// Owner: check every source now instead of waiting for the night.
+  Future<void> runSourceHealth() => _dio.post('/admin/source-health/run');
+
+  Future<void> setSourceOrder(List<String> order) =>
+      _dio.put('/admin/source-order', data: {'order': order});
+
+  /// Owner: look for alternate sources for every library title; [again]
+  /// also redoes the ones already looked at. Returns how many were queued.
+  Future<int> findAlternates({bool again = false}) async =>
+      ((await _dio.post('/admin/alternates', data: {'library': true, 'again': again})).data
+          as Map<String, dynamic>)['queued'] as int;
 
   /// Kapowarr search run by the service with the owner's key, so friends
   /// can search without it (results have Kapowarr's own JSON shape).
