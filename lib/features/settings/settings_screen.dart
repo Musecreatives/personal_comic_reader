@@ -158,6 +158,11 @@ class SettingsScreen extends ConsumerWidget {
                   _Group(
                     rows: [
                       _Row(
+                        'Server overview',
+                        'Friends, source health, backup sources',
+                        () => context.push('/settings/server'),
+                      ),
+                      _Row(
                         'Requests',
                         'Series your friends asked for',
                         () => context.push('/settings/requests'),
