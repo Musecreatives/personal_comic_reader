@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,7 +10,9 @@ import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
 import '../../backends/suwayomi/suwayomi_backend.dart';
 import '../../core/backup_import/backup_import_controller.dart';
+import '../../backends/suwayomi/suwayomi_maintenance_client.dart';
 import '../../core/backup_import/paperback_backup.dart';
+import '../../core/backup_import/tachiyomi_backup.dart';
 import '../shared/error_state.dart';
 
 enum _Step { pickFile, matching, review, applying, done }
@@ -27,6 +32,7 @@ class BackupImportScreen extends ConsumerStatefulWidget {
 class _BackupImportScreenState extends ConsumerState<BackupImportScreen> {
   _Step _step = _Step.pickFile;
   String? _error;
+  String? _matchNote;
 
   PaperbackBackup? _backup;
   final List<TitleMatch> _matches = [];
@@ -42,12 +48,15 @@ class _BackupImportScreenState extends ConsumerState<BackupImportScreen> {
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pas5'],
+        allowedExtensions: ['pas5', 'tachibk', 'gz', 'proto'],
       );
       if (files.isEmpty) return;
       final bytes = await files.single.readAsBytes();
 
-      final backup = PaperbackBackupParser.parse(bytes);
+      // Tachiyomi/Mihon backups are gzip; Paperback's are zip.
+      final backup = isTachiyomiBackup(bytes)
+          ? TachiyomiBackupParser.parse(bytes)
+          : PaperbackBackupParser.parse(bytes);
       if (backup.titles.isEmpty) {
         setState(() => _error = "That file didn't contain any recognizable library entries.");
         return;
@@ -56,22 +65,28 @@ class _BackupImportScreenState extends ConsumerState<BackupImportScreen> {
         _backup = backup;
         _step = _Step.matching;
       });
-      _runMatch(backup);
+      await _runMatch(backup);
     } catch (e) {
       setState(() => _error = "Couldn't read that file: $e");
     }
   }
 
-  void _runMatch(PaperbackBackup backup) {
+  Future<void> _runMatch(PaperbackBackup backup) async {
     final backendAsync = ref.read(activeBackendProvider);
     final backend = backendAsync.valueOrNull;
     if (backend is! SuwayomiBackend) {
       setState(() {
         _error = 'Backup import needs your active server to be Suwayomi - '
-            'that\'s the only backend with an equivalent to Paperback\'s scraper sources.';
+            "that's the only backend with an equivalent to the backup's sources.";
         _step = _Step.pickFile;
       });
       return;
+    }
+    try {
+      await _installMissingExtensions(backend, backup);
+    } catch (e) {
+      // Titles on those sources show as "no source" in review instead.
+      if (mounted) setState(() => _matchNote = "Couldn't install every extension: $e");
     }
     final controller = BackupImportController(backend: backend);
     controller.match(backup).listen((event) {
@@ -86,6 +101,36 @@ class _BackupImportScreenState extends ConsumerState<BackupImportScreen> {
     }, onDone: () {
       if (mounted) setState(() => _step = _Step.review);
     });
+  }
+
+  /// The owner's import installs the extensions its sources need, found by
+  /// source id in the server's extension repos. A friend can't install
+  /// extensions; their titles on missing sources show up in review.
+  Future<void> _installMissingExtensions(SuwayomiBackend backend, PaperbackBackup backup) async {
+    final wanted = {
+      for (final t in backup.titles)
+        for (final s in t.sources) ?s.suwayomiSourceId,
+    };
+    if (wanted.isEmpty || await backend.isMember) return;
+    final installed = {for (final s in await backend.listInstalledSources()) s.id};
+    final missing = wanted.difference(installed);
+    if (missing.isEmpty) return;
+    if (mounted) setState(() => _matchNote = 'Installing extensions for ${missing.length} sources…');
+    final client = SuwayomiMaintenanceClient(config: backend.config, headers: backend.imageHeaders);
+    for (final repo in await client.extensionRepos()) {
+      final res = await Dio().get<List<int>>(repoIndexUrl(repo.indexUrl),
+          options: Options(responseType: ResponseType.bytes));
+      final pkgs = extensionsForSources(Uint8List.fromList(res.data!), missing);
+      for (final pkg in pkgs.values.toSet()) {
+        await client.installExtension(pkg);
+      }
+      missing.removeAll(pkgs.keys);
+      if (missing.isEmpty) break;
+    }
+    if (mounted) {
+      setState(() => _matchNote =
+          missing.isEmpty ? null : '${missing.length} sources have no extension in your repos.');
+    }
   }
 
   void _runApply() {
@@ -137,7 +182,7 @@ class _BackupImportScreenState extends ConsumerState<BackupImportScreen> {
       case _Step.pickFile:
         return _PickFileStep(onPick: _pickFile, error: _error);
       case _Step.matching:
-        return _MatchingStep(done: _matchDone, total: _matchTotal);
+        return _MatchingStep(done: _matchDone, total: _matchTotal, note: _matchNote);
       case _Step.review:
         return _ReviewStep(
           matches: _matches,
@@ -178,10 +223,11 @@ class _PickFileStep extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Paperback's export is a .pas5 file (Settings > Backups > Export "
-            'in the Paperback app). This reads it locally in your browser - '
-            'nothing is uploaded anywhere, and nothing is written to your '
-            "server until you review and confirm the matches.",
+            'Bring your library over from Tachiyomi, Mihon and their forks '
+            '(a .tachibk file: More > Backup and restore > Create backup) or '
+            'Paperback (a .pas5 file: Settings > Backups > Export). The file is '
+            'read on this device, and nothing is saved until you review the '
+            'matches and confirm.',
             style: AppText.body(size: 13.5, color: AppColors.text60),
           ),
           const SizedBox(height: 20),
@@ -202,7 +248,7 @@ class _PickFileStep extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Choose .pas5 file', style: AppText.body(size: 14, weight: FontWeight.w600)),
+                        Text('Choose backup file', style: AppText.body(size: 14, weight: FontWeight.w600)),
                         const SizedBox(height: 4),
                         Text('Nothing is written until you confirm',
                             style: AppText.body(size: 11, color: AppColors.text45)),
@@ -234,7 +280,8 @@ class _PickFileStep extends StatelessWidget {
 class _MatchingStep extends StatelessWidget {
   final int done;
   final int total;
-  const _MatchingStep({required this.done, required this.total});
+  final String? note;
+  const _MatchingStep({required this.done, required this.total, this.note});
 
   @override
   Widget build(BuildContext context) {
@@ -259,6 +306,10 @@ class _MatchingStep extends StatelessWidget {
             Text('This can take a while - each title is a real search against an external site.',
                 textAlign: TextAlign.center,
                 style: AppText.body(size: 11.5, color: AppColors.text45)),
+            if (note != null) ...[
+              const SizedBox(height: 10),
+              Text(note!, textAlign: TextAlign.center, style: AppText.body(size: 12, color: AppColors.text60)),
+            ],
           ],
         ),
       ),

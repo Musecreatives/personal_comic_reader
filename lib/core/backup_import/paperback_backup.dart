@@ -26,12 +26,20 @@ class PaperbackSource {
   final int chapterCount;
   final int readCount;
 
+  /// Set by backups from Tachiyomi-family apps, which run the same
+  /// extensions as Suwayomi: the exact source id, and the title's address
+  /// on it, so matching needs no name table or guess.
+  final String? suwayomiSourceId;
+  final String? url;
+
   const PaperbackSource({
     required this.sourceUuid,
     required this.sourceId,
     required this.paperbackMangaId,
     required this.chapterCount,
     required this.readCount,
+    this.suwayomiSourceId,
+    this.url,
   });
 }
 

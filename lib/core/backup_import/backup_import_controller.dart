@@ -111,39 +111,46 @@ class BackupImportController {
     // Group titles by which Suwayomi source they'd search, so requests to
     // the same source are serialized (courtesy delay) while different
     // sources proceed in parallel.
+    // Keyed by Suwayomi source id. A Tachiyomi-family backup names it
+    // exactly; a Paperback one goes through the name table.
+    final installed = sourceIds.values.toSet();
+    String? idFor(PaperbackSource s) {
+      final exact = s.suwayomiSourceId;
+      if (exact != null) return installed.contains(exact) ? exact : null;
+      final name = paperbackToSuwayomiSourceName[s.sourceId];
+      return name == null ? null : sourceIds[name];
+    }
+
     final bySource = <String, List<PaperbackTitle>>{};
     final unmappable = <PaperbackTitle>[];
     for (final title in backup.titles) {
-      PaperbackSource? mappable;
-      String? suwayomiName;
-      for (final s in title.sources) {
-        final name = paperbackToSuwayomiSourceName[s.sourceId];
-        if (name != null && sourceIds.containsKey(name)) {
-          mappable = s;
-          suwayomiName = name;
-          break;
-        }
-      }
-      if (mappable == null || suwayomiName == null) {
+      final id = title.sources.map(idFor).nonNulls.firstOrNull;
+      if (id == null) {
         unmappable.add(title);
         continue;
       }
-      (bySource[suwayomiName] ??= []).add(title);
+      (bySource[id] ??= []).add(title);
     }
 
     final controller = StreamController<ImportEvent>();
     final total = backup.titles.length;
 
-    Future<void> processSource(String suwayomiName, List<PaperbackTitle> titles) async {
-      final sourceId = sourceIds[suwayomiName]!;
+    Future<void> processSource(String sourceId, List<PaperbackTitle> titles) async {
       for (final title in titles) {
-        final source = title.sources.firstWhere(
-            (s) => paperbackToSuwayomiSourceName[s.sourceId] == suwayomiName);
+        final source = title.sources.firstWhere((s) => idFor(s) == sourceId);
         try {
           final candidates = await _withBackoff(
               () => backend.searchSourceCatalog(sourceId, title.primaryTitle));
+          // The same address on the same source is the same title, whatever
+          // the search ranked first.
           final scored = candidates
-              .map((c) => (id: c.id, title: c.title, score: _similarity(c.title, title.primaryTitle)))
+              .map((c) => (
+                    id: c.id,
+                    title: c.title,
+                    score: source.url != null && source.url!.isNotEmpty && c.url == source.url
+                        ? 1.0
+                        : _similarity(c.title, title.primaryTitle),
+                  ))
               .toList()
             ..sort((a, b) => b.score.compareTo(a.score));
           final best = scored.isEmpty ? null : scored.first;
@@ -203,10 +210,34 @@ class BackupImportController {
         .toList();
     final categoryCache = <String, int>{};
     var done = 0;
+    final member = await backend.isMember;
 
     for (final match in toApply) {
       final mangaId = match.suwayomiMangaId;
       if (mangaId == null) continue;
+      if (member) {
+        // A friend's import goes to their own library: categories by name,
+        // and how far they'd read, carried as the furthest chapter.
+        final source = match.matchedSource;
+        final read = [
+          for (final p in source == null
+              ? const <PaperbackChapterProgress>[]
+              : backup.progressBySourceManga[source.sourceUuid] ?? const [])
+            if (p.completed && p.chapNum >= 0) p.chapNum,
+        ];
+        try {
+          await backend.addToMemberLibrary(mangaId,
+              categories: match.title.tabs,
+              readThrough: read.isEmpty ? null : read.reduce((a, b) => a > b ? a : b),
+              readCount: read.length);
+          done++;
+          yield ApplyProgress(done, toApply.length, match.title.primaryTitle, ok: true);
+        } catch (e) {
+          done++;
+          yield ApplyProgress(done, toApply.length, match.title.primaryTitle, ok: false, error: '$e');
+        }
+        continue;
+      }
       try {
         final catIds = <int>[];
         for (final tab in match.title.tabs) {
