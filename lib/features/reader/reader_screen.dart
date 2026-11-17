@@ -137,8 +137,9 @@ class _ReaderLoaderState extends ConsumerState<_ReaderLoader> {
   }
 
   Future<(Book, List<Book>)> _load() async {
-    final book = await widget.backend.getBook(widget.bookId);
-    final books = await widget.backend.listBooks(book.seriesId);
+    final snapshot = ref.read(offlineSnapshotProvider);
+    final book = await snapshot.getBook(widget.backend, widget.bookId);
+    final books = await snapshot.listBooks(widget.backend, book.seriesId);
     _main = book;
     await _openDownloadedCopy(book);
     return (book, books);
@@ -149,18 +150,32 @@ class _ReaderLoaderState extends ConsumerState<_ReaderLoader> {
   Future<void> _openDownloadedCopy(Book main) async {
     final backend = widget.backend;
     if (backend is! SuwayomiBackend) return;
-    final source = ref.read(downloadStoreProvider).getTask(main.id)?.sourceBookId;
-    if (source == null) return;
+    final downloads = ref.read(downloadStoreProvider);
+    final task = downloads.getTask(main.id);
+    final source = task?.sourceBookId;
+    if (task == null || source == null) return;
+    Book copy;
     try {
-      _fallback = (
-        book: await backend.getBook(source),
-        source: 'the downloaded backup copy',
-        mainSource: null,
-      );
-      _triedFallback = true;
+      copy = await ref.read(offlineSnapshotProvider).getBook(backend, source);
     } catch (_) {
       // The copy is gone from the server; read the main source as usual.
+      if (!downloads.hasPage(source, 0)) return;
+      // Offline: its pages are here, which is all the reader needs.
+      copy = Book(
+        id: source,
+        seriesId: main.seriesId,
+        title: main.title,
+        number: main.number,
+        pageCount: task.totalPages,
+        completed: main.completed,
+      );
     }
+    _fallback = (
+      book: copy,
+      source: 'the downloaded backup copy',
+      mainSource: null,
+    );
+    _triedFallback = true;
   }
 
   Future<void> _onPageFailed(({String bookId, int pageIndex}) failure) async {

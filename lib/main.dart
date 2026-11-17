@@ -29,6 +29,7 @@ import 'core/downloads/download_manager.dart';
 import 'core/history/history_store.dart';
 import 'core/history/stopped_series_store.dart';
 import 'core/downloads/download_store.dart';
+import 'core/offline/offline_snapshot.dart';
 import 'core/kapowarr/kapowarr_config_store.dart';
 import 'core/local_watch/watch_folder_service.dart';
 import 'core/local_watch/watch_folder_store.dart';
@@ -110,6 +111,9 @@ Future<void> main() async {
 
   final pageCache = PageCache(downloadStore: downloadStore);
   await pageCache.init();
+
+  final offlineSnapshot = OfflineSnapshot();
+  await offlineSnapshot.init();
 
   final kapowarrConfigStore = KapowarrConfigStore();
   await kapowarrConfigStore.init();
@@ -220,6 +224,7 @@ Future<void> main() async {
         comicVineKeyStoreProvider.overrideWithValue(comicVineKeyStore),
         connectionsSyncProvider.overrideWithValue(connectionsSync),
         downloadStoreProvider.overrideWithValue(downloadStore),
+        offlineSnapshotProvider.overrideWithValue(offlineSnapshot),
         downloadManagerProvider.overrideWithValue(downloadManager),
         readingStatsStoreProvider.overrideWithValue(readingStatsStore),
         appearanceStoreProvider.overrideWithValue(appearanceStore),

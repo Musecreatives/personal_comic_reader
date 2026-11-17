@@ -26,7 +26,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   Widget build(BuildContext context) {
     final queueAsync = ref.watch(downloadQueueProvider);
     final backendAsync = ref.watch(activeBackendProvider);
-    final allBackends = ref.watch(allBackendsProvider).valueOrNull ?? const <ReaderBackend>[];
+    final allBackends =
+        ref.watch(allBackendsProvider).valueOrNull ?? const <ReaderBackend>[];
     final manager = ref.watch(downloadManagerProvider);
     final store = ref.watch(downloadStoreProvider);
 
@@ -79,13 +80,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             Expanded(
               child: switch (_tab) {
                 _DlTab.queue => _QueueTab(
-                    queueAsync: queueAsync,
-                    manager: manager,
-                    backend: backendAsync.valueOrNull,
-                    backends: allBackends,
-                    wifiOnly: store.wifiOnly,
-                    onWifiOnlyChanged: store.setWifiOnly,
-                  ),
+                  queueAsync: queueAsync,
+                  manager: manager,
+                  backend: backendAsync.valueOrNull,
+                  backends: allBackends,
+                  wifiOnly: store.wifiOnly,
+                  onWifiOnlyChanged: store.setWifiOnly,
+                ),
                 _DlTab.onDevice => _OnDeviceTab(store: store),
                 _DlTab.acquisition => const _AcquisitionTab(),
               },
@@ -101,7 +102,11 @@ class _TabButton extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _TabButton({required this.label, required this.active, required this.onTap});
+  const _TabButton({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -157,19 +162,27 @@ class _QueueTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return queueAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, st) =>
-          Center(child: Text('$e', style: AppText.body(color: AppColors.text60))),
+      error: (e, st) => Center(
+        child: Text('$e', style: AppText.body(color: AppColors.text60)),
+      ),
       data: (tasks) {
         final active = tasks
-            .where((t) =>
-                t.state == DownloadState.running || t.state == DownloadState.queued)
+            .where(
+              (t) =>
+                  t.state == DownloadState.running ||
+                  t.state == DownloadState.queued,
+            )
             .length;
-        final failed = tasks.where((t) => t.state == DownloadState.failed).length;
+        final failed = tasks
+            .where((t) => t.state == DownloadState.failed)
+            .length;
         final pending = tasks
-            .where((t) =>
-                t.state == DownloadState.running ||
-                t.state == DownloadState.queued ||
-                t.state == DownloadState.paused)
+            .where(
+              (t) =>
+                  t.state == DownloadState.running ||
+                  t.state == DownloadState.queued ||
+                  t.state == DownloadState.paused,
+            )
             .toList();
         final finished = tasks.where((t) => !pending.contains(t)).toList();
         return ListView(
@@ -177,7 +190,9 @@ class _QueueTab extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: _StatCard(value: '$active', label: 'DOWNLOADING')),
+                Expanded(
+                  child: _StatCard(value: '$active', label: 'DOWNLOADING'),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _StatCard(
@@ -202,11 +217,21 @@ class _QueueTab extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Wi-Fi only',
-                            style: AppText.body(size: 14, weight: FontWeight.w500)),
+                        Text(
+                          'Wi-Fi only',
+                          style: AppText.body(
+                            size: 14,
+                            weight: FontWeight.w500,
+                          ),
+                        ),
                         const SizedBox(height: 3),
-                        Text('Pause the queue on cellular',
-                            style: AppText.body(size: 10.5, color: AppColors.text45)),
+                        Text(
+                          'Pause the queue on cellular',
+                          style: AppText.body(
+                            size: 10.5,
+                            color: AppColors.text45,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -224,8 +249,11 @@ class _QueueTab extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),
                 child: Center(
-                    child: Text('Nothing queued.',
-                        style: AppText.body(color: AppColors.text45))),
+                  child: Text(
+                    'Nothing queued.',
+                    style: AppText.body(color: AppColors.text45),
+                  ),
+                ),
               )
             else
               Row(
@@ -235,8 +263,13 @@ class _QueueTab extends StatelessWidget {
                   if (failed > 0)
                     TextButton(
                       onPressed: manager.clearFailed,
-                      child: Text('Clear failed',
-                          style: AppText.body(size: 12, color: AppColors.dangerText)),
+                      child: Text(
+                        'Clear failed',
+                        style: AppText.body(
+                          size: 12,
+                          color: AppColors.dangerText,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -263,30 +296,45 @@ class _QueueTab extends StatelessWidget {
                       index: i,
                       child: Padding(
                         padding: const EdgeInsets.only(right: 10),
-                        child: Icon(Icons.drag_indicator_rounded,
-                            size: 20, color: AppColors.text45),
+                        child: Icon(
+                          Icons.drag_indicator_rounded,
+                          size: 20,
+                          color: AppColors.text45,
+                        ),
                       ),
                     ),
                     onPause: () => manager.pause(task.bookId),
-                    onResume: b == null ? null : () => manager.resume(task.bookId, b),
-                    onRetry: b == null ? null : () => manager.retry(task.bookId, b),
+                    onResume: b == null
+                        ? null
+                        : () => manager.resume(task.bookId, b),
+                    onRetry: b == null
+                        ? null
+                        : () => manager.retry(task.bookId, b),
                     onCancel: () => manager.cancel(task.bookId),
-                    onMoveToTop: i == 0 ? null : () => manager.moveToTop(task.bookId),
+                    onMoveToTop: i == 0
+                        ? null
+                        : () => manager.moveToTop(task.bookId),
                   ),
                 );
               },
             ),
             for (final task in finished)
-              Builder(builder: (context) {
-                final b = _backendFor(task);
-                return _TaskCard(
-                  task: task,
-                  onPause: () => manager.pause(task.bookId),
-                  onResume: b == null ? null : () => manager.resume(task.bookId, b),
-                  onRetry: b == null ? null : () => manager.retry(task.bookId, b),
-                  onCancel: () => manager.cancel(task.bookId),
-                );
-              }),
+              Builder(
+                builder: (context) {
+                  final b = _backendFor(task);
+                  return _TaskCard(
+                    task: task,
+                    onPause: () => manager.pause(task.bookId),
+                    onResume: b == null
+                        ? null
+                        : () => manager.resume(task.bookId, b),
+                    onRetry: b == null
+                        ? null
+                        : () => manager.retry(task.bookId, b),
+                    onCancel: () => manager.cancel(task.bookId),
+                  );
+                },
+              ),
           ],
         );
       },
@@ -349,10 +397,15 @@ class _TaskCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 9),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
-        color: isFailed ? AppColors.danger.withValues(alpha: 0.07) : AppColors.card,
+        color: isFailed
+            ? AppColors.danger.withValues(alpha: 0.07)
+            : AppColors.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: isFailed ? AppColors.danger.withValues(alpha: 0.22) : AppColors.border),
+          color: isFailed
+              ? AppColors.danger.withValues(alpha: 0.22)
+              : AppColors.border,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,20 +415,31 @@ class _TaskCard extends StatelessWidget {
               ?leading,
               Expanded(
                 child: Text(
-                    task.seriesTitle.isEmpty ? task.title : '${task.seriesTitle}  ${task.title}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.body(size: 14, weight: FontWeight.w500)),
+                  task.seriesTitle.isEmpty
+                      ? task.title
+                      : '${task.seriesTitle}  ${task.title}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.body(size: 14, weight: FontWeight.w500),
+                ),
               ),
               _actionButton(),
               if (task.state != DownloadState.done)
                 PopupMenuButton<String>(
                   tooltip: 'More',
-                  icon: Icon(Icons.more_horiz_rounded, size: 20, color: AppColors.text60),
-                  onSelected: (v) => v == 'top' ? onMoveToTop?.call() : onCancel(),
+                  icon: Icon(
+                    Icons.more_horiz_rounded,
+                    size: 20,
+                    color: AppColors.text60,
+                  ),
+                  onSelected: (v) =>
+                      v == 'top' ? onMoveToTop?.call() : onCancel(),
                   itemBuilder: (context) => [
                     if (onMoveToTop != null)
-                      const PopupMenuItem(value: 'top', child: Text('Move to top')),
+                      const PopupMenuItem(
+                        value: 'top',
+                        child: Text('Move to top'),
+                      ),
                     const PopupMenuItem(value: 'remove', child: Text('Remove')),
                   ],
                 ),
@@ -399,7 +463,8 @@ class _TaskCard extends StatelessWidget {
               minHeight: 3,
               backgroundColor: AppColors.track,
               valueColor: AlwaysStoppedAnimation(
-                  isFailed ? AppColors.danger : AppColors.accent),
+                isFailed ? AppColors.danger : AppColors.accent,
+              ),
             ),
           ),
         ],
@@ -436,7 +501,10 @@ class _MiniIconButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: SizedBox(
-            width: 30, height: 30, child: Icon(icon, size: 15, color: AppColors.text)),
+          width: 30,
+          height: 30,
+          child: Icon(icon, size: 15, color: AppColors.text),
+        ),
       ),
     );
   }
@@ -456,8 +524,14 @@ class _RetryChip extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Text('Retry',
-              style: AppText.body(size: 11.5, weight: FontWeight.w600, color: AppColors.dangerText)),
+          child: Text(
+            'Retry',
+            style: AppText.body(
+              size: 11.5,
+              weight: FontWeight.w600,
+              color: AppColors.dangerText,
+            ),
+          ),
         ),
       ),
     );
@@ -475,7 +549,11 @@ class _OnDeviceTab extends StatefulWidget {
 class _OnDeviceTabState extends State<_OnDeviceTab> {
   @override
   Widget build(BuildContext context) {
-    final tasks = widget.store.listTasks();
+    // Only finished downloads: unfinished ones are in the Queue tab.
+    final tasks = widget.store
+        .listTasks()
+        .where((t) => t.state == DownloadState.done)
+        .toList();
     final seriesIds = tasks.map((t) => t.seriesId).toSet().toList();
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
@@ -490,8 +568,10 @@ class _OnDeviceTabState extends State<_OnDeviceTab> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(_formatBytes(widget.store.totalSize),
-                  style: AppText.heading(size: 22)),
+              Text(
+                _formatBytes(widget.store.totalSize),
+                style: AppText.heading(size: 22),
+              ),
               const SizedBox(width: 8),
               Padding(
                 padding: const EdgeInsets.only(bottom: 3),
@@ -505,53 +585,85 @@ class _OnDeviceTabState extends State<_OnDeviceTab> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
             child: Center(
-                child: Text('No downloads yet.',
-                    style: AppText.body(color: AppColors.text45))),
+              child: Text(
+                'No downloads yet.',
+                style: AppText.body(color: AppColors.text45),
+              ),
+            ),
           )
         else
           Text('BY SERIES', style: AppText.sectionLabel()),
         const SizedBox(height: 10),
         for (final seriesId in seriesIds) ...[
-          Builder(builder: (context) {
-            final size = widget.store.sizeForSeries(seriesId);
-            final seriesTasks = tasks.where((t) => t.seriesId == seriesId);
-            final count = seriesTasks.length;
-            final title = seriesTasks.first.seriesTitle;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 9),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title.isEmpty ? 'Series $seriesId' : title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppText.body(size: 14, weight: FontWeight.w500)),
-                        const SizedBox(height: 4),
-                        Text('$count BOOK(S) · ${_formatBytes(size)}',
-                            style: AppText.mono(size: 9.5)),
-                      ],
+          Builder(
+            builder: (context) {
+              final size = widget.store.sizeForSeries(seriesId);
+              final seriesTasks = tasks.where((t) => t.seriesId == seriesId);
+              final count = seriesTasks.length;
+              final title = seriesTasks.first.seriesTitle;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: Material(
+                  color: AppColors.card,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(color: AppColors.border),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    // The series page lists these chapters, offline too.
+                    onTap: () => context.push(
+                      '/series/${Uri.encodeComponent(seriesId)}',
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title.isEmpty ? 'Series $seriesId' : title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppText.body(
+                                    size: 14,
+                                    weight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$count ${count == 1 ? 'CHAPTER' : 'CHAPTERS'} · ${_formatBytes(size)}',
+                                  style: AppText.mono(size: 9.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                          _MiniIconButton(
+                            icon: Icons.delete_outline,
+                            onTap: () async {
+                              await widget.store.clearSeries(seriesId);
+                              if (mounted) setState(() {});
+                            },
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 20,
+                            color: AppColors.text45,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  _MiniIconButton(
-                    icon: Icons.delete_outline,
-                    onTap: () async {
-                      await widget.store.clearSeries(seriesId);
-                      if (mounted) setState(() {});
-                    },
-                  ),
-                ],
-              ),
-            );
-          }),
+                ),
+              );
+            },
+          ),
         ],
       ],
     );
@@ -594,11 +706,15 @@ class _AcquisitionTab extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Kapowarr',
-                          style: AppText.body(size: 15, weight: FontWeight.w600)),
+                      Text(
+                        'Kapowarr',
+                        style: AppText.body(size: 15, weight: FontWeight.w600),
+                      ),
                       const SizedBox(height: 5),
-                      Text('READ-ONLY ACQUISITION STATUS',
-                          style: AppText.mono(size: 9.5, color: AppColors.text45)),
+                      Text(
+                        'READ-ONLY ACQUISITION STATUS',
+                        style: AppText.mono(size: 9.5, color: AppColors.text45),
+                      ),
                     ],
                   ),
                 ),

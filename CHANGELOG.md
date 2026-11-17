@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.2.0: offline reading, friends, Tachiyomi import (2026-11-17)
+
+- **Downloads read offline**: a title's details and chapter list are saved
+  each time it opens, so with no connection it opens from that copy straight
+  away instead of spinning until a timeout. Offline, a title shows only the
+  chapters on the device. Open a title once while online after updating so
+  its copy is saved.
+- **Downloads → On device** opens the title when you tap it, and counts only
+  finished chapters. Chapter rows say ON DEVICE even after you've read them.
+- **Offline bar** redrawn in the app's style: amber, under the status bar,
+  no longer the default red strip with underlined text.
+- **No white flash on iPhone/iPad launch**: the launch screen is midnight navy
+  like Android's, leading into the logo animation.
+- **Friends on the shared Suwayomi** sign in with their own account and get
+  their own library and progress; uncategorized titles show under Default,
+  and they can switch a title's backup sources off for themselves.
+- **Import Tachiyomi/Mihon backups** (.tachibk), from Settings.
+- **Sign out** from Settings.
+- **Pick the category** when adding a title from Search or Recommendations.
+- **Server admin overview** screen for the owner.
+- **Hands-on guide**: each step is a working stand-in of the real screen.
+- Includes v1.1.9's iOS WhatsApp sharing fix, which never shipped on its own.
+
 ## v1.1.9: WhatsApp sharing on iOS, take 3 (2026-11-06)
 
 - **Share to WhatsApp on iPhone/iPad**: v1.1.8 still didn't send. On iOS

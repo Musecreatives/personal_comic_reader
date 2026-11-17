@@ -2,6 +2,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'design_tokens.dart';
 import 'providers.dart';
 
 /// Wraps the app with a slim "you're offline" banner and flushes the
@@ -27,8 +28,11 @@ class _ConnectivityBannerState extends ConsumerState<ConnectivityBanner> {
   }
 
   void _handle(List<ConnectivityResult> results) {
-    final nowOffline = results.every((r) => r == ConnectivityResult.none);
+    final nowOffline = isFullyOffline(results);
     final wasOffline = _offline;
+    // Saved series/chapter lists are served at once instead of timing out.
+    ref.read(offlineSnapshotProvider).offline = nowOffline;
+    ref.read(isOfflineProvider.notifier).state = nowOffline;
     if (mounted) setState(() => _offline = nowOffline);
 
     if (wasOffline && !nowOffline) {
@@ -41,24 +45,63 @@ class _ConnectivityBannerState extends ConsumerState<ConnectivityBanner> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_offline) return widget.child;
+    final media = MediaQuery.of(context);
     return Column(
       children: [
-        if (_offline)
-          Container(
-            width: double.infinity,
-            color: Theme.of(context).colorScheme.errorContainer,
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(
-              'Offline - showing downloaded content',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onErrorContainer,
-              ),
-            ),
+        _OfflineBar(topInset: media.padding.top),
+        // The bar sits under the status bar, so the screen below must not
+        // pad for it again.
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: widget.child,
           ),
-        Expanded(child: widget.child),
+        ),
       ],
+    );
+  }
+}
+
+/// Amber, not red: being offline is a state, not an error (DESIGN.md).
+class _OfflineBar extends StatelessWidget {
+  final double topInset;
+  const _OfflineBar({required this.topInset});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.card,
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(16, topInset + 6, 16, 7),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.border)),
+        ),
+        child: Semantics(
+          liveRegion: true,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.cloud_off_rounded,
+                size: 14,
+                color: AppColors.warningText,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'OFFLINE · READING DOWNLOADS',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.mono(size: 10.5, color: AppColors.warningText),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

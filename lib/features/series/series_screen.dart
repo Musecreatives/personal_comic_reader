@@ -334,17 +334,24 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
     return KeyEventResult.ignored;
   }
 
+  // Through the offline snapshot, so a title with downloads still opens
+  // with no connection.
   void _load() {
-    _seriesFuture = widget.backend.getSeries(widget.seriesId);
-    _booksFuture = widget.backend.listBooks(widget.seriesId);
+    final snapshot = ref.read(offlineSnapshotProvider);
+    _seriesFuture = snapshot.getSeries(widget.backend, widget.seriesId);
+    _booksFuture = snapshot.listBooks(widget.backend, widget.seriesId);
   }
 
   void _reloadSeries() => setState(() {
-    _seriesFuture = widget.backend.getSeries(widget.seriesId);
+    _seriesFuture = ref
+        .read(offlineSnapshotProvider)
+        .getSeries(widget.backend, widget.seriesId);
   });
 
   void _reloadBooks() => setState(() {
-    _booksFuture = widget.backend.listBooks(widget.seriesId);
+    _booksFuture = ref
+        .read(offlineSnapshotProvider)
+        .listBooks(widget.backend, widget.seriesId);
   });
 
   /// The download button opens a picker (next 5/10, new since you last read,
@@ -838,7 +845,16 @@ class _SeriesDetailState extends ConsumerState<_SeriesDetail> {
                 ],
               );
             }
-            final books = List<Book>.from(snapshot.data!);
+            // Offline, only what's on the device can be read.
+            final offline = ref.watch(isOfflineProvider);
+            final onDevice = {
+              for (final t in seriesTasks)
+                if (t.state == DownloadState.done) t.bookId,
+            };
+            final books = [
+              for (final b in snapshot.data!)
+                if (!offline || onDevice.contains(b.id)) b,
+            ];
             final upNext = books.isEmpty
                 ? null
                 : formatChapterNumber(
@@ -1385,8 +1401,12 @@ class _ChapterRow extends StatelessWidget {
               ? 'PAGE ${book.readProgressPage} OF ${book.pageCount}'
               : 'PAGE ${book.readProgressPage}')
         : task?.state == DownloadState.done
-        ? withPages('DOWNLOADED')
+        ? withPages('ON DEVICE')
         : withPages('ON SERVER');
+    // Read or in progress hides where it lives; say so for downloads too.
+    final where = task?.state == DownloadState.done && !meta.endsWith('ON DEVICE')
+        ? '$meta · ON DEVICE'
+        : meta;
 
     // The long-press is caught outside the InkWell so the menu opens where
     // the finger is; a quick tap still reaches the InkWell.
@@ -1460,7 +1480,7 @@ class _ChapterRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        isInProgress ? 'READING · $meta' : meta,
+                        isInProgress ? 'READING · $where' : where,
                         style: AppText.mono(
                           size: 10.5,
                           color: isInProgress

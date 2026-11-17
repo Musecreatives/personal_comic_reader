@@ -19,6 +19,7 @@ import '../core/history/stopped_series_store.dart';
 import '../core/downloads/download_manager.dart';
 import '../core/downloads/download_models.dart';
 import '../core/downloads/download_store.dart';
+import '../core/offline/offline_snapshot.dart';
 import '../core/kapowarr/kapowarr_config.dart';
 import '../core/kapowarr/kapowarr_config_store.dart';
 import '../core/media_pool/media_pool_config_store.dart';
@@ -201,6 +202,13 @@ final kapowarrConfigProvider = FutureProvider<KapowarrConfig?>((ref) {
   ref.watch(kapowarrConfigRevisionProvider);
   return ref.watch(kapowarrConfigStoreProvider).getWithApiKey();
 });
+
+/// Saved series and chapter lists for reading downloads offline. Overridden
+/// in main() with an initialised one; this default just passes through.
+final offlineSnapshotProvider = Provider<OfflineSnapshot>((ref) => OfflineSnapshot());
+
+/// True while the device has no network at all (ConnectivityBanner sets it).
+final isOfflineProvider = StateProvider<bool>((ref) => false);
 
 /// Set once in main() after DownloadStore.init() completes.
 final downloadStoreProvider = Provider<DownloadStore>((ref) {
