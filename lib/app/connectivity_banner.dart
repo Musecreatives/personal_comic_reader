@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,26 +23,64 @@ class ConnectivityBanner extends ConsumerStatefulWidget {
 class _ConnectivityBannerState extends ConsumerState<ConnectivityBanner> {
   bool _offline = false;
 
+  Timer? _recheck;
+  StreamSubscription<List<ConnectivityResult>>? _changes;
+
   @override
   void initState() {
     super.initState();
     Connectivity().checkConnectivity().then(_handle);
-    Connectivity().onConnectivityChanged.listen(_handle);
+    _changes = Connectivity().onConnectivityChanged.listen(_handle);
   }
 
-  void _handle(List<ConnectivityResult> results) {
-    final nowOffline = isFullyOffline(results);
+  @override
+  void dispose() {
+    _recheck?.cancel();
+    _changes?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _handle(List<ConnectivityResult> results) async {
+    var nowOffline = isFullyOffline(results);
+    // iOS says "none" before it has checked the network, and while a VPN
+    // like Tailscale (re)connects, though the internet works. Believe it
+    // only when the server doesn't answer either.
+    if (nowOffline && await _serverAnswers()) nowOffline = false;
+    if (!mounted) return;
+    // No change event comes when such a wrong "none" clears, so look again.
+    _recheck?.cancel();
+    if (nowOffline) {
+      _recheck = Timer(const Duration(seconds: 15),
+          () => Connectivity().checkConnectivity().then(_handle));
+    }
     final wasOffline = _offline;
     // Saved series/chapter lists are served at once instead of timing out.
     ref.read(offlineSnapshotProvider).offline = nowOffline;
     ref.read(isOfflineProvider.notifier).state = nowOffline;
-    if (mounted) setState(() => _offline = nowOffline);
+    setState(() => _offline = nowOffline);
 
     if (wasOffline && !nowOffline) {
       final backend = ref.read(activeBackendProvider).valueOrNull;
       if (backend != null) {
         ref.read(progressSyncProvider).flushQueue(backend);
       }
+    }
+  }
+
+  /// Any HTTP answer from the active server, even 401, means we're online.
+  Future<bool> _serverAnswers() async {
+    final url = ref.read(activeServerConfigProvider)?.baseUrl ?? '';
+    if (!url.startsWith('http')) return false;
+    const wait = Duration(seconds: 4);
+    try {
+      await Dio(BaseOptions(
+        connectTimeout: wait,
+        receiveTimeout: wait,
+        validateStatus: (_) => true,
+      )).head<void>(url);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
