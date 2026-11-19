@@ -6,6 +6,22 @@ import '../../app/motion.dart';
 import '../../core/backend/models.dart';
 import '../shared/app_sheet.dart';
 
+/// Chapters numbered like 12.1 or 12.2 when the series also has a whole
+/// chapter 12: sources often split or repeat a chapter that way.
+Set<String> splitChapterIds(List<Book> books) {
+  final whole = <double>{};
+  for (final b in books) {
+    final n = double.tryParse(b.number);
+    if (n != null && n == n.truncateToDouble()) whole.add(n);
+  }
+  return {
+    for (final b in books)
+      if (double.tryParse(b.number) case final n?
+          when n != n.truncateToDouble() && whole.contains(n.truncateToDouble()))
+        b.id,
+  };
+}
+
 /// What to download for a series: presets built from the reader's own state
 /// (where you left off, what's unread, what's new since) plus a checklist.
 /// Chapters already downloaded or queued are never offered again, and each
@@ -53,6 +69,8 @@ class DownloadSheet extends StatefulWidget {
 
 class _DownloadSheetState extends State<DownloadSheet> {
   bool _choosing = false;
+  bool _skipSplits = false;
+  late final Set<String> _splits = splitChapterIds(widget.books);
   final Set<String> _picked = {};
 
   String _label(Book b) {
@@ -75,7 +93,13 @@ class _DownloadSheetState extends State<DownloadSheet> {
   @override
   Widget build(BuildContext context) {
     final books = widget.books;
-    final todo = books.where((b) => !widget.alreadyIds.contains(b.id)).toList();
+    final todo = books
+        .where(
+          (b) =>
+              !widget.alreadyIds.contains(b.id) &&
+              !(_skipSplits && _splits.contains(b.id)),
+        )
+        .toList();
     final unread = todo.where((b) => !b.completed).toList();
     // Everything after the furthest chapter you have touched.
     final lastTouched = books.lastIndexWhere(
@@ -119,6 +143,46 @@ class _DownloadSheetState extends State<DownloadSheet> {
                   style: AppText.body(size: 12.5, color: AppColors.text60),
                 ),
               ),
+              if (_splits.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 14, 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Skip split chapters',
+                              style: AppText.body(
+                                size: 14,
+                                weight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Leaves out ${_splits.length} like 12.1 and 12.2 '
+                              'where a whole 12 exists',
+                              style: AppText.body(
+                                size: 11.5,
+                                color: AppColors.text45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: _skipSplits,
+                        activeThumbColor: Colors.white,
+                        activeTrackColor: AppColors.accent,
+                        onChanged: (v) => setState(() {
+                          _skipSplits = v;
+                          if (v) _picked.removeAll(_splits);
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
               if (!_choosing) ...[
                 _Option(
                   title: 'Next 5',

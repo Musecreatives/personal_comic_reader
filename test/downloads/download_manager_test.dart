@@ -36,10 +36,21 @@ class _FakeBackend implements ReaderBackend {
     if (!_released.isCompleted) _released.complete();
   }
 
+  int _inFlight = 0;
+
+  /// Most page fetches that were running at the same moment.
+  int maxInFlight = 0;
+
   @override
   Future<Uint8List> fetchPage(String bookId, int pageIndex) async {
-    if (delay > Duration.zero) {
-      await Future.any([Future<void>.delayed(delay), _released.future]);
+    _inFlight++;
+    if (_inFlight > maxInFlight) maxInFlight = _inFlight;
+    try {
+      if (delay > Duration.zero) {
+        await Future.any([Future<void>.delayed(delay), _released.future]);
+      }
+    } finally {
+      _inFlight--;
     }
     fetchCalls['${bookId}_$pageIndex'] =
         (fetchCalls['${bookId}_$pageIndex'] ?? 0) + 1;
@@ -256,6 +267,53 @@ void main() {
     await _waitUntil(
         () => store.getTask('b2')?.state == DownloadState.done);
     expect(store.getTask('b2')!.downloadedPages, 20);
+  });
+
+  group('stopping a chapter while its pages are loading', () {
+    Future<(DownloadStore, DownloadManager)> startSlow(String id) async {
+      final store = DownloadStore();
+      await store.init();
+      final manager = _track(DownloadManager(store: store));
+      final backend = _FakeBackend(delay: const Duration(milliseconds: 60));
+      await manager.enqueueBook(backend,
+          bookId: id, seriesId: 's', seriesTitle: 'S', title: id, totalPages: 40);
+      await _waitUntil(() => (store.getTask(id)?.downloadedPages ?? 0) > 0);
+      return (store, manager);
+    }
+
+    test('pause sticks once the pages in flight arrive', () async {
+      final (store, manager) = await startSlow('p');
+      await manager.pause('p');
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(store.getTask('p')!.state, DownloadState.paused);
+      expect(store.getTask('p')!.downloadedPages, lessThan(40));
+    });
+
+    test('remove sticks, and leaves no pages behind', () async {
+      final (store, manager) = await startSlow('r');
+      await manager.cancel('r');
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await manager.idle;
+      expect(store.getTask('r'), isNull);
+      for (var i = 0; i < 40; i++) {
+        expect(store.hasPage('r', i), isFalse, reason: 'page $i');
+      }
+    });
+  });
+
+  test('a chapter fetches several pages at once', () async {
+    final store = DownloadStore();
+    await store.init();
+    final manager = _track(DownloadManager(store: store));
+    final backend = _FakeBackend(delay: const Duration(milliseconds: 20));
+    await manager.enqueueBook(backend,
+        bookId: 'fast', seriesId: 's', seriesTitle: 'S', title: 'f', totalPages: 12);
+    await _waitUntil(() => store.getTask('fast')?.state == DownloadState.done);
+    expect(backend.maxInFlight, greaterThan(1));
+    expect(backend.maxInFlight, lessThanOrEqualTo(DownloadManager.pagesAtOnce));
+    for (var i = 0; i < 12; i++) {
+      expect(store.hasPage('fast', i), isTrue);
+    }
   });
 
   test('cancel removes the task and its downloaded pages', () async {

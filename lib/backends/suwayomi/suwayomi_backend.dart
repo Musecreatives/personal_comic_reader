@@ -116,7 +116,8 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
   final ServerConfig config;
   final Dio _dio;
 
-  final Set<String> _fetchedChapters = {};
+  /// One fetchChapterPages per chapter, shared by pages requested together.
+  final Map<String, Future<void>> _fetchedChapters = {};
   final Map<String, String> _chapterMangaId = {};
   // Suwayomi's REST page-serving route (/api/v1/manga/{id}/chapter/{N}/page/{i})
   // takes each chapter's *sourceOrder* - its 1-based position within the
@@ -519,13 +520,17 @@ class SuwayomiBackend implements ReaderBackend, SeriesMetadataEditor {
     throw StateError('Suwayomi chapter $bookId has no sourceOrder');
   }
 
-  Future<void> _ensureFetched(String bookId) async {
-    if (_fetchedChapters.contains(bookId)) return;
-    await _gql(
-      'mutation(\$id: Int!) { fetchChapterPages(input: {chapterId: \$id}) { chapter { id } } }',
-      {'id': int.parse(bookId)},
+  Future<void> _ensureFetched(String bookId) {
+    return _fetchedChapters.putIfAbsent(
+      bookId,
+      () => _gql(
+        'mutation(\$id: Int!) { fetchChapterPages(input: {chapterId: \$id}) { chapter { id } } }',
+        {'id': int.parse(bookId)},
+      ).then<void>((_) {}).catchError((Object e) {
+        _fetchedChapters.remove(bookId); // let a later page try again
+        throw e;
+      }),
     );
-    _fetchedChapters.add(bookId);
   }
 
   @override

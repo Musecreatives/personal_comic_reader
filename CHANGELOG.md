@@ -21,6 +21,11 @@
 - **Pick the category** when adding a title from Search or Recommendations.
 - **Server admin overview** screen for the owner.
 - **Hands-on guide**: each step is a working stand-in of the real screen.
+- **Pause and Remove work on a downloading chapter**: before, the page in
+  flight undid the tap, so the chapter kept going (or came back).
+- **Faster downloads**: four pages of a chapter load at once instead of one.
+- **Skip split chapters** in the download sheet: leaves out 12.1, 12.2… where
+  the series also has a whole chapter 12.
 - Includes v1.1.9's iOS WhatsApp sharing fix, which never shipped on its own.
 
 ## v1.1.9: WhatsApp sharing on iOS, take 3 (2026-11-06)

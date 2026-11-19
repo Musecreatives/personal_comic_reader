@@ -18,6 +18,10 @@ typedef ChapterFallback = Future<({String bookId, int pageCount})?> Function(
 class DownloadManager {
   static const concurrency = 2;
 
+  /// Pages of one chapter fetched together. Each Suwayomi page is a round
+  /// trip through the server to the source, so one at a time is slow.
+  static const pagesAtOnce = 4;
+
   final DownloadStore store;
   int _activeCount = 0;
 
@@ -257,14 +261,17 @@ class DownloadManager {
     if (latest.totalPages == 0) {
       final book = await backend.getBook(fetchId);
       if (book.pageCount == 0) throw StateError('This chapter has no pages');
-      latest = latest.copyWith(totalPages: book.pageCount);
+      final current = store.getTask(bookId);
+      if (current == null) return;
+      latest = current.copyWith(totalPages: book.pageCount);
       await store.saveTask(latest);
       _notify();
     }
-    for (var i = latest.downloadedPages; i < latest.totalPages; i++) {
+    final total = latest.totalPages;
+    var i = latest.downloadedPages;
+    while (i < total) {
       final current = store.getTask(bookId);
-      if (current == null) return;
-      if (current.state == DownloadState.paused) return;
+      if (current == null || current.state == DownloadState.paused) return;
 
       if (await _wifiOnlyBlocked()) {
         await store.saveTask(current.copyWith(state: DownloadState.paused));
@@ -272,15 +279,30 @@ class DownloadManager {
         return;
       }
 
-      if (!store.hasPage(fetchId, i)) {
-        final bytes = await backend.fetchPage(fetchId, i);
-        await store.putPage(fetchId, i, bytes);
+      final end = i + pagesAtOnce < total ? i + pagesAtOnce : total;
+      await Future.wait([
+        for (var p = i; p < end; p++)
+          if (!store.hasPage(fetchId, p))
+            backend.fetchPage(fetchId, p).then((b) => store.putPage(fetchId, p, b)),
+      ]);
+      i = end;
+
+      // Read the task again: the user may have paused or removed it while
+      // those pages were loading, and writing back the copy from before the
+      // fetch would undo that.
+      final after = store.getTask(bookId);
+      if (after == null) {
+        // Removed mid-fetch: cancel() already cleared the pages, but the
+        // ones that were in flight landed afterwards.
+        await store.deletePagesForBook(fetchId);
+        return;
       }
-      latest = current.copyWith(downloadedPages: i + 1);
-      await store.saveTask(latest);
+      await store.saveTask(after.copyWith(downloadedPages: i));
       _notify();
     }
-    await store.saveTask(latest.copyWith(state: DownloadState.done));
+    final finished = store.getTask(bookId);
+    if (finished == null) return;
+    await store.saveTask(finished.copyWith(state: DownloadState.done));
   }
 
   /// Completes once no download is running, including the queue check each
