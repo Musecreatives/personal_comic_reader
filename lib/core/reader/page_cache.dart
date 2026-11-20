@@ -23,7 +23,13 @@ class PageCache {
   static const _boxName = 'page_cache';
   static const _memoryCapacity = 12;
 
-  late final Box<Uint8List> _box;
+  /// Pages kept on disk (~a few hundred MB). Nothing trimmed it before, and
+  /// it grew with every page read online.
+  static const diskCapacity = 800;
+
+  /// Lazy, like the download store's pages: a plain box reads every page
+  /// into memory when it opens, which ran iPhones out of memory at launch.
+  late final LazyBox<Uint8List> _box;
   final LinkedHashMap<String, Uint8List> _memory = LinkedHashMap();
   final Set<String> _inFlight = {};
   final DownloadStore? downloadStore;
@@ -42,7 +48,25 @@ class PageCache {
   Stream<({String bookId, int pageIndex})> get failures => _failures.stream;
 
   Future<void> init() async {
-    _box = await Hive.openBox<Uint8List>(_boxName);
+    _box = await Hive.openLazyBox<Uint8List>(_boxName);
+    await _trim();
+  }
+
+  /// ponytail: drops the first keys in Hive's (sorted) key order, not the
+  /// least recently read; a cache miss just refetches. Track read times if
+  /// that ever evicts something in use.
+  Future<void> _trim() async {
+    final over = _box.length - diskCapacity;
+    if (over > 0) await _box.deleteAll(_box.keys.take(over).toList());
+  }
+
+  /// Fire-and-forget: a page that fails to cache (box closed, disk full) is
+  /// just fetched again next time.
+  Future<void> _save(String key, Uint8List bytes) async {
+    try {
+      await _box.put(key, bytes);
+      await _trim();
+    } catch (_) {}
   }
 
   String _key(String bookId, int pageIndex) => '${bookId}_$pageIndex';
@@ -60,13 +84,13 @@ class PageCache {
       return cached;
     }
 
-    final downloaded = downloadStore?.getPage(bookId, pageIndex);
+    final downloaded = await downloadStore?.getPage(bookId, pageIndex);
     if (downloaded != null) {
       _store(key, downloaded);
       return downloaded;
     }
 
-    final onDisk = _box.get(key);
+    final onDisk = await _box.get(key);
     if (onDisk != null) {
       _store(key, onDisk);
       return onDisk;
@@ -80,7 +104,7 @@ class PageCache {
       rethrow;
     }
     _store(key, bytes);
-    if (_persist(backend)) unawaited(_box.put(key, bytes));
+    if (_persist(backend)) unawaited(_save(key, bytes));
     return bytes;
   }
 
@@ -123,7 +147,7 @@ class PageCache {
         _inFlight.add(key);
         backend.fetchPage(bookId, index).then((bytes) {
           _store(key, bytes);
-          if (_persist(backend)) unawaited(_box.put(key, bytes));
+          if (_persist(backend)) unawaited(_save(key, bytes));
         }).catchError((_) {}).whenComplete(() => _inFlight.remove(key));
       }
       index += step;

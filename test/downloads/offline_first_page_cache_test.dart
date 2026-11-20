@@ -99,7 +99,7 @@ void main() {
     // Pre-seed PageCache's own disk cache box directly, bypassing the
     // download path, to prove the download-store check really does run
     // first rather than just happening to be the only source of data.
-    final opportunisticCacheBox = await Hive.openBox<Uint8List>('page_cache');
+    final opportunisticCacheBox = await Hive.openLazyBox<Uint8List>('page_cache');
     await opportunisticCacheBox.put('book1_0', Uint8List.fromList([7, 7, 7]));
 
     final downloadStore = DownloadStore();
