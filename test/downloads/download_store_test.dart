@@ -35,15 +35,25 @@ void main() {
     expect(store.hasPage('b1', 0), isFalse);
   });
 
-  test('the page cache keeps at most diskCapacity pages on disk', () async {
+  test('the page cache measures old pages and trims to its size limit', () async {
+    // Pages cached by an earlier version, with no sizes recorded.
     final box = await Hive.openBox<Uint8List>('page_cache');
-    for (var i = 0; i < PageCache.diskCapacity + 30; i++) {
-      await box.put('b_$i', Uint8List(1));
+    for (var i = 0; i < 10; i++) {
+      await box.put('b_$i', Uint8List(1000));
     }
     await box.close();
 
-    await PageCache().init();
-    final reopened = await Hive.openLazyBox<Uint8List>('page_cache');
-    expect(reopened.length, PageCache.diskCapacity);
+    final cache = PageCache();
+    await cache.init();
+    await cache.ready;
+    expect(cache.sizeBytes, 10000);
+    expect(cache.limitBytes, PageCache.defaultLimit);
+
+    await cache.setLimit(4500);
+    expect(cache.sizeBytes, 4000);
+    expect(cache.limitBytes, 4500);
+
+    await cache.clearAll();
+    expect(cache.sizeBytes, 0);
   });
 }

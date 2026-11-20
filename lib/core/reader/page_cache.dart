@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../backend/reader_backend.dart';
@@ -21,15 +21,24 @@ import '../downloads/download_store.dart';
 /// tier.
 class PageCache {
   static const _boxName = 'page_cache';
+  static const _sizesBoxName = 'page_cache_sizes';
+  static const _settingsBoxName = 'page_cache_settings';
+  static const _limitKey = 'limitBytes';
   static const _memoryCapacity = 12;
 
-  /// Pages kept on disk (~a few hundred MB). Nothing trimmed it before, and
-  /// it grew with every page read online.
-  static const diskCapacity = 800;
+  /// "Keep reading cache under" choices, in bytes (Settings > Storage).
+  static const limitChoices = [500 << 20, 1 << 30, 2 << 30, 3 << 30, 5 << 30];
+  static const defaultLimit = 1 << 30;
 
   /// Lazy, like the download store's pages: a plain box reads every page
   /// into memory when it opens, which ran iPhones out of memory at launch.
   late final LazyBox<Uint8List> _box;
+
+  /// Byte size of each cached page, by the same key, so the cache's size is
+  /// known without reading pages back from disk.
+  late final Box<int> _sizes;
+  late final Box<int> _settings;
+  Future<void> _ready = Future.value();
   final LinkedHashMap<String, Uint8List> _memory = LinkedHashMap();
   final Set<String> _inFlight = {};
   final DownloadStore? downloadStore;
@@ -49,15 +58,59 @@ class PageCache {
 
   Future<void> init() async {
     _box = await Hive.openLazyBox<Uint8List>(_boxName);
+    _sizes = await Hive.openBox<int>(_sizesBoxName);
+    _settings = await Hive.openBox<int>(_settingsBoxName);
+    // Pages cached before sizes were tracked: measure them once in the
+    // background, then trim to the limit.
+    _ready = _backfillSizes().then((_) => _trim()).catchError((_) {});
+  }
+
+  /// Completes once older cached pages have been measured and trimmed.
+  @visibleForTesting
+  Future<void> get ready => _ready;
+
+  Future<void> _backfillSizes() async {
+    final missing = _box.keys.where((k) => !_sizes.containsKey(k)).toList();
+    for (final key in missing) {
+      if (!_box.isOpen) return;
+      final bytes = await _box.get(key);
+      if (bytes != null) await _sizes.put(key, bytes.lengthInBytes);
+    }
+  }
+
+  /// Bytes the reading cache holds on disk (downloads not included).
+  int get sizeBytes => _sizes.values.fold<int>(0, (a, b) => a + b);
+
+  /// The size the cache is trimmed back to once it grows past it.
+  int get limitBytes => _settings.get(_limitKey) ?? defaultLimit;
+
+  Future<void> setLimit(int bytes) async {
+    await _settings.put(_limitKey, bytes);
     await _trim();
   }
 
-  /// ponytail: drops the first keys in Hive's (sorted) key order, not the
-  /// least recently read; a cache miss just refetches. Track read times if
-  /// that ever evicts something in use.
+  /// Empties the reading cache. Downloaded chapters are not touched.
+  Future<void> clearAll() async {
+    _memory.clear();
+    await _box.clear();
+    await _sizes.clear();
+  }
+
+  /// ponytail: drops pages in Hive's (sorted) key order until under the
+  /// limit, not the least recently read; a cache miss just refetches.
+  /// Track read times if that ever evicts something in use.
   Future<void> _trim() async {
-    final over = _box.length - diskCapacity;
-    if (over > 0) await _box.deleteAll(_box.keys.take(over).toList());
+    var total = sizeBytes;
+    final limit = limitBytes;
+    if (total <= limit) return;
+    final drop = [];
+    for (final key in _box.keys) {
+      if (total <= limit) break;
+      total -= _sizes.get(key) ?? 0;
+      drop.add(key);
+    }
+    await _box.deleteAll(drop);
+    await _sizes.deleteAll(drop);
   }
 
   /// Fire-and-forget: a page that fails to cache (box closed, disk full) is
@@ -65,6 +118,7 @@ class PageCache {
   Future<void> _save(String key, Uint8List bytes) async {
     try {
       await _box.put(key, bytes);
+      await _sizes.put(key, bytes.lengthInBytes);
       await _trim();
     } catch (_) {}
   }
@@ -172,7 +226,9 @@ class PageCache {
   Future<void> clearBook(String bookId) async {
     final prefix = '${bookId}_';
     _memory.removeWhere((k, _) => k.startsWith(prefix));
-    final diskKeys = _box.keys.where((k) => (k as String).startsWith(prefix));
+    final diskKeys =
+        _box.keys.where((k) => (k as String).startsWith(prefix)).toList();
     await _box.deleteAll(diskKeys);
+    await _sizes.deleteAll(diskKeys);
   }
 }

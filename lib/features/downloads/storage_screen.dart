@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/design_tokens.dart';
 import '../../app/providers.dart';
+import '../../core/reader/page_cache.dart';
+import '../shared/app_sheet.dart';
 import '../shared/back_button.dart';
 
 class StorageScreen extends ConsumerStatefulWidget {
@@ -17,6 +19,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
   @override
   Widget build(BuildContext context) {
     final store = ref.watch(downloadStoreProvider);
+    final cache = ref.watch(pageCacheProvider);
     ref.watch(downloadQueueProvider); // rebuild this screen on queue changes
 
     final tasks = store.listTasks();
@@ -80,12 +83,11 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                 Expanded(
                   child: _ActionCard(
                     icon: Icons.cached,
-                    label: 'Clear page cache',
+                    label: 'Clear reading cache',
+                    // Was: only the cached pages of downloaded chapters, so
+                    // nothing read online was ever cleared.
                     onTap: () async {
-                      final cache = ref.read(pageCacheProvider);
-                      for (final t in tasks) {
-                        await cache.clearBook(t.bookId);
-                      }
+                      await cache.clearAll();
                       if (mounted) setState(() {});
                     },
                   ),
@@ -105,6 +107,44 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            Material(
+              color: AppColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: AppColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => _pickCacheLimit(cache.limitBytes),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Reading cache',
+                                style: AppText.body(size: 14, weight: FontWeight.w500)),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${_formatBytes(cache.sizeBytes)} used. Pages you read online, '
+                              'trimmed automatically. Downloads are never trimmed.',
+                              style: AppText.body(size: 11.5, color: AppColors.text45),
+                            ),
+                            const SizedBox(height: 6),
+                            Text('Keep under ${_formatLimit(cache.limitBytes)}',
+                                style: AppText.mono(size: 11, color: AppColors.accentLink)),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, size: 20, color: AppColors.text45),
+                    ],
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 22),
             if (seriesIds.isEmpty)
@@ -174,6 +214,41 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
     );
   }
 
+  static String _formatLimit(int bytes) => bytes >= 1 << 30
+      ? '${bytes ~/ (1 << 30)} GB'
+      : '${bytes ~/ (1 << 20)} MB';
+
+  Future<void> _pickCacheLimit(int current) async {
+    final picked = await showAppSheet<int>(
+      context: context,
+      grabber: true,
+      backgroundColor: AppColors.card,
+      builder: (s) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+              child: Text('Keep the reading cache under',
+                  style: AppText.body(size: 15, weight: FontWeight.w600)),
+            ),
+            for (final bytes in PageCache.limitChoices)
+              ListTile(
+                title: Text(_formatLimit(bytes)),
+                trailing: bytes == current
+                    ? Icon(Icons.check_rounded, color: AppColors.accent)
+                    : null,
+                onTap: () => Navigator.pop(s, bytes),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    await ref.read(pageCacheProvider).setLimit(picked);
+    if (mounted) setState(() {});
+  }
+
   String _formatBytes(int bytes) {
     if (bytes <= 0) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -222,7 +297,12 @@ class _ActionCard extends StatelessWidget {
             children: [
               Icon(icon, size: 16, color: color),
               const SizedBox(width: 7),
-              Text(label, style: AppText.body(size: 12.5, weight: FontWeight.w600, color: color)),
+              Flexible(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body(size: 12.5, weight: FontWeight.w600, color: color)),
+              ),
             ],
           ),
         ),
