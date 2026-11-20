@@ -26,6 +26,12 @@
 - **Faster downloads**: four pages of a chapter load at once instead of one.
 - **Skip split chapters** in the download sheet: leaves out 12.1, 12.2… where
   the series also has a whole chapter 12.
+- **Opens again with lots of downloads**: the app read every downloaded page
+  (and every page it had cached while reading) into memory at launch, so
+  with enough chapters on the device iPhones ran out of memory on the launch
+  screen. Pages are now read from storage only when shown; the reading
+  cache keeps at most 800 pages. Existing downloads are kept.
+- **Startup errors show on screen** instead of a stuck launch screen.
 - Includes v1.1.9's iOS WhatsApp sharing fix, which never shipped on its own.
 
 ## v1.1.9: WhatsApp sharing on iOS, take 3 (2026-11-06)
