@@ -304,18 +304,20 @@
     addEventListener('scroll', () => { if (cur.classList.contains('on')) over(document.elementFromPoint(x, y)); }, { passive: true });
   }
 
-  // ---- Downloads. Release files keep stable names, so these links always
-  // point at the newest version.
-  const REL = 'https://github.com/Musecreatives/personal_comic_reader/releases/latest/download/';
+  // ---- Downloads. The files sit next to this page on the server
+  // (get/downloads/), under stable names, so these links always point at the
+  // newest version. GitHub's releases were out of reach while its builds
+  // were suspended.
+  const REL = new URL('downloads/', location.href).href;
   // Paste the TestFlight public link here once the iOS build is approved.
   const TESTFLIGHT_URL = '';
   const WEB_APP = new URL('../', location.href).href;
   const platforms = {
-    android: { title: 'Download for Android', note: 'For Android phones and tablets.', actions: [['Download the APK', REL + 'ShaddaiReader.apk']], steps: ['Open the downloaded file. If Android asks, allow installs from your browser.', 'Tap Install. Updates install the same way, over the top.'] },
+    android: { title: 'Download for Android', note: 'New version 1.2.0 for Android phones and tablets. Already have the app? Uninstall it first, then install this one: the new version is signed differently, so it can’t install over the old one.', actions: [['Download the APK', REL + 'ShaddaiReader.apk']], steps: ['Uninstall the old Shaddai Reader: press and hold the app, then tap Uninstall. Your library and progress are kept on your account and come back when you sign in. Downloaded chapters need downloading again.', 'Open the downloaded file. If Android asks, allow installs from your browser.', 'Tap Install, open the app and sign in.'] },
     ios: TESTFLIGHT_URL
       ? { title: 'Get it for iPhone and iPad', note: "Through TestFlight, Apple's app for trying apps before they're in the App Store.", actions: [['Open in TestFlight', TESTFLIGHT_URL]], steps: ['Install TestFlight from the App Store if asked.', 'Tap Accept, then Install.'] }
       : { title: 'Use it on iPhone and iPad', note: 'The iPhone app is on its way. Until then, the web app works the same.', actions: [['Open the web app', WEB_APP]], steps: ['In Safari, tap Share, then Add to Home Screen.', 'Open it from your home screen like any app.'] },
-    windows: { title: 'Download for Windows', note: 'Windows 10 or 11.', actions: [['Download for Windows', REL + 'ShaddaiReader-windows.zip']], steps: ['Right-click the file and choose Extract All.', 'Open shaddai_reader.exe. If Windows warns you, choose More info, then Run anyway.'] },
+    windows: { title: 'Download for Windows', note: 'New version 1.2.0 for Windows 10 or 11. Already have the app? Delete the old folder first so nothing old is left behind.', actions: [['Download for Windows', REL + 'ShaddaiReader-windows.zip']], steps: ['Delete the folder of the old Shaddai Reader. Your library and progress are on your account and come back when you sign in.', 'Right-click the new file and choose Extract All.', 'Open shaddai_reader.exe. If Windows warns you, choose More info, then Run anyway.'] },
     web: { title: 'Open in your browser', note: "Works on any device. Install it from your browser's menu to get its own window.", actions: [['Open the web app', WEB_APP]], steps: [] },
   };
   const ua = navigator.userAgent;

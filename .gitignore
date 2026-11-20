@@ -52,3 +52,6 @@ app.*.map.json
 
 /PRODUCT.md
 /DESIGN.md
+
+# Local release files uploaded to the server's get/downloads
+/dist/
