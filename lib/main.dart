@@ -52,8 +52,53 @@ import 'core/sync/sync_queue.dart';
 import 'features/local_library/local_library_screen.dart' show localLibraryRevisionProvider;
 import 'features/debug/report_sheet.dart';
 
+/// Starts the app. If anything before the first frame throws or hangs, the
+/// screen would otherwise stay on the launch screen forever with no clue
+/// why, so show what went wrong instead.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await _start().timeout(const Duration(seconds: 45));
+  } catch (e, st) {
+    DebugLog.instance.log('Startup failed: $e', level: LogLevel.error, stack: st);
+    runApp(StartupErrorApp(error: e, stack: st));
+  }
+}
+
+/// What the screen shows when [main] could not start the app.
+class StartupErrorApp extends StatelessWidget {
+  final Object error;
+  final StackTrace stack;
+  const StartupErrorApp({super.key, required this.error, required this.stack});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              const Text(
+                'Shaddai Reader could not start',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              const Text('Take a screenshot of this and send it over.'),
+              const SizedBox(height: 16),
+              SelectableText('$error\n\n$stack',
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _start() async {
   if (!kIsWeb) {
     // Before any HTTP client exists: trust the home server's Caddy root
     // (see home_ca.dart) on top of the system's roots.
