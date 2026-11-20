@@ -459,4 +459,31 @@ void main() {
     expect(store.getTask('orphan')!.state, DownloadState.queued);
     expect(backend.fetchCalls.keys.any((k) => k.startsWith('orphan')), isFalse);
   });
+
+  test('resumePending retries downloads cut off by a network error only',
+      () async {
+    final store = DownloadStore();
+    await store.init();
+    for (final (id, error) in [
+      ('cut-off', 'DioException [connection error]: Connection reset'),
+      ('empty', 'Bad state: This chapter has no pages'),
+    ]) {
+      await store.saveTask(DownloadTask(
+        bookId: id,
+        seriesId: 's1',
+        seriesTitle: 'S',
+        title: id,
+        totalPages: 2,
+        state: DownloadState.failed,
+        error: error,
+        serverId: 'srv',
+      ));
+    }
+
+    final manager = _track(DownloadManager(store: store));
+    await manager.resumePending({'srv': _FakeBackend()});
+    await _waitUntil(
+        () => store.getTask('cut-off')!.state == DownloadState.done);
+    expect(store.getTask('empty')!.state, DownloadState.failed);
+  });
 }

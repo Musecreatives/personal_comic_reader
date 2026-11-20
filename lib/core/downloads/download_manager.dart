@@ -173,22 +173,36 @@ class DownloadManager {
   /// (and any that were mid-download when the app closed) would sit waiting
   /// for a tap. Re-attach each to its server's backend and carry on. Tasks
   /// for a server that no longer exists, or predates server tracking, are
-  /// left for the user to resume.
+  /// left for the user to resume. Also run when the app comes back to the
+  /// foreground: iOS cuts the connection off when it suspends the app, so
+  /// downloads that failed on a network error are retried too.
   Future<void> resumePending(Map<String, ReaderBackend> byServer) async {
     for (final t in store.listTasks()) {
-      if (t.state != DownloadState.queued && t.state != DownloadState.running) {
+      final cutOff = t.state == DownloadState.failed && _isNetworkError(t.error);
+      if (t.state != DownloadState.queued &&
+          t.state != DownloadState.running &&
+          !cutOff) {
         continue;
       }
       final backend = byServer[t.serverId];
       if (backend == null || _running.contains(t.bookId)) continue;
       _backends[t.bookId] = backend;
-      if (t.state == DownloadState.running) {
+      if (t.state != DownloadState.queued) {
         await store.saveTask(t.copyWith(state: DownloadState.queued));
       }
     }
     _notify();
     await _pump();
   }
+
+  /// Dio and socket errors (timeouts, dropped connections), not a chapter
+  /// that genuinely has no pages.
+  static bool _isNetworkError(String? error) =>
+      error != null &&
+      (error.contains('DioException') ||
+          error.contains('SocketException') ||
+          error.contains('HttpException') ||
+          error.contains('Connection'));
 
   Future<void> _pump() async {
     while (_activeCount < concurrency) {

@@ -37,7 +37,10 @@ class _SyncSchedulerState extends ConsumerState<SyncScheduler>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _sync();
+    if (state != AppLifecycleState.resumed) return;
+    _sync();
+    // Downloads cut off while the app was in the background carry on.
+    unawaited(resumeDownloads(ProviderScope.containerOf(context)));
   }
 
   void _sync() {
