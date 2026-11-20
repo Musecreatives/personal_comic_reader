@@ -1,12 +1,46 @@
 # Changelog
 
-## v1.2.0: offline reading, friends, Tachiyomi import (2026-11-17)
+## v1.2.0: offline reading, friends, Tachiyomi import (2026-11-20)
+
+### For friends: what's new in plain words
+
+- **Your own library and progress.** Sign in with your own account on the
+  shared server: what you add, where you stopped and your categories are
+  yours alone, not mixed up with anyone else's.
+- **Titles with no category** show under **Default**, so nothing looks missing.
+- **Pick the category when you add a title** from Search or Recommendations.
+- **Backup sources are yours to switch off** for any title. If a chapter
+  won't load from its main source the app tries a backup; turn that off for
+  a title and it won't for you.
+- **Bring your old library over** from Tachiyomi or Mihon: Settings → import
+  a `.tachibk` backup.
+- **Sign out** is in Settings.
+- **Downloaded chapters open with no connection**, and they're listed under
+  Downloads → On device. Open a title once while online after updating so
+  the app can keep a copy of its chapter list.
+- **No more false "you're offline" bar** on iPhone, for example while the
+  VPN is reconnecting. The app asks the server before it says offline.
+- **Fixed: the iPhone app stayed on a blank screen** when you had a lot of
+  downloads or had read a lot of chapters. It opens normally again and your
+  downloads are kept.
+- **Downloads are faster, and Pause / Remove now actually stop a chapter**
+  that's downloading (before, it kept going or came back).
+- **Skip split chapters** when downloading: leaves out extras like 12.1 and
+  12.2 when the series already has a whole chapter 12, so you don't waste
+  space or time on repeats.
+- **Friendlier launch:** the iPhone/iPad opening screen is navy instead of a
+  white flash, and if the app ever can't start it tells you why on screen.
+
+### Details
 
 - **Downloads read offline**: a title's details and chapter list are saved
   each time it opens, so with no connection it opens from that copy straight
   away instead of spinning until a timeout. Offline, a title shows only the
   chapters on the device. Open a title once while online after updating so
   its copy is saved.
+- **Offline banner waits for the server**: iOS reports no network before it
+  has checked, and while a VPN such as Tailscale (re)connects. The banner
+  now asks the active server first and looks again every 15 s while offline.
 - **Downloads → On device** opens the title when you tap it, and counts only
   finished chapters. Chapter rows say ON DEVICE even after you've read them.
 - **Offline bar** redrawn in the app's style: amber, under the status bar,
